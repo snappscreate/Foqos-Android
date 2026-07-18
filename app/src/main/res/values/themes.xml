@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Window theme used before Compose takes over rendering (splash background,
+        status/navigation bar). Actual UI theming lives in ui/theme/Theme.kt (Compose Material3).
+    -->
+    <style name="Theme.Foqos" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">@color/foqos_window_background</item>
+    </style>
+</resources>

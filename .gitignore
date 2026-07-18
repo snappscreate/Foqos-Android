@@ -1,0 +1,26 @@
+# Source archives used as reference during development
+*.zip
+
+# Gradle
+.gradle/
+build/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+captures/
+.navigation/
+
+# Local configuration (SDK path, signing)
+local.properties
+keystore.properties
+*.keystore
+*.jks
+
+# Kotlin
+.kotlin/
+
+# OS
+.DS_Store

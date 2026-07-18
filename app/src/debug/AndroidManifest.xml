@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DEBUG-ONLY manifest overlay, merged into debug builds only (never release): registers
+  DebugCommandReceiver, which lets `adb shell am broadcast` seed a temporary blocking profile and
+  force-start/stop a session for manual/emulator smoke testing of Phase 5 enforcement, since there
+  is no in-app UI yet to create a profile. See DebugCommandReceiver's kdoc for the exact commands.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <!-- Intentionally exported with no permission: local adb-only debug diagnostic entry point. -->
+        <receiver
+            android:name=".receiver.DebugCommandReceiver"
+            android:exported="true"
+            tools:ignore="ExportedReceiver">
+            <intent-filter>
+                <action android:name="com.foqos.android.DEBUG_CMD" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>

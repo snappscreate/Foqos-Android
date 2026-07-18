@@ -2,4 +2,210 @@
 <resources>
     <string name="app_name">Foqos</string>
     <string name="accessibility_service_description">Foqos reads only the package name of the app currently in the foreground, and - only inside the browsers it supports - the text shown in the address bar. This is used solely to block the apps and websites you selected in a focus profile. No data is collected, stored remotely, or transmitted anywhere; Foqos does not use the internet.</string>
+
+    <!-- Permissions checklist (shared by Onboarding and Settings) -->
+    <string name="permission_accessibility_title">Accessibility service</string>
+    <string name="permission_accessibility_description">Lets Foqos detect and block the apps and websites in your active profile.</string>
+    <string name="permission_usage_access_title">Usage access</string>
+    <string name="permission_usage_access_description">Backup detection of the foreground app when accessibility is unavailable.</string>
+    <string name="permission_overlay_title">Display over other apps</string>
+    <string name="permission_overlay_description">Needed to show the block screen on top of a blocked app.</string>
+    <string name="permission_notifications_title">Notifications</string>
+    <string name="permission_notifications_description">Shows the ongoing focus-session status while blocking is active.</string>
+    <string name="permission_exact_alarms_title">Exact alarms</string>
+    <string name="permission_exact_alarms_description">Keeps timers, breaks and schedules firing precisely on time.</string>
+    <string name="permission_battery_title">Battery optimization exemption</string>
+    <string name="permission_battery_description">Prevents the system from killing Foqos while a session is active.</string>
+    <string name="permission_nfc_title">NFC</string>
+    <string name="permission_nfc_description">Required for NFC-tag based strategies.</string>
+    <string name="permission_strongly_recommended">Strongly recommended</string>
+    <string name="permission_fix_action">Fix</string>
+    <string name="permission_app_info_action">App info</string>
+    <string name="permission_restricted_settings_title">Toggle greyed out?</string>
+    <string name="permission_restricted_settings_body">On Android 13+, open App info → tap ⋮ (top right) → \"Allow restricted settings\", then try again.</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_back">Back</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_get_started">Get started</string>
+    <string name="onboarding_tagline">Focus with intention</string>
+    <string name="onboarding_welcome_body">Foqos helps you block distracting apps and websites on your own terms - start a focus session with a tap, an NFC tag, or a QR code, and stay off the apps that pull you away.</string>
+    <string name="onboarding_features_title">What Foqos can do</string>
+    <string name="onboarding_feature_strategies_title">NFC and QR strategies</string>
+    <string name="onboarding_feature_strategies_body">Tap a tag or scan a code to start and stop a session - makes starting and stopping more deliberate.</string>
+    <string name="onboarding_feature_schedules_title">Schedules</string>
+    <string name="onboarding_feature_schedules_body">Set a weekly schedule so a profile blocks automatically at the same times every week.</string>
+    <string name="onboarding_feature_insights_title">Insights</string>
+    <string name="onboarding_feature_insights_body">Track your focus time with weekly, monthly and heatmap charts for every profile.</string>
+    <string name="onboarding_permissions_title">Set up permissions</string>
+    <string name="onboarding_permissions_body">Foqos needs a few permissions to actually block apps and websites. Accessibility and usage access are strongly recommended - the others improve reliability. You can continue and finish this later in Settings.</string>
+
+    <!-- Common actions -->
+    <string name="action_edit">Edit</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_add">Add</string>
+    <string name="action_done">Done</string>
+
+    <!-- Home -->
+    <string name="home_settings_action">Settings</string>
+    <string name="home_create_profile_action">Create profile</string>
+    <string name="home_alert_permissions_missing">Foqos needs Accessibility or Usage access to block apps. Tap to fix.</string>
+    <string name="home_alert_schedule_out_of_sync">A profile\'s schedule says it should be blocking right now, but no session is active.</string>
+    <string name="home_activity_title">Activity</string>
+    <string name="home_chart_type_action">Chart type</string>
+    <string name="chart_type_heatmap">Heatmap (28 days)</string>
+    <string name="chart_type_weekly">Weekly</string>
+    <string name="chart_type_monthly">Monthly</string>
+    <string name="home_empty_title">No focus profiles yet</string>
+    <string name="home_empty_body">Create a profile to choose what to block and how to start and stop your focus sessions.</string>
+    <string name="home_empty_cta">Create your first profile</string>
+    <string name="home_start_action">Start</string>
+    <string name="home_stop_action">Stop</string>
+    <string name="home_profile_menu_action">More options</string>
+    <string name="home_menu_insights">Insights</string>
+    <string name="home_menu_duplicate">Duplicate</string>
+    <string name="home_delete_profile_title">Delete profile?</string>
+    <string name="home_delete_profile_message">"This will permanently delete \"%1$s\" and its session history."</string>
+    <string name="home_open_session_action">Open</string>
+
+    <!-- Active session -->
+    <string name="active_session_break_action">Take a break</string>
+    <string name="active_session_stop_action">Stop</string>
+    <string name="active_session_emergency_action">Emergency unblock</string>
+    <string name="active_session_break_active_chip">Break - %1$s left</string>
+    <string name="active_session_pause_active_chip">Paused</string>
+    <string name="active_session_break_sheet_title">Take a break?</string>
+    <string name="active_session_break_sheet_body">You have %1$s of break time remaining for this session. Blocking pauses until the break ends.</string>
+    <string name="active_session_break_confirm">Start break</string>
+    <string name="active_session_end_break_action">End break early</string>
+    <string name="active_session_emergency_sheet_title">Emergency unblock</string>
+    <string name="active_session_emergency_sheet_body">This immediately ends your session, bypassing your chosen strategy. You have %1$d emergency unblock(s) left. Tap the button 3 times to confirm - this is intentionally not a single tap.</string>
+    <string name="active_session_emergency_progress">Tapped %1$d of 3</string>
+    <string name="active_session_emergency_none_left">No emergency unblocks remaining.</string>
+    <string name="active_session_remaining_label">remaining</string>
+    <string name="active_session_elapsed_label">focused</string>
+
+    <string-array name="focus_messages">
+        <item>Stay focused on your tasks</item>
+        <item>One task at a time</item>
+        <item>Progress happens one step at a time</item>
+        <item>Deep work yields great results</item>
+        <item>Stay in the moment</item>
+        <item>Focus is your superpower</item>
+        <item>Flow state activated</item>
+        <item>Silence distractions, amplify focus</item>
+        <item>Your attention is precious</item>
+        <item>Present moment, powerful mind</item>
+        <item>Build momentum through focus</item>
+        <item>Make each minute matter</item>
+        <item>Small focused steps, big results</item>
+        <item>Quality focus beats quantity</item>
+        <item>Invest your attention wisely</item>
+        <item>Concentrate on what matters most</item>
+        <item>Protect your attention</item>
+        <item>Clear mind, clear focus</item>
+        <item>Be intentional with your time</item>
+        <item>Discipline creates freedom</item>
+    </string-array>
+
+    <!-- App picker -->
+    <string name="app_picker_title">Choose apps</string>
+    <string name="app_picker_allow_mode_title">Allow mode</string>
+    <string name="app_picker_allow_mode_on_body">Only the selected apps stay open - everything else is blocked.</string>
+    <string name="app_picker_allow_mode_off_body">The selected apps are blocked - everything else stays open.</string>
+    <string name="app_picker_search_label">Search apps</string>
+
+    <!-- Profile editor -->
+    <string name="action_continue_anyway">Continue anyway</string>
+    <string name="profile_edit_title_new">New profile</string>
+    <string name="profile_edit_title_edit">Edit profile</string>
+    <string name="profile_edit_more_actions">More actions</string>
+    <string name="profile_edit_write_nfc_tag">Write NFC tag</string>
+    <string name="profile_edit_show_qr_code">Show QR code</string>
+    <string name="profile_edit_name_label">Profile name</string>
+    <string name="profile_edit_strategy_title">Blocking strategy</string>
+    <string name="profile_edit_timer_duration_label">Duration: %1$d minutes</string>
+    <string name="profile_edit_hide_stop_button_label">Hide Stop button until timer ends</string>
+    <string name="profile_edit_pause_duration_label">Pause duration: %1$d minutes</string>
+    <string name="profile_edit_soft_unblock_access_label">Access duration: %1$d minutes</string>
+    <string name="profile_edit_soft_unblock_max_opens_label">Max opens: %1$d</string>
+    <string name="profile_edit_apps_title">Apps</string>
+    <string name="profile_edit_apps_count_singular">1 app selected</string>
+    <string name="profile_edit_apps_count_plural">%1$d apps selected</string>
+    <string name="profile_edit_websites_title">Websites</string>
+    <string name="profile_edit_websites_allow_mode_label">Allow mode (block everything except these)</string>
+    <string name="profile_edit_add_domain">Add domain</string>
+    <string name="profile_edit_domain_field_label">Domain (e.g. reddit.com)</string>
+    <string name="profile_edit_physical_unlocks_title">Physical unlocks</string>
+    <string name="profile_edit_physical_unlocks_save_first">Save this profile first to add NFC tags or QR codes here.</string>
+    <string name="profile_edit_schedule_title">Schedule</string>
+    <string name="profile_edit_schedule_enable_label">Block automatically on a weekly schedule</string>
+    <string name="profile_edit_schedule_start">Start %1$02d:%2$02d</string>
+    <string name="profile_edit_schedule_end">End %1$02d:%2$02d</string>
+    <string name="profile_edit_breaks_title">Breaks</string>
+    <string name="profile_edit_breaks_enable_label">Allow breaks during a session</string>
+    <string name="profile_edit_breaks_allow_multiple_label">Allow multiple breaks (share one allowance)</string>
+    <string name="profile_edit_protection_title">Session protection</string>
+    <string name="profile_edit_strict_mode_label">Strict mode</string>
+    <string name="profile_edit_strict_mode_body">Foqos will steer you away from Settings during a session - best effort on Android.</string>
+    <string name="profile_edit_block_installs_label">Block app installs</string>
+    <string name="profile_edit_block_installs_body">Prevents installing or uninstalling apps while this session is active.</string>
+    <string name="profile_edit_require_app_stop_label">Require app to stop</string>
+    <string name="profile_edit_require_app_stop_body">Only stopping from inside Foqos works - a background deep link/shortcut cannot stop this session.</string>
+    <string name="profile_edit_emergency_unblock_label">Allow emergency unblock</string>
+    <string name="profile_edit_emergency_unblock_body">Lets you use the shared emergency-unblock allowance to end a session early.</string>
+    <string name="profile_edit_nfc_warning_title">Before you write</string>
+    <string name="profile_edit_nfc_warning_body">"You already use an NFC tag as a physical unlock for \"%1$s\". Do not write over that unlock tag - rewriting it can change what Foqos reads later and may stop this profile from unlocking. You do not need to create another tag for this profile."</string>
+    <string name="profile_edit_nfc_hold_tag">Hold your phone near the NFC tag</string>
+    <string name="profile_edit_nfc_success">Tag written successfully</string>
+    <string name="profile_edit_qr_hint">Scan this code with Foqos to start or stop this profile.</string>
+
+    <!-- Insights -->
+    <string name="insights_title">Insights</string>
+    <string name="insights_filter_this_week">This week</string>
+    <string name="insights_filter_last_week">Last week</string>
+    <string name="insights_filter_this_month">This month</string>
+    <string name="insights_filter_last_month">Last month</string>
+    <string name="insights_filter_all">All</string>
+    <string name="insights_total_focus">Focus time</string>
+    <string name="insights_total_break">Break time</string>
+    <string name="insights_total_sessions">Sessions</string>
+    <string name="insights_delete_all">Delete all sessions</string>
+    <string name="insights_delete_all_confirm_title">Delete all sessions?</string>
+    <string name="insights_delete_all_confirm_body">This permanently deletes this profile\'s entire session history. This cannot be undone.</string>
+    <string name="insights_delete_session_title">Delete session?</string>
+    <string name="insights_delete_session_body">This permanently deletes this session from the history.</string>
+    <string name="insights_session_duration">Duration: %1$s</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_theme_title">Appearance</string>
+    <string name="settings_dark_mode_system">System</string>
+    <string name="settings_dark_mode_light">Light</string>
+    <string name="settings_dark_mode_dark">Dark</string>
+    <string name="settings_permissions_title">Permissions</string>
+    <string name="settings_emergency_title">Emergency unblock</string>
+    <string name="settings_emergency_remaining">%1$d emergency unblock(s) remaining</string>
+    <string name="settings_emergency_reset_interval">Reset allowance every</string>
+    <string name="settings_data_title">Data</string>
+    <string name="settings_export_data">Export session data (CSV)</string>
+    <string name="settings_danger_title">Troubleshooting</string>
+    <string name="settings_reset_blocking_state">Reset blocking state</string>
+    <string name="settings_reset_confirm_title">Reset blocking state?</string>
+    <string name="settings_reset_confirm_body">Force-ends any active session, clears all blocking state, and cancels all scheduled alarms. Use this if blocking has gotten stuck.</string>
+    <string name="settings_about_title">About</string>
+    <string name="settings_version">Version %1$s</string>
+    <string name="settings_attribution">Android port of Foqos by Ali Waseem, MIT license.</string>
+
+    <!-- Export -->
+    <string name="export_title">Export data</string>
+    <string name="export_profiles_label">Profiles to include</string>
+    <string name="export_profiles_hint">Choose which profiles\' session history to export.</string>
+    <string name="export_use_utc_label">Use UTC timestamps (off = local time)</string>
+    <string name="export_sort_ascending">Oldest first</string>
+    <string name="export_sort_descending">Newest first</string>
+    <string name="export_action">Export CSV</string>
+    <string name="export_success">Export saved</string>
 </resources>

@@ -6,24 +6,22 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.lifecycleScope
+import com.foqos.android.data.datastore.SettingsDataStore
 import com.foqos.android.data.repository.ProfileRepository
 import com.foqos.android.domain.session.SessionManager
 import com.foqos.android.service.nfc.NfcForegroundDispatchManager
 import com.foqos.android.service.nfc.ProfileLinkCodec
+import com.foqos.android.ui.navigation.FoqosNavHost
 import com.foqos.android.ui.strategyflow.StrategyFlowHost
 import com.foqos.android.ui.theme.FoqosTheme
+import com.foqos.android.ui.theme.PRESET_SEED_COLORS
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.launch
@@ -49,6 +47,8 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var nfcDispatchManager: NfcForegroundDispatchManager
 
+    @Inject lateinit var settingsDataStore: SettingsDataStore
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -56,9 +56,19 @@ class MainActivity : ComponentActivity() {
         handleIncomingIntent(intent)
 
         setContent {
-            FoqosTheme {
+            val themeColorIndex by settingsDataStore.themeColorIndex.collectAsStateWithLifecycle(initialValue = SettingsDataStore.DEFAULT_THEME_COLOR_INDEX)
+            val darkModeOverride by settingsDataStore.darkModeOverride.collectAsStateWithLifecycle(initialValue = SettingsDataStore.DEFAULT_DARK_MODE_OVERRIDE)
+            val systemDark = isSystemInDarkTheme()
+            val darkTheme = when (darkModeOverride) {
+                "light" -> false
+                "dark" -> true
+                else -> systemDark
+            }
+            val seedColor = PRESET_SEED_COLORS.getOrNull(themeColorIndex)
+
+            FoqosTheme(darkTheme = darkTheme, dynamicColor = seedColor == null, seedColor = seedColor) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    FoqosApp()
+                    FoqosNavHost(sessionManager = sessionManager, settingsDataStore = settingsDataStore)
                     StrategyFlowHost(
                         sessionManager = sessionManager,
                         profileRepository = profileRepository,
@@ -109,36 +119,5 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             sessionManager.toggleFromDeeplink(profileId, fromBackground = false)
         }
-    }
-}
-
-@Composable
-private fun FoqosApp() {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
-    ) {
-        Scaffold { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Foqos",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun FoqosAppPreview() {
-    FoqosTheme {
-        FoqosApp()
     }
 }

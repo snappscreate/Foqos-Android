@@ -380,6 +380,31 @@ class SessionManager @Inject constructor(
     }
 
     /**
+     * Panic-button reset for the Settings screen: force-ends any active session (bypassing its
+     * configured strategy entirely, unlike [stopActiveSession]), clears [BlockingStateHolder], and
+     * cancels every alarm tracked for every stored profile plus the global emergency-allowance
+     * reset alarm. Used when a user's blocking state has gotten stuck and they just want a clean
+     * slate.
+     */
+    suspend fun resetAllState() {
+        val current = _activeSession.value
+        if (current != null) {
+            sessionRepository.endSession(current.id, Instant.now())
+            sessionServiceController.stopForegroundService(current.id)
+        }
+
+        blockingStateHolder.clear()
+        _activeSession.value = null
+        _activeProfile.value = null
+
+        val allProfiles = profileRepository.observeAll().first()
+        allProfiles.forEach { profile -> alarmScheduler.cancelAllForProfile(profile.id) }
+        alarmScheduler.cancel(AlarmActivityType.EMERGENCY_ALLOWANCE_RESET, EMERGENCY_ALLOWANCE_KEY)
+
+        widgetRefresher.refresh()
+    }
+
+    /**
      * Rebuilds [activeSession]/[activeProfile]/[BlockingStateHolder] from persisted state after a
      * process restart (app cold start, or [com.foqos.android.receiver.BootReceiver] after a
      * device reboot), and restarts the foreground service if a session is still active. Grants

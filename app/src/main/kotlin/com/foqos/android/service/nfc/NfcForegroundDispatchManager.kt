@@ -42,6 +42,15 @@ class NfcForegroundDispatchManager @Inject constructor() {
     /** Tags scanned while [setWaitingForScan] is true - collected by whichever sheet requested a scan. */
     val tagScans: SharedFlow<NfcTagContent> = _tagScans.asSharedFlow()
 
+    private val _rawTagScans = MutableSharedFlow<Tag>(extraBufferCapacity = 1)
+
+    /**
+     * The raw [Tag] behind every scan emitted on [tagScans] while [setWaitingForScan] is true -
+     * needed (unlike the parsed [NfcTagContent]) by [com.foqos.android.service.nfc.NfcTagWriter],
+     * which writes directly to a freshly-discovered [Tag] connection.
+     */
+    val rawTagScans: SharedFlow<Tag> = _rawTagScans.asSharedFlow()
+
     private val waitingForScan = AtomicBoolean(false)
 
     /**
@@ -100,6 +109,7 @@ class NfcForegroundDispatchManager @Inject constructor() {
 
         if (waitingForScan.get()) {
             _tagScans.tryEmit(content)
+            _rawTagScans.tryEmit(tag)
             return
         }
 

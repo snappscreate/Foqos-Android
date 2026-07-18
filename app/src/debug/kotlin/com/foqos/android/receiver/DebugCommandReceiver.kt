@@ -13,6 +13,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -50,6 +51,8 @@ class DebugCommandReceiver : BroadcastReceiver() {
             try {
                 when (cmd) {
                     CMD_SEED_AND_START -> seedAndStart()
+                    CMD_SEED_ONLY -> seedOnly()
+                    CMD_PRINT_PROFILES -> printProfiles()
                     CMD_STOP -> stop()
                     else -> Log.w(TAG, "Unknown debug cmd: $cmd")
                 }
@@ -62,6 +65,17 @@ class DebugCommandReceiver : BroadcastReceiver() {
     }
 
     private suspend fun seedAndStart() {
+        val profile = seedOnly()
+        sessionManager.toggleFromDeeplink(profile.id, fromBackground = false)
+    }
+
+    /**
+     * Phase 6 addition: seeds a profile (Manual strategy, so a deep-link toggle works without any
+     * strategy UI) but does NOT start a session - lets `adb shell am start -a
+     * android.intent.action.VIEW -d "foqos://profile/$DEBUG_PROFILE_ID"` be the thing that starts
+     * it, exercising the real deep-link path end to end.
+     */
+    private suspend fun seedOnly(): BlockedProfile {
         val profile = profileRepository.create(
             BlockedProfile(
                 id = DEBUG_PROFILE_ID,
@@ -70,7 +84,18 @@ class DebugCommandReceiver : BroadcastReceiver() {
                 strategyId = ManualBlockingStrategy.ID,
             ),
         )
-        sessionManager.toggleFromDeeplink(profile.id, fromBackground = false)
+        Log.i(TAG, "Seeded debug profile id=${profile.id}")
+        return profile
+    }
+
+    /** Phase 6 addition: logs every stored profile id/name so a real uuid can be grabbed from logcat. */
+    private suspend fun printProfiles() {
+        val profiles = profileRepository.observeAll().first()
+        if (profiles.isEmpty()) {
+            Log.i(TAG, "No profiles stored")
+            return
+        }
+        profiles.forEach { profile -> Log.i(TAG, "profile id=${profile.id} name=${profile.name} strategyId=${profile.strategyId}") }
     }
 
     private suspend fun stop() {
@@ -83,6 +108,8 @@ class DebugCommandReceiver : BroadcastReceiver() {
         private const val TAG = "DebugCommandReceiver"
         const val EXTRA_CMD = "cmd"
         const val CMD_SEED_AND_START = "seed_and_start"
+        const val CMD_SEED_ONLY = "seed_only"
+        const val CMD_PRINT_PROFILES = "print_profiles"
         const val CMD_STOP = "stop"
         const val DEBUG_PROFILE_ID = "debug-seed-profile"
     }

@@ -77,6 +77,7 @@ object ProfileLinkCodec {
     private const val HTTPS_SCHEME = "https"
     private const val HTTPS_HOST = "foqos.app"
     private const val PATH_SEGMENT = "profile"
+    private const val NAVIGATE_PATH_SEGMENT = "navigate"
 
     /** Builds the canonical `foqos://profile/{profileId}` link written to Android-created tags/QR codes. */
     fun buildProfileUri(profileId: String): String = "$SCHEME://$PATH_SEGMENT/$profileId"
@@ -87,7 +88,17 @@ object ProfileLinkCodec {
      * tolerating a trailing slash on either form. Returns null for anything else (wrong
      * scheme/host, missing/blank id, extra path segments, or an unparseable string).
      */
-    fun parseProfileId(uriString: String): String? {
+    fun parseProfileId(uriString: String): String? = parseId(uriString, PATH_SEGMENT)
+
+    /**
+     * Phase 8 addition, iOS parity: extracts the profile id from a "just open the app, don't
+     * toggle anything" link - `foqos://navigate/{uuid}` or `https://foqos.app/navigate/{uuid}`.
+     * Callers use this only to validate/log the link; unlike [parseProfileId] its result is never
+     * fed into [com.foqos.android.domain.session.SessionManager.toggleFromDeeplink].
+     */
+    fun parseNavigateProfileId(uriString: String): String? = parseId(uriString, NAVIGATE_PATH_SEGMENT)
+
+    private fun parseId(uriString: String, pathSegment: String): String? {
         val trimmedInput = uriString.trim()
         if (trimmedInput.isEmpty()) return null
 
@@ -100,14 +111,14 @@ object ProfileLinkCodec {
         val scheme = uri.scheme?.lowercase() ?: return null
         return when (scheme) {
             SCHEME -> {
-                // foqos://profile/{id} parses with host="profile", path="/{id}".
-                if (uri.host?.lowercase() != PATH_SEGMENT) return null
+                // foqos://{pathSegment}/{id} parses with host="{pathSegment}", path="/{id}".
+                if (uri.host?.lowercase() != pathSegment) return null
                 singlePathSegment(uri.path)
             }
             HTTPS_SCHEME -> {
                 if (uri.host?.lowercase() != HTTPS_HOST) return null
                 val segments = uri.path?.trim('/')?.split('/').orEmpty()
-                if (segments.size != 2 || segments[0] != PATH_SEGMENT) return null
+                if (segments.size != 2 || segments[0] != pathSegment) return null
                 segments[1].takeIf { it.isNotBlank() }
             }
             else -> null

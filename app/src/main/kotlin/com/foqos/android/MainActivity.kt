@@ -34,7 +34,9 @@ import kotlinx.coroutines.launch
  *    screen.
  *  - A cold-launch NFC intent (`ACTION_NDEF_DISCOVERED`) or a plain deep link
  *    (`ACTION_VIEW` on `foqos://profile/{id}` / `https://foqos.app/profile/{id}`) both resolve to
- *    the same [SessionManager.toggleFromDeeplink] call.
+ *    the same [SessionManager.toggleFromDeeplink] call. The `navigate` variant
+ *    (`foqos://navigate/{id}` / `https://foqos.app/navigate/{id}`, iOS parity) is deliberately
+ *    inert here - it just opens the app to the home screen without toggling anything.
  *  - [StrategyFlowHost] is mounted at the composition root so any in-app strategy start/stop that
  *    needs a scan/duration-pick/config sheet gets one, regardless of which screen is showing.
  */
@@ -109,8 +111,14 @@ class MainActivity : ComponentActivity() {
             -> nfcDispatchManager.handleIntent(intent) { profileId -> toggleProfile(profileId) }
 
             Intent.ACTION_VIEW -> {
-                val profileId = intent.dataString?.let(ProfileLinkCodec::parseProfileId)
-                if (profileId != null) toggleProfile(profileId)
+                val data = intent.dataString
+                val profileId = data?.let(ProfileLinkCodec::parseProfileId)
+                if (profileId != null) {
+                    toggleProfile(profileId)
+                }
+                // Phase 8, iOS parity: `foqos://navigate/{id}` / `https://foqos.app/navigate/{id}`
+                // just opens the app to the home screen - intentionally does NOT toggle anything.
+                // No further action needed here; FoqosNavHost already shows home by default.
             }
         }
     }

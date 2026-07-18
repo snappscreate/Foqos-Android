@@ -12,6 +12,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.foqos.android.MainActivity
 import com.foqos.android.R
+import com.foqos.android.receiver.NotificationActionReceiver
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -48,6 +49,20 @@ class SessionNotificationManager @Inject constructor(
             else -> "Focusing"
         }
 
+        // Phase 8: lets a user stop the session straight from the notification shade without
+        // opening the app. Handled by NotificationActionReceiver, which forwards to
+        // SessionManager.stopActiveSession(fromBackground = true) - so this button is a no-op
+        // (silently refused, notification unchanged) on a profile with `disableBackgroundStops` set.
+        val stopIntent = Intent(context, NotificationActionReceiver::class.java).apply {
+            action = NotificationActionReceiver.ACTION_STOP_SESSION
+        }
+        val stopPendingIntent = PendingIntent.getBroadcast(
+            context,
+            0,
+            stopIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+
         return NotificationCompat.Builder(context, NotificationChannels.SESSION_CHANNEL_ID)
             .setContentTitle(profileName)
             .setContentText(statusText)
@@ -56,6 +71,7 @@ class SessionNotificationManager @Inject constructor(
             .setUsesChronometer(true)
             .setWhen(startedAtEpochMillis)
             .setContentIntent(contentIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPendingIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()

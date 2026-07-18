@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Foqos</string>
+    <string name="profile_widget_description">Start or stop your pinned focus profile from the home screen.</string>
     <string name="accessibility_service_description">Foqos reads only the package name of the app currently in the foreground, and - only inside the browsers it supports - the text shown in the address bar. This is used solely to block the apps and websites you selected in a focus profile. No data is collected, stored remotely, or transmitted anywhere; Foqos does not use the internet.</string>
 
     <!-- Permissions checklist (shared by Onboarding and Settings) -->

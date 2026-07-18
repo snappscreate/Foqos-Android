@@ -1,0 +1,385 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "0616ae81595c4d73509df38b69b5e4cf",
+    "entities": [
+      {
+        "tableName": "blocked_profiles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `blocked_packages_json` TEXT NOT NULL, `allow_mode_enabled` INTEGER NOT NULL, `domains_json` TEXT, `allow_mode_domains` INTEGER NOT NULL, `strategy_id` TEXT, `strategy_data_json` TEXT, `sort_order` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, `reminder_time_in_seconds` INTEGER, `custom_reminder_message` TEXT, `enable_breaks` INTEGER NOT NULL, `break_time_in_minutes` INTEGER NOT NULL, `allow_multiple_breaks` INTEGER NOT NULL, `enable_strict_mode` INTEGER NOT NULL, `enable_block_app_installation` INTEGER NOT NULL, `physical_unblock_items_json` TEXT, `schedule_json` TEXT, `disable_background_stops` INTEGER NOT NULL, `enable_emergency_unblock` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "blockedPackagesJson",
+            "columnName": "blocked_packages_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "allowModeEnabled",
+            "columnName": "allow_mode_enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "domainsJson",
+            "columnName": "domains_json",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "allowModeDomains",
+            "columnName": "allow_mode_domains",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "strategyId",
+            "columnName": "strategy_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "strategyDataJson",
+            "columnName": "strategy_data_json",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sort_order",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reminderTimeInSeconds",
+            "columnName": "reminder_time_in_seconds",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "customReminderMessage",
+            "columnName": "custom_reminder_message",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "enableBreaks",
+            "columnName": "enable_breaks",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "breakTimeInMinutes",
+            "columnName": "break_time_in_minutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "allowMultipleBreaks",
+            "columnName": "allow_multiple_breaks",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enableStrictMode",
+            "columnName": "enable_strict_mode",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enableBlockAppInstallation",
+            "columnName": "enable_block_app_installation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "physicalUnblockItemsJson",
+            "columnName": "physical_unblock_items_json",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "scheduleJson",
+            "columnName": "schedule_json",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "disableBackgroundStops",
+            "columnName": "disable_background_stops",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enableEmergencyUnblock",
+            "columnName": "enable_emergency_unblock",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "blocked_profile_sessions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `profile_id` TEXT NOT NULL, `tag` TEXT NOT NULL, `start_time` INTEGER NOT NULL, `end_time` INTEGER, `break_start_time` INTEGER, `break_end_time` INTEGER, `used_break_duration_in_seconds` INTEGER NOT NULL, `pause_start_time` INTEGER, `pause_end_time` INTEGER, `force_started` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`profile_id`) REFERENCES `blocked_profiles`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileId",
+            "columnName": "profile_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tag",
+            "columnName": "tag",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startTime",
+            "columnName": "start_time",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endTime",
+            "columnName": "end_time",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "breakStartTime",
+            "columnName": "break_start_time",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "breakEndTime",
+            "columnName": "break_end_time",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "usedBreakDurationInSeconds",
+            "columnName": "used_break_duration_in_seconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pauseStartTime",
+            "columnName": "pause_start_time",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "pauseEndTime",
+            "columnName": "pause_end_time",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "forceStarted",
+            "columnName": "force_started",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_blocked_profile_sessions_profile_id",
+            "unique": false,
+            "columnNames": [
+              "profile_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_blocked_profile_sessions_profile_id` ON `${TABLE_NAME}` (`profile_id`)"
+          },
+          {
+            "name": "index_blocked_profile_sessions_end_time",
+            "unique": false,
+            "columnNames": [
+              "end_time"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_blocked_profile_sessions_end_time` ON `${TABLE_NAME}` (`end_time`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "blocked_profiles",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "profile_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "soft_unblock_grants",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `session_id` TEXT NOT NULL, `profile_id` TEXT NOT NULL, `package_name` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `expires_at` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "session_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileId",
+            "columnName": "profile_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packageName",
+            "columnName": "package_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expiresAt",
+            "columnName": "expires_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_soft_unblock_grants_session_id",
+            "unique": false,
+            "columnNames": [
+              "session_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_soft_unblock_grants_session_id` ON `${TABLE_NAME}` (`session_id`)"
+          },
+          {
+            "name": "index_soft_unblock_grants_profile_id",
+            "unique": false,
+            "columnNames": [
+              "profile_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_soft_unblock_grants_profile_id` ON `${TABLE_NAME}` (`profile_id`)"
+          },
+          {
+            "name": "index_soft_unblock_grants_expires_at",
+            "unique": false,
+            "columnNames": [
+              "expires_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_soft_unblock_grants_expires_at` ON `${TABLE_NAME}` (`expires_at`)"
+          }
+        ]
+      },
+      {
+        "tableName": "soft_unblock_session_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`session_id` TEXT NOT NULL, `profile_id` TEXT NOT NULL, `maximum_unblock_count` INTEGER NOT NULL, `allowance_reset_interval_in_hours` INTEGER, `allowance_window_started_at` INTEGER NOT NULL, `next_allowance_reset_at` INTEGER, `used_unblock_count` INTEGER NOT NULL, PRIMARY KEY(`session_id`))",
+        "fields": [
+          {
+            "fieldPath": "sessionId",
+            "columnName": "session_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileId",
+            "columnName": "profile_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maximumUnblockCount",
+            "columnName": "maximum_unblock_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "allowanceResetIntervalInHours",
+            "columnName": "allowance_reset_interval_in_hours",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "allowanceWindowStartedAt",
+            "columnName": "allowance_window_started_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nextAllowanceResetAt",
+            "columnName": "next_allowance_reset_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "usedUnblockCount",
+            "columnName": "used_unblock_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "session_id"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '0616ae81595c4d73509df38b69b5e4cf')"
+    ]
+  }
+}

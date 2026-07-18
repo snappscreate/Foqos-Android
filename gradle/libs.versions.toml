@@ -25,6 +25,7 @@ zxingCore = "3.5.3"
 
 junit = "4.13.2"
 robolectric = "4.14.1"
+androidxTestCore = "1.6.1"
 androidxTestExtJunit = "1.2.1"
 espresso = "3.6.1"
 truth = "1.4.4"
@@ -68,6 +69,7 @@ zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCo
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
 androidx-test-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 truth = { group = "com.google.truth", name = "truth", version.ref = "truth" }

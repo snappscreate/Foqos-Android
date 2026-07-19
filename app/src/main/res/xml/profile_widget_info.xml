@@ -4,6 +4,7 @@
     MEDIUM_SIZE, which SizeMode.Responsive picks between at render time.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:minWidth="100dp"
     android:minHeight="50dp"
     android:targetCellWidth="2"
@@ -14,4 +15,5 @@
     android:widgetCategory="home_screen"
     android:configure="com.foqos.android.widget.ProfileWidgetConfigActivity"
     android:description="@string/profile_widget_description"
-    android:updatePeriodMillis="1800000" />
+    android:updatePeriodMillis="1800000"
+    tools:ignore="UnusedAttribute" />

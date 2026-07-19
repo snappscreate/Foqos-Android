@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!--
+        Release-hardening (Phase 9) note: the AGP/Gradle/library versions in this project are
+        deliberately pinned for the v1.0.0 release. All 237 unit tests and the manual emulator
+        verification pass (Phases 1-8) were run against these exact versions. Bumping AGP across a
+        major version (8.x -> 9.x) or bumping Compose BOM/Room/lifecycle/etc. this late is a
+        real-regression-risk activity that belongs in its own dedicated update + retest cycle
+        after v1.0.0 ships, not folded into release hardening. These two checks would otherwise
+        flag every one of those pinned versions as "outdated" on every lint run - disabled here
+        with that rationale on record; re-enable once the post-1.0 dependency bump lands.
+    -->
+    <issue id="GradleDependency" severity="ignore" />
+    <issue id="AndroidGradlePluginVersion" severity="ignore" />
+</lint>

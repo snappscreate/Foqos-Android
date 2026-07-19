@@ -1,5 +1,6 @@
 package com.foqos.android.ui.permissions
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Build
 import android.os.PowerManager
@@ -56,6 +57,7 @@ private data class PermissionRowSpec(
  * permissions page and [SettingsScreen]'s permission status list.
  */
 @Composable
+@SuppressLint("BatteryLife")
 fun PermissionsChecklist(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var refreshToken by remember { mutableIntStateOf(0) }
@@ -148,6 +150,13 @@ fun PermissionsChecklist(modifier: Modifier = Modifier) {
             title = stringResource(R.string.permission_battery_title),
             description = stringResource(R.string.permission_battery_description),
             granted = batteryExempt,
+            // Foqos's blocking session relies on a long-running foreground service and an
+            // accessibility service; without a battery-optimization exemption, aggressive OEM
+            // battery managers can kill both mid-session, silently ending the block. This is a
+            // legitimate, disclosed, user-initiated use of the exemption (it is only requested
+            // from this explicit settings row, never on launch), matching the accepted use case
+            // in the Play Console content policy for apps whose core function depends on
+            // uninterrupted background operation. Suppressed via @SuppressLint on this function.
             onFix = {
                 context.startActivity(
                     Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, "package:${context.packageName}".toUri()),

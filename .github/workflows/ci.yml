@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Test, lint & build (debug)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # ubuntu-latest GitHub-hosted runners ship a preinstalled Android SDK with ANDROID_HOME
+      # already set, so no separate SDK setup action is needed here.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission to gradlew
+        run: chmod +x gradlew
+
+      - name: Unit tests, lint, debug build
+        # Release builds are signed locally only - keystore.properties is gitignored and never
+        # present in CI, so there is intentionally no release/signing job here.
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-and-lint-reports
+          path: |
+            app/build/reports/tests
+            app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore

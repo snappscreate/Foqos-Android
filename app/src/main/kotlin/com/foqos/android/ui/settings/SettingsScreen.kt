@@ -39,15 +39,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foqos.android.BuildConfig
 import com.foqos.android.R
+import com.foqos.android.service.diagnostics.CrashLogger
 import com.foqos.android.service.nfc.NfcStatus
 import com.foqos.android.ui.permissions.PermissionsChecklist
 import com.foqos.android.ui.theme.PRESET_SEED_COLORS
+import java.io.File
+import java.text.DateFormat
+import java.util.Date
 
 @Composable
 fun SettingsScreen(
@@ -58,6 +63,7 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showResetConfirm by remember { mutableStateOf(false) }
+    var showCrashLogs by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -137,9 +143,13 @@ fun SettingsScreen(
             }
 
             SettingsSection(title = stringResource(R.string.settings_danger_title)) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     TextButton(onClick = { showResetConfirm = true }) {
                         Text(stringResource(R.string.settings_reset_blocking_state), color = MaterialTheme.colorScheme.error)
+                    }
+                    Text(stringResource(R.string.settings_crash_logs_body), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    TextButton(onClick = { showCrashLogs = true }) {
+                        Text(stringResource(R.string.settings_crash_logs_action))
                     }
                 }
             }
@@ -170,6 +180,68 @@ fun SettingsScreen(
             dismissButton = { TextButton(onClick = { showResetConfirm = false }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
+
+    if (showCrashLogs) {
+        CrashLogsDialog(onDismiss = { showCrashLogs = false })
+    }
+}
+
+/**
+ * Lists the (at most 5) on-device crash logs written by [CrashLogger] and lets the user view/share
+ * one via a standard [android.content.Intent.ACTION_SEND] text share. A plain [Column] (not
+ * [androidx.compose.foundation.lazy.LazyColumn]) is deliberate: this list is always tiny (<= 5
+ * items) and AlertDialog's content slot is already height-bounded, so a lazy list would add
+ * nothing but the risk of the nested-scrollable crash fixed in PhysicalUnlockEditor.
+ */
+@Composable
+private fun CrashLogsDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    var selected by remember { mutableStateOf<File?>(null) }
+    val logs = remember { CrashLogger.listCrashLogs(context) }
+    val dateFormat = remember { DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT) }
+
+    val viewing = selected
+    if (viewing != null) {
+        AlertDialog(
+            onDismissRequest = { selected = null },
+            title = { Text(viewing.name) },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text(text = viewing.readText(), style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_TEXT, viewing.readText())
+                    }
+                    context.startActivity(android.content.Intent.createChooser(shareIntent, viewing.name))
+                }) { Text(stringResource(R.string.settings_crash_logs_share_action)) }
+            },
+            dismissButton = { TextButton(onClick = { selected = null }) { Text(stringResource(R.string.action_done)) } },
+        )
+        return
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_crash_logs_title)) },
+        text = {
+            if (logs.isEmpty()) {
+                Text(stringResource(R.string.settings_crash_logs_empty))
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    logs.forEach { file ->
+                        TextButton(onClick = { selected = file }) {
+                            Text(dateFormat.format(Date(file.lastModified())))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_done)) } },
+    )
 }
 
 @Composable

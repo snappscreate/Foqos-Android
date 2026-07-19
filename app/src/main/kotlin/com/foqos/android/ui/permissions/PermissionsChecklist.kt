@@ -158,9 +158,15 @@ fun PermissionsChecklist(modifier: Modifier = Modifier) {
             // in the Play Console content policy for apps whose core function depends on
             // uninterrupted background operation. Suppressed via @SuppressLint on this function.
             onFix = {
-                context.startActivity(
-                    Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, "package:${context.packageName}".toUri()),
-                )
+                val directIntent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, "package:${context.packageName}".toUri())
+                if (directIntent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(directIntent)
+                } else {
+                    // Some OEM builds don't expose the direct per-app exemption dialog even when
+                    // REQUEST_IGNORE_BATTERY_OPTIMIZATIONS is declared - fall back to the general
+                    // "ignoring battery optimizations" list so the user can still find and grant it.
+                    context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                }
             },
         )
 

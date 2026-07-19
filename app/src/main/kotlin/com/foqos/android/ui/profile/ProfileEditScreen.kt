@@ -225,7 +225,7 @@ fun ProfileEditScreen(
 
     if (showStrategyPicker) {
         com.foqos.android.ui.profile.StrategyPickerSheet(
-            categorized = viewModel.strategyCategories(),
+            strategies = viewModel.pickerStrategies(),
             selectedStrategyId = uiState.draft.strategyId,
             onSelect = { strategy -> viewModel.selectStrategy(strategy); showStrategyPicker = false },
             onDismiss = { showStrategyPicker = false },

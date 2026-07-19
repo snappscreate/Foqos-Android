@@ -3,6 +3,7 @@ package com.foqos.android.service.accessibility
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.os.SystemClock
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import com.foqos.android.domain.session.SessionManager
 import com.foqos.android.service.overlay.BlockOverlayActivity
@@ -57,6 +58,18 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // An uncaught exception thrown from an accessibility service callback kills the whole
+        // service binding - Android/Samsung then surfaces it as a "crashed service" that must be
+        // manually re-toggled in Settings, silently ending enforcement mid-session. This handler
+        // must never let an exception escape; log it and drop the event instead.
+        try {
+            handleAccessibilityEvent(event)
+        } catch (t: Throwable) {
+            Log.e(TAG, "onAccessibilityEvent failed - dropping this event, service stays alive", t)
+        }
+    }
+
+    private fun handleAccessibilityEvent(event: AccessibilityEvent?) {
         if (!connected || event == null) return
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
             event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
@@ -126,6 +139,7 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     companion object {
+        private const val TAG = "ForegroundA11yService"
         private const val OVERLAY_DEBOUNCE_MILLIS = 1_500L
 
         /** Per-browser address-bar view id, used with [android.view.accessibility.AccessibilityNodeInfo.findAccessibilityNodeInfosByViewId]. */

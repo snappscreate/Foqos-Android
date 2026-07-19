@@ -8,6 +8,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!--
+      Without this permission, ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS silently no-ops on some
+      OEM builds (confirmed on Samsung/One UI) instead of showing the exemption dialog, so users
+      can never actually grant it from PermissionsChecklist's "Fix" button. See
+      PermissionsChecklist.kt's battery row and its @SuppressLint("BatteryLife") justification.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Phase 5 blocking enforcement -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />

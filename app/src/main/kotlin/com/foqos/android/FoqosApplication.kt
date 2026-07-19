@@ -2,6 +2,7 @@ package com.foqos.android
 
 import android.app.Application
 import com.foqos.android.domain.session.SessionManager
+import com.foqos.android.service.diagnostics.CrashLogger
 import com.foqos.android.service.notification.NotificationChannels
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -26,6 +27,10 @@ class FoqosApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Installed first, before anything else, so a startup-time crash is captured too - see
+        // CrashLogger's kdoc for why this exists (field crash-loops were previously only
+        // diagnosable via adb logcat on the affected device).
+        CrashLogger.install(this)
         NotificationChannels.createAll(this)
         applicationScope.launch {
             sessionManager.rebuildStateAfterProcessRestart()

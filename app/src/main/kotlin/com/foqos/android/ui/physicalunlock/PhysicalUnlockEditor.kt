@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.IconButton
@@ -22,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -166,9 +165,18 @@ fun PhysicalUnlockEditorContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(items, key = { it.id }) { item ->
-                    PhysicalUnblockItemRow(item = item, onRename = { onRenameRequested(item) }, onDelete = { onDelete(item) })
+            // Plain Column + forEach (not LazyColumn): this composable is embedded inside
+            // ProfileEditScreen's verticalScroll Column, and a LazyColumn nested in a
+            // vertically-scrollable parent throws
+            // "Vertically scrollable component was measured with an infinity maximum height
+            // constraints" (IllegalStateException) as soon as it has content - this was the
+            // crash-loop root cause when opening an existing profile. The item list here is
+            // always short (a handful of NFC tags/QR codes), so a lazy list brings no benefit.
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items.forEach { item ->
+                    key(item.id) {
+                        PhysicalUnblockItemRow(item = item, onRename = { onRenameRequested(item) }, onDelete = { onDelete(item) })
+                    }
                 }
             }
         }

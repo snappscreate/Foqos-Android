@@ -210,6 +210,15 @@ class AccessibilityBlockPolicyTest {
     }
 
     @Test
+    fun `bare host with a leading bidi control char from Samsung Internet still blocks`() {
+        // Samsung Internet's address bar reports its text as a scheme-less host prefixed with a
+        // U+200E LEFT-TO-RIGHT MARK; both quirks must be tolerated or the domain never matches.
+        val s = state(blockedDomains = listOf("youtube.com"))
+        val decision = policy.decideForUrl("com.sec.android.app.sbrowser", "‎m.youtube.com", s, nowMillis = 1_000L)
+        assertThat(decision).isEqualTo(BlockDecision.BlockDomain("com.sec.android.app.sbrowser", "m.youtube.com"))
+    }
+
+    @Test
     fun `allowModeDomains blocks a domain not in the list`() {
         val s = state(blockedDomains = listOf("docs.google.com"), allowModeDomains = true)
         val decision = policy.decideForUrl("com.android.chrome", "https://youtube.com", s, nowMillis = 1_000L)

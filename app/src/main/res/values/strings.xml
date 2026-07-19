@@ -196,6 +196,11 @@
     <string name="settings_reset_blocking_state">Reset blocking state</string>
     <string name="settings_reset_confirm_title">Reset blocking state?</string>
     <string name="settings_reset_confirm_body">Force-ends any active session, clears all blocking state, and cancels all scheduled alarms. Use this if blocking has gotten stuck.</string>
+    <string name="settings_crash_logs_title">Crash logs</string>
+    <string name="settings_crash_logs_body">If Foqos crashes, a copy of the error is saved on-device so you can share it when reporting a problem.</string>
+    <string name="settings_crash_logs_action">View crash logs</string>
+    <string name="settings_crash_logs_empty">No crash logs yet.</string>
+    <string name="settings_crash_logs_share_action">Share</string>
     <string name="settings_about_title">About</string>
     <string name="settings_version">Version %1$s</string>
     <string name="settings_attribution">Android port of Foqos by Ali Waseem, MIT license.</string>

@@ -102,13 +102,31 @@ class AccessibilityBlockPolicy @Inject constructor() {
 
         val SETTINGS_PACKAGES: Set<String> = setOf(
             "com.android.settings",
+            // Samsung/One UI has shipped the Settings app under more than one package name across
+            // versions and shipped SKUs - keep every variant we've seen so strict mode's
+            // Settings redirect can't be bypassed by falling through an unrecognized alias.
             "com.samsung.android.app.settings",
+            "com.samsung.android.settings",
             "com.google.android.settings",
         )
 
         val PACKAGE_INSTALLER_PACKAGES: Set<String> = setOf(
             "com.android.packageinstaller",
             "com.google.android.packageinstaller",
+            "com.samsung.android.packageinstaller",
+        )
+
+        /**
+         * Common OEM launcher packages, always exempt in addition to whatever
+         * [ForegroundAppAccessibilityService.currentLauncherPackageName] resolves at runtime - a
+         * defensive fallback for cases where multiple home apps are installed and
+         * `resolveActivity` returns a chooser/resolver activity instead of the actual launcher
+         * (or returns null). Must include Samsung/One UI's launcher package.
+         */
+        val LAUNCHER_PACKAGES: Set<String> = setOf(
+            "com.sec.android.app.launcher",
+            "com.google.android.apps.nexuslauncher",
+            "com.android.launcher3",
         )
 
         /** Browsers whose address bar [ForegroundAppAccessibilityService] knows how to read. */
@@ -125,9 +143,14 @@ class AccessibilityBlockPolicy @Inject constructor() {
             "org.chromium.chrome",
         )
 
-        /** Builds [DEFAULT_NEVER_BLOCK] plus [launcherPackageName], for callers that resolved it. */
-        fun neverBlockWithLauncher(launcherPackageName: String?): Set<String> =
-            if (launcherPackageName.isNullOrBlank()) DEFAULT_NEVER_BLOCK else DEFAULT_NEVER_BLOCK + launcherPackageName
+        /**
+         * Builds [DEFAULT_NEVER_BLOCK] plus [LAUNCHER_PACKAGES] plus [launcherPackageName] (the
+         * dynamically-resolved current launcher, if any), for callers that resolved it.
+         */
+        fun neverBlockWithLauncher(launcherPackageName: String?): Set<String> {
+            val base = DEFAULT_NEVER_BLOCK + LAUNCHER_PACKAGES
+            return if (launcherPackageName.isNullOrBlank()) base else base + launcherPackageName
+        }
 
         /** Whether [host] is covered by [domainPattern] (exact match, or any subdomain of it). */
         internal fun hostMatchesDomain(host: String, domainPattern: String): Boolean {
@@ -142,7 +165,10 @@ class AccessibilityBlockPolicy @Inject constructor() {
          * can be determined at all.
          */
         internal fun extractHost(rawUrl: String): String? {
-            val trimmed = rawUrl.trim()
+            // Some browsers (notably Samsung Internet) prefix the address-bar text with invisible
+            // bidi/directionality control characters; strip all Unicode format chars (category Cf)
+            // and surrounding whitespace before parsing, or URI parsing silently yields a null host.
+            val trimmed = rawUrl.filterNot { it.isWhitespace() || Character.getType(it) == Character.FORMAT.toInt() }
             if (trimmed.isEmpty()) return null
 
             val withScheme = if (trimmed.contains("://")) trimmed else "https://$trimmed"

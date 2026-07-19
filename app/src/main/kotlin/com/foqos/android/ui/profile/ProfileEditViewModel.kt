@@ -274,6 +274,6 @@ class ProfileEditViewModel @Inject constructor(
         }
     }
 
-    /** All strategies grouped by picker category, in registry order - used by the strategy picker sheet. */
-    fun strategyCategories() = StrategyRegistry.categorized()
+    /** All strategies in registry order - used by the strategy picker sheet, which groups them by mechanism. */
+    fun pickerStrategies() = StrategyRegistry.all
 }

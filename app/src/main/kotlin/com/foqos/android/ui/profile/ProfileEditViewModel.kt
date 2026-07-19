@@ -13,6 +13,7 @@ import com.foqos.android.data.model.StrategyPauseTimerData
 import com.foqos.android.data.model.StrategyTimerData
 import com.foqos.android.data.model.Weekday
 import com.foqos.android.data.repository.ProfileRepository
+import com.foqos.android.domain.session.SessionManager
 import com.foqos.android.domain.strategy.BlockingStrategy
 import com.foqos.android.domain.strategy.ManualBlockingStrategy
 import com.foqos.android.domain.strategy.StrategyRegistry
@@ -44,6 +45,7 @@ class ProfileEditViewModel @Inject constructor(
     val profileRepository: ProfileRepository,
     val nfcDispatchManager: NfcForegroundDispatchManager,
     private val alarmScheduler: FoqosAlarmScheduler,
+    private val sessionManager: SessionManager,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -260,6 +262,11 @@ class ProfileEditViewModel @Inject constructor(
                 alarmScheduler.cancel(AlarmActivityType.SCHEDULE_START, saved.id)
                 alarmScheduler.cancel(AlarmActivityType.SCHEDULE_END, saved.id)
             }
+
+            // If this profile owns the currently running session, re-apply its config so edits
+            // (e.g. turning off website allow-mode) take effect immediately instead of only after
+            // the next session start.
+            sessionManager.refreshActiveProfileConfig(saved.id)
 
             _uiState.update { it.copy(draft = saved, isPersisted = true, saved = true) }
         }

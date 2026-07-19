@@ -144,6 +144,34 @@ class SessionManagerTest {
     }
 
     @Test
+    fun `editing the active profile refreshes the live blocking state`() = runTest {
+        val profile = createProfile(strategyId = ManualBlockingStrategy.ID, blockedPackages = listOf("com.instagram.android"))
+        sessionManager.startProfile(profile.id)
+        assertThat(blockingStateHolder.state.value?.allowModeDomains).isFalse()
+
+        // Simulate a mid-session edit: turn on website allow-mode and add a domain.
+        profileRepository.upsert(profile.copy(allowModeDomains = true, domains = listOf("youtube.com")))
+        sessionManager.refreshActiveProfileConfig(profile.id)
+
+        val state = blockingStateHolder.state.value
+        assertThat(state?.allowModeDomains).isTrue()
+        assertThat(state?.blockedDomains).containsExactly("youtube.com")
+    }
+
+    @Test
+    fun `refreshing config for a non-active profile does not touch the live state`() = runTest {
+        val active = createProfile(strategyId = ManualBlockingStrategy.ID, blockedPackages = listOf("com.instagram.android"))
+        val other = createProfile(strategyId = ManualBlockingStrategy.ID)
+        sessionManager.startProfile(active.id)
+
+        profileRepository.upsert(other.copy(allowModeDomains = true))
+        sessionManager.refreshActiveProfileConfig(other.id)
+
+        assertThat(blockingStateHolder.state.value?.profileId).isEqualTo(active.id)
+        assertThat(blockingStateHolder.state.value?.allowModeDomains).isFalse()
+    }
+
+    @Test
     fun `stopping the active session ends it, clears state, and cancels alarms`() = runTest {
         val profile = createProfile(strategyId = ManualBlockingStrategy.ID)
         sessionManager.startProfile(profile.id)

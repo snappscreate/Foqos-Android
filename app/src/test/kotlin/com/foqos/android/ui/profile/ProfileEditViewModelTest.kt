@@ -51,6 +51,7 @@ class ProfileEditViewModelTest {
         profileRepository = profileRepository,
         nfcDispatchManager = NfcForegroundDispatchManager(),
         alarmScheduler = alarmScheduler,
+        sessionManager = com.foqos.android.testutil.buildTestSessionManager(context, db, profileRepository),
         context = context,
     )
 

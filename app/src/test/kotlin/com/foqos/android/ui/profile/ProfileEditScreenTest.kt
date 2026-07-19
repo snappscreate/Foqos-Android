@@ -75,6 +75,7 @@ class ProfileEditScreenTest {
             profileRepository = profileRepository,
             nfcDispatchManager = NfcForegroundDispatchManager(),
             alarmScheduler = FoqosAlarmScheduler(context),
+            sessionManager = com.foqos.android.testutil.buildTestSessionManager(context, db, profileRepository),
             context = context,
         )
 
@@ -143,6 +144,7 @@ class ProfileEditScreenTest {
             profileRepository = profileRepository,
             nfcDispatchManager = NfcForegroundDispatchManager(),
             alarmScheduler = FoqosAlarmScheduler(context),
+            sessionManager = com.foqos.android.testutil.buildTestSessionManager(context, db, profileRepository),
             context = context,
         )
 
@@ -187,6 +189,7 @@ class ProfileEditScreenTest {
             profileRepository = profileRepository,
             nfcDispatchManager = NfcForegroundDispatchManager(),
             alarmScheduler = FoqosAlarmScheduler(context),
+            sessionManager = com.foqos.android.testutil.buildTestSessionManager(context, db, profileRepository),
             context = context,
         )
         awaitLoaded(viewModel)

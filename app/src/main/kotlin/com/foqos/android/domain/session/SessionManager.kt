@@ -28,6 +28,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -83,8 +84,13 @@ class SessionManager @Inject constructor(
 
     init {
         scope.launch {
-            _activeSession.value = sessionRepository.activeSessionOnce()
-            _activeProfile.value = _activeSession.value?.let { profileRepository.getById(it.profileId) }
+            // Best-effort warm-up of the active-session cache. Guarded so a transient read failure
+            // (or, in tests, the backing store being torn down before this fire-and-forget job runs)
+            // can't surface as an uncaught exception in this SupervisorJob scope.
+            runCatching {
+                _activeSession.value = sessionRepository.activeSessionOnce()
+                _activeProfile.value = _activeSession.value?.let { profileRepository.getById(it.profileId) }
+            }
         }
     }
 
@@ -455,6 +461,44 @@ class SessionManager @Inject constructor(
         // every alarm implied by the restored session/grants keeps that registry accurate so a
         // later endSession()/cancelAllForProfile() call can actually cancel them.
         rearmAlarmsAfterRestart(profile, session, now, grants)
+    }
+
+    /**
+     * Re-applies a profile's current configuration to the *running* session, if that profile owns
+     * the active session. [BlockingState] is a snapshot taken at session start, so editing the
+     * active profile (e.g. toggling website allow-mode, adding a blocked app) would otherwise have
+     * no effect until the session is stopped and restarted - which is impossible mid-session for a
+     * scan-to-stop strategy without the tag/code. Called after a profile is saved so edits take
+     * effect immediately. No-ops when the edited profile isn't the active one.
+     */
+    suspend fun refreshActiveProfileConfig(profileId: String) = withContext(ioDispatcher) {
+        val session = _activeSession.value ?: return@withContext
+        if (session.profileId != profileId) return@withContext
+        val profile = profileRepository.getById(profileId) ?: return@withContext
+        _activeProfile.value = profile
+
+        val now = Instant.now()
+        val grants = softUnblockRepository.activeGrantsOnce(session.id, now)
+        val activeGrants = grants.associate { it.packageName to it.expiresAt.toEpochMilli() }
+
+        blockingStateHolder.setState(
+            BlockingState(
+                profileId = profile.id,
+                sessionId = session.id,
+                profileName = profile.name,
+                blockedPackages = profile.blockedPackages.toSet(),
+                allowMode = profile.allowModeEnabled,
+                blockedDomains = profile.domains,
+                allowModeDomains = profile.allowModeDomains,
+                strictMode = profile.enableStrictMode,
+                blockAppInstallation = profile.enableBlockAppInstallation,
+                breakActive = session.isBreakActive(now),
+                pauseActive = session.isPauseActive(now),
+                activeGrants = activeGrants,
+                disableBackgroundStops = profile.disableBackgroundStops,
+                sessionStartEpochMillis = session.startTime.toEpochMilli(),
+            ),
+        )
     }
 
     private fun rearmAlarmsAfterRestart(

@@ -136,7 +136,9 @@
     <string name="profile_edit_apps_count_singular">1 app selected</string>
     <string name="profile_edit_apps_count_plural">%1$d apps selected</string>
     <string name="profile_edit_websites_title">Websites</string>
-    <string name="profile_edit_websites_allow_mode_label">Allow mode (block everything except these)</string>
+    <string name="profile_edit_websites_allow_mode_label">Allow mode</string>
+    <string name="profile_edit_websites_allow_mode_on_body">Only the listed sites stay open - every other website is blocked.</string>
+    <string name="profile_edit_websites_allow_mode_off_body">The listed sites are blocked - every other website stays open.</string>
     <string name="profile_edit_add_domain">Add domain</string>
     <string name="profile_edit_domain_field_label">Domain (e.g. reddit.com)</string>
     <string name="profile_edit_physical_unlocks_title">Physical unlocks</string>

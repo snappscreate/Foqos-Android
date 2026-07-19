@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -423,7 +424,19 @@ private fun WebsitesSection(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(text = stringResource(R.string.profile_edit_websites_allow_mode_label), modifier = Modifier.weight(1f))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = stringResource(R.string.profile_edit_websites_allow_mode_label))
+                    Text(
+                        text = if (allowModeDomains) {
+                            stringResource(R.string.profile_edit_websites_allow_mode_on_body)
+                        } else {
+                            stringResource(R.string.profile_edit_websites_allow_mode_off_body)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
                 Switch(checked = allowModeDomains, onCheckedChange = onAllowModeChange)
             }
 

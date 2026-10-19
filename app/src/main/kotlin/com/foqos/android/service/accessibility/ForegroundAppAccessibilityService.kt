@@ -44,6 +44,7 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
     private lateinit var blockPolicy: AccessibilityBlockPolicy
     private lateinit var sessionManager: SessionManager
     private var connected = false
+    private var lastLoggedSettingsClass: String? = null
 
     private var lastOverlayPackage: String? = null
     private var lastOverlayAtElapsedMillis: Long = 0L
@@ -80,6 +81,21 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
         val packageName = event.packageName?.toString() ?: return
         val state = blockingStateHolder.state.value
         val neverBlock = AccessibilityBlockPolicy.neverBlockWithLauncher(currentLauncherPackageName())
+
+        // Diagnostic only. Keep existing enforcement until screen identifiers are verified
+        // on real devices. Never log window text or node content.
+        if (state?.strictMode == true &&
+            packageName in AccessibilityBlockPolicy.SETTINGS_PACKAGES &&
+            event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+        ) {
+            val activityClass = event.className?.toString() ?: "<unknown>"
+            if (activityClass != lastLoggedSettingsClass) {
+                lastLoggedSettingsClass = activityClass
+                Log.i(TAG, "StrictMode Settings window: package=$packageName class=$activityClass")
+            }
+        } else if (packageName !in AccessibilityBlockPolicy.SETTINGS_PACKAGES) {
+            lastLoggedSettingsClass = null
+        }
 
         val decision = if (packageName in AccessibilityBlockPolicy.BROWSER_PACKAGES) {
             val url = readUrlBarText(packageName)

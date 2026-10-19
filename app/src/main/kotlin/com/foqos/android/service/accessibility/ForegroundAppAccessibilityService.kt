@@ -113,11 +113,16 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
             lastLoggedSettingsProbe = null
         }
 
+        val protectedSettingsScreen = state?.strictMode == true &&
+            packageName in AccessibilityBlockPolicy.SETTINGS_PACKAGES &&
+            isProtectedFoqosSettingsScreen()
+
         val decision = if (packageName in AccessibilityBlockPolicy.BROWSER_PACKAGES) {
             val url = readUrlBarText(packageName)
             blockPolicy.decideForUrl(packageName, url, state, neverBlockPackages = neverBlock)
         } else {
-            blockPolicy.decideForApp(packageName, state, neverBlockPackages = neverBlock)
+            blockPolicy.decideForApp(packageName, state, neverBlockPackages = neverBlock,
+                protectedSettingsScreen = protectedSettingsScreen)
         }
 
         applyDecision(decision)
@@ -175,6 +180,41 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
             }
         }
         return nameVisible to packageVisible
+    }
+
+    /**
+     * Restrict only Foqos-specific system pages. Require both the visible app label and
+     * a page-specific control/title, never the label alone (which can appear in app lists).
+     * This is a best-effort Pixel Settings heuristic, not an OS-level uninstall lock.
+     */
+    private fun isProtectedFoqosSettingsScreen(): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val pending = ArrayDeque<android.view.accessibility.AccessibilityNodeInfo>()
+        pending.add(root)
+        var hasFoqosLabel = false
+        var hasAppManagementControls = false
+        var hasAccessibilityHeading = false
+        var visited = 0
+        while (pending.isNotEmpty() && visited < 240) {
+            val node = pending.removeFirst()
+            visited++
+            val texts = listOfNotNull(node.text?.toString(), node.contentDescription?.toString())
+            for (raw in texts) {
+                val value = raw.trim()
+                if (value.equals("Foqos", ignoreCase = true)) hasFoqosLabel = true
+                if (value.equals("Uninstall", true) || value == "アンインストール" ||
+                    value.equals("Force stop", true) || value == "強制停止"
+                ) hasAppManagementControls = true
+                if (value.equals("Accessibility", true) || value == "ユーザー補助" ||
+                    value.equals("Accessibility settings", true)
+                ) hasAccessibilityHeading = true
+            }
+            if (hasFoqosLabel && (hasAppManagementControls || hasAccessibilityHeading)) return true
+            for (index in 0 until node.childCount) {
+                node.getChild(index)?.let { pending.add(it) }
+            }
+        }
+        return false
     }
 
     /** Reads the current text of [packageName]'s address bar, or null if it can't be found. */

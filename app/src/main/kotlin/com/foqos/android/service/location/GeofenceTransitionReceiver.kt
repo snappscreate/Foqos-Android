@@ -4,28 +4,45 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.foqos.android.domain.session.SessionManager
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
-/**
- * First-stage diagnostic receiver. It must not force-stop or start sessions until
- * location rule persistence, ownership precedence, and reboot restoration exist.
- */
+/** Receives geofence transitions and changes only sessions owned by location automation. */
+@AndroidEntryPoint
 class GeofenceTransitionReceiver : BroadcastReceiver() {
+    @Inject lateinit var sessionManager: SessionManager
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onReceive(context: Context, intent: Intent) {
         val event = GeofencingEvent.fromIntent(intent) ?: return
         if (event.hasError()) {
-            Log.w(TAG, "Geofence event error code=${event.errorCode}")
+            Log.w(TAG, "Geofence error code=${event.errorCode}")
             return
         }
-        val label = when (event.geofenceTransition) {
-            Geofence.GEOFENCE_TRANSITION_ENTER -> "ENTER"
-            Geofence.GEOFENCE_TRANSITION_EXIT -> "EXIT"
+        val inside = when (event.geofenceTransition) {
+            Geofence.GEOFENCE_TRANSITION_ENTER -> true
+            Geofence.GEOFENCE_TRANSITION_EXIT -> false
             else -> return
         }
-        event.triggeringGeofences.orEmpty().forEach { fence ->
-            // Profile IDs and coordinates are not logged.
-            Log.d(TAG, "Geofence transition=$label")
+        val rule = LocationAutomationStore(context).read() ?: return
+        if (event.triggeringGeofences.orEmpty().none { it.requestId == rule.profileId }) return
+        val pending = goAsync()
+        scope.launch {
+            try {
+                sessionManager.rebuildStateAfterProcessRestart()
+                sessionManager.onLocationTransition(rule.profileId, inside)
+            } catch (error: Exception) {
+                Log.e(TAG, "Location transition failed", error)
+            } finally {
+                pending.finish()
+            }
         }
     }
 

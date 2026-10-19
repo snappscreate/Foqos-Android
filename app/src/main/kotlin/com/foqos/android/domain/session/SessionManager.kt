@@ -186,6 +186,13 @@ class SessionManager @Inject constructor(
         }
 
         val currentProfile = profileRepository.getById(current.profileId)
+        // Deeplinks, NFC dispatch and widgets must not bypass the pause-only strategy.
+        if (currentProfile?.strategyId ==
+            com.foqos.android.domain.strategy.NfcPauseTimerBlockingStrategy.ID
+        ) {
+            emitError("NFC + Pause Timer cannot be stopped through a shortcut")
+            return
+        }
         if (fromBackground && currentProfile?.disableBackgroundStops == true) {
             emitError("This profile requires the app to stop the session")
             return

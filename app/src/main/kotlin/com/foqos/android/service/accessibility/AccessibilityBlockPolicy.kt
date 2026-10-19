@@ -17,8 +17,8 @@ import javax.inject.Singleton
  *  1. No active session ([state] is null) -> [BlockDecision.Allow].
  *  2. [neverBlockPackages] (Foqos itself, System UI, the current launcher, dialer/phone/telecom) ->
  *     always [BlockDecision.Allow], even mid-session.
- *  3. The Settings app while [BlockingState.strictMode] is on -> [BlockDecision.RedirectAway] (this
- *     also fires during a break/pause - strict mode's whole point is to survive those).
+ *  3. In strict mode, only Settings screens identified as Foqos protection targets are
+ *     redirected away. Settings without screen-level evidence remain available.
  *  4. A package installer/uninstaller while [BlockingState.blockAppInstallation] is on ->
  *     [BlockDecision.RedirectAway] (also survives break/pause, same reasoning as strict mode).
  *  5. [BlockingState.breakActive] or [BlockingState.pauseActive] -> [BlockDecision.Allow] for
@@ -40,12 +40,17 @@ class AccessibilityBlockPolicy @Inject constructor() {
         state: BlockingState?,
         nowMillis: Long = System.currentTimeMillis(),
         neverBlockPackages: Set<String> = DEFAULT_NEVER_BLOCK,
+        protectedSettingsScreen: Boolean = false,
     ): BlockDecision {
         if (state == null) return BlockDecision.Allow
         if (packageName in neverBlockPackages) return BlockDecision.Allow
 
-        if (state.strictMode && packageName in SETTINGS_PACKAGES) {
-            return BlockDecision.RedirectAway(StrictModeReason.ACCESSIBILITY_SETTINGS)
+        if (packageName in SETTINGS_PACKAGES) {
+            return if (state.strictMode && protectedSettingsScreen) {
+                BlockDecision.RedirectAway(StrictModeReason.ACCESSIBILITY_SETTINGS)
+            } else {
+                BlockDecision.Allow
+            }
         }
         if (state.blockAppInstallation && packageName in PACKAGE_INSTALLER_PACKAGES) {
             return BlockDecision.RedirectAway(StrictModeReason.UNINSTALL)

@@ -4,18 +4,17 @@ import com.foqos.android.data.model.BlockedProfile
 import com.foqos.android.data.model.BlockedProfileSession
 import com.foqos.android.data.model.PhysicalUnblockType
 import com.foqos.android.data.model.StrategyPauseTimerData
-import java.time.Instant
 
 /**
  * Pick a pause duration in-app; scanning an NFC tag once pauses the session for that duration,
- * scanning again while paused fully stops it - mirrors iOS `NFCPauseTimerBlockingStrategy`.
+ * scanning again while paused cannot stop or extend the current pause.
  */
 class NfcPauseTimerBlockingStrategy : BlockingStrategy {
     override val id: String = ID
     override val name: String = "NFC + Pause Timer"
     override val description: String =
         "Choose how long a pause should last. Scan an NFC tag once to pause. " +
-            "Scan it again during the pause to fully stop."
+            "Additional scans while paused do not end the session."
     override val category: StrategyCategory = StrategyCategory.FOREVER
     override val usesNfc: Boolean = true
     override val hasPauseMode: Boolean = true
@@ -62,17 +61,15 @@ class NfcPauseTimerBlockingStrategy : BlockingStrategy {
             return SessionOutcome.Rejected(rejection)
         }
 
-        return if (session.isPauseActive()) {
-            // Pause is active - this scan fully stops the session.
-            host.endSession(session, Instant.now())
-            SessionOutcome.Stopped
-        } else {
-            // No pause active - this scan starts the pause.
-            val pauseDurationMinutes =
-                StrategyPauseTimerData.fromJsonOrNull(profile.strategyDataJson).pauseDurationInMinutes
-            host.beginPause(session, pauseDurationMinutes)
-            SessionOutcome.Paused
+        if (session.isPauseActive()) {
+            val reason = "Pause is already active; scanning again cannot stop the session"
+            host.emitError(reason)
+            return SessionOutcome.Rejected(reason)
         }
+        val pauseDurationMinutes =
+            StrategyPauseTimerData.fromJsonOrNull(profile.strategyDataJson).pauseDurationInMinutes
+        host.beginPause(session, pauseDurationMinutes)
+        return SessionOutcome.Paused
     }
 
     companion object {

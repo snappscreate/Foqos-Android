@@ -6,6 +6,9 @@
 package com.foqos.android.ui.profile
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -106,6 +109,7 @@ fun ProfileEditScreen(
     var overflowExpanded by remember { mutableStateOf(false) }
     var showStartTimePicker by remember { mutableStateOf(false) }
     var showEndTimePicker by remember { mutableStateOf(false) }
+    var showLockedDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -118,7 +122,7 @@ fun ProfileEditScreen(
                     }
                 },
                 actions = {
-                    TextButton(onClick = viewModel::save) { Text(stringResource(R.string.action_save)) }
+                    TextButton(onClick = { if (uiState.editingLocked) showLockedDialog = true else viewModel.save() }) { Text(stringResource(R.string.action_save)) }
                     if (uiState.isPersisted) {
                         IconButton(onClick = { overflowExpanded = true }) {
                             Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.profile_edit_more_actions))
@@ -136,7 +140,7 @@ fun ProfileEditScreen(
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.action_delete)) },
-                                onClick = { overflowExpanded = false; showDeleteConfirm = true },
+                                onClick = { overflowExpanded = false; if (uiState.editingLocked) showLockedDialog = true else showDeleteConfirm = true },
                             )
                         }
                     }
@@ -144,10 +148,10 @@ fun ProfileEditScreen(
             )
         },
     ) { innerPadding ->
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
                 .imePadding(),
@@ -222,6 +226,21 @@ fun ProfileEditScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
         }
+        if (uiState.editingLocked) {
+            Box(modifier = Modifier.matchParentSize().clickable { showLockedDialog = true })
+        }
+        }
+    }
+
+    if (showLockedDialog) {
+        AlertDialog(
+            onDismissRequest = { showLockedDialog = false },
+            title = { Text("Profile locked") },
+            text = { Text("Profile settings cannot be changed while blocking is active. End the session before editing.") },
+            confirmButton = {
+                TextButton(onClick = { showLockedDialog = false }) { Text("OK") }
+            },
+        )
     }
 
     if (showStrategyPicker) {

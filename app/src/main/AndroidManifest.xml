@@ -8,6 +8,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Geofence monitoring requires foreground and separately granted background location. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <!--
       Without this permission, ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS silently no-ops on some
       OEM builds (confirmed on Samsung/One UI) instead of showing the exemption dialog, so users
@@ -112,6 +116,10 @@
                     android:pathPrefix="/navigate" />
             </intent-filter>
         </activity>
+
+        <receiver
+            android:name=".service.location.GeofenceTransitionReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".receiver.AlarmReceiver"

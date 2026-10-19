@@ -91,7 +91,7 @@ class BlockingStrategyBehaviorTest {
     }
 
     @Test
-    fun `pause timer strategy pauses on first scan and stops on second scan while paused`() = runBlocking {
+    fun `NFC pause timer never fully stops even when scanned during a pause`() = runBlocking {
         val strategy = NfcPauseTimerBlockingStrategy()
         val host = FakeStrategyHost()
         val pauseData = StrategyPauseTimerData(pauseDurationInMinutes = 20)
@@ -111,8 +111,8 @@ class BlockingStrategyBehaviorTest {
         val pausedSession = session.copy(pauseStartTime = Instant.now())
 
         val secondScan = strategy.onStopInput(profile, pausedSession, StrategyInput.Code("tag", StrategyInput.CodeSource.NFC), host)
-        assertThat(secondScan).isEqualTo(SessionOutcome.Stopped)
-        assertThat(host.endedSessions).hasSize(1)
+        assertThat(secondScan).isInstanceOf(SessionOutcome.Rejected::class.java)
+        assertThat(host.endedSessions).isEmpty()
     }
 
     @Test

@@ -36,7 +36,6 @@ class GeofenceTransitionReceiver : BroadcastReceiver() {
         val pending = goAsync()
         scope.launch {
             try {
-                sessionManager.rebuildStateAfterProcessRestart()
                 sessionManager.onLocationTransition(rule.profileId, inside)
             } catch (error: Exception) {
                 Log.e(TAG, "Location transition failed", error)

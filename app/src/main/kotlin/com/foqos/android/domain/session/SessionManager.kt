@@ -117,6 +117,28 @@ class SessionManager @Inject constructor(
         }
     }
 
+    /** NFC profile tags pause NFC + Pause Timer sessions instead of acting as forced toggles. */
+    suspend fun onProfileNfcScan(profileId: String) {
+        val current = _activeSession.value ?: sessionRepository.activeSessionOnce()
+        if (current?.profileId == profileId) {
+            val profile = profileRepository.getById(profileId) ?: return
+            if (profile.strategyId ==
+                com.foqos.android.domain.strategy.NfcPauseTimerBlockingStrategy.ID
+            ) {
+                StrategyRegistry.byId(profile.strategyId).onStopInput(
+                    profile, current,
+                    StrategyInput.Code(
+                        "foqos://profile/$profileId",
+                        StrategyInput.CodeSource.NFC,
+                    ),
+                    this,
+                )
+                return
+            }
+        }
+        toggleFromDeeplink(profileId, fromBackground = false)
+    }
+
     /** Resolves [profileId]'s configured strategy and either starts it directly or requests UI. */
     suspend fun startProfile(profileId: String) {
         val profile = profileRepository.getById(profileId) ?: run {

@@ -136,7 +136,7 @@ class ProfileEditViewModel @Inject constructor(
     }
 
     fun setAppSearchQuery(query: String) {
-        guardedUpdate { it.copy(appSearchQuery = query) }
+        _uiState.update { it.copy(appSearchQuery = query) }
     }
 
     private suspend fun loadInstalledApps() {
@@ -159,7 +159,7 @@ class ProfileEditViewModel @Inject constructor(
                 .sortedBy { it.label.lowercase() }
                 .toList()
         }
-        guardedUpdate { it.copy(installedApps = apps) }
+        _uiState.update { it.copy(installedApps = apps) }
     }
 
     // --- Domains ----------------------------------------------------------------------------

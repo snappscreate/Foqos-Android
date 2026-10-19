@@ -94,7 +94,28 @@ class SessionManager @Inject constructor(
         }
     }
 
+    companion object {
+        const val LOCATION_SESSION_TAG = "location_geofence"
+    }
+
     // --- Public API ------------------------------------------------------------------------
+
+    /**
+     * Location events only manage sessions that were created by the location automation.
+     * Never replace or stop a session started manually, by NFC, or by a schedule.
+     */
+    suspend fun onLocationTransition(profileId: String, inside: Boolean) = withContext(ioDispatcher) {
+        val current = _activeSession.value ?: sessionRepository.activeSessionOnce()
+        if (inside) {
+            if (current != null) return@withContext
+            val profile = profileRepository.getById(profileId) ?: return@withContext
+            createSession(profile, tag = LOCATION_SESSION_TAG, forceStarted = false)
+        } else {
+            if (current?.profileId == profileId && current.tag == LOCATION_SESSION_TAG) {
+                endSession(current, Instant.now())
+            }
+        }
+    }
 
     /** Resolves [profileId]'s configured strategy and either starts it directly or requests UI. */
     suspend fun startProfile(profileId: String) {

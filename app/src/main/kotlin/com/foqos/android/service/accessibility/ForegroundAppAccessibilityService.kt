@@ -82,16 +82,15 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
         val state = blockingStateHolder.state.value
         val neverBlock = AccessibilityBlockPolicy.neverBlockWithLauncher(currentLauncherPackageName())
 
-        // Diagnostic only. Keep existing enforcement until screen identifiers are verified
-        // on real devices. Never log window text or node content.
-        if (state?.strictMode == true &&
-            packageName in AccessibilityBlockPolicy.SETTINGS_PACKAGES &&
+        // Diagnostic only. Works with Strict Mode OFF so Settings screens can be
+        // inspected safely before changing enforcement. Never log window text or nodes.
+        if (packageName in AccessibilityBlockPolicy.SETTINGS_PACKAGES &&
             event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
         ) {
             val activityClass = event.className?.toString() ?: "<unknown>"
             if (activityClass != lastLoggedSettingsClass) {
                 lastLoggedSettingsClass = activityClass
-                Log.i(TAG, "StrictMode Settings window: package=$packageName class=$activityClass")
+                Log.d(TAG, "Settings window diagnostic: package=$packageName class=$activityClass")
             }
         } else if (packageName !in AccessibilityBlockPolicy.SETTINGS_PACKAGES) {
             lastLoggedSettingsClass = null

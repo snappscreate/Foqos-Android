@@ -67,12 +67,18 @@ class ProfileEditViewModel @Inject constructor(
         val installedApps: List<InstalledAppInfo> = emptyList(),
         val appSearchQuery: String = "",
         val scheduleEnabled: Boolean = false,
+        val editingLocked: Boolean = false,
     )
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            sessionManager.activeSession.collect { session ->
+                _uiState.update { it.copy(editingLocked = session != null) }
+            }
+        }
         viewModelScope.launch {
             val existing = existingProfileId?.let { profileRepository.getById(it) }
             _uiState.update {
@@ -86,10 +92,16 @@ class ProfileEditViewModel @Inject constructor(
         }
     }
 
+    /** Reject profile mutations during any active blocking session. */
+    private fun guardedUpdate(update: (UiState) -> UiState) {
+        if (_uiState.value.editingLocked) return
+        _uiState.update(update)
+    }
+
     // --- Name -----------------------------------------------------------------------------
 
     fun updateName(name: String) {
-        _uiState.update { it.copy(draft = it.draft.copy(name = name), nameError = null) }
+        guardedUpdate { it.copy(draft = it.draft.copy(name = name), nameError = null) }
     }
 
     // --- Strategy ---------------------------------------------------------------------------
@@ -101,17 +113,17 @@ class ProfileEditViewModel @Inject constructor(
             !strategy.allowsTimedBreaks -> SoftUnblockStrategyData().normalized.toJson()
             else -> null
         }
-        _uiState.update { it.copy(draft = it.draft.copy(strategyId = strategy.id, strategyDataJson = defaultData)) }
+        guardedUpdate { it.copy(draft = it.draft.copy(strategyId = strategy.id, strategyDataJson = defaultData)) }
     }
 
     fun updateStrategyDataJson(json: String) {
-        _uiState.update { it.copy(draft = it.draft.copy(strategyDataJson = json)) }
+        guardedUpdate { it.copy(draft = it.draft.copy(strategyDataJson = json)) }
     }
 
     // --- Apps -----------------------------------------------------------------------------
 
     fun toggleApp(packageName: String) {
-        _uiState.update {
+        guardedUpdate {
             val current = it.draft.blockedPackages
             val updated = if (packageName in current) current - packageName else current + packageName
             it.copy(draft = it.draft.copy(blockedPackages = updated))
@@ -119,11 +131,11 @@ class ProfileEditViewModel @Inject constructor(
     }
 
     fun setAllowMode(enabled: Boolean) {
-        _uiState.update { it.copy(draft = it.draft.copy(allowModeEnabled = enabled)) }
+        guardedUpdate { it.copy(draft = it.draft.copy(allowModeEnabled = enabled)) }
     }
 
     fun setAppSearchQuery(query: String) {
-        _uiState.update { it.copy(appSearchQuery = query) }
+        guardedUpdate { it.copy(appSearchQuery = query) }
     }
 
     private suspend fun loadInstalledApps() {
@@ -146,7 +158,7 @@ class ProfileEditViewModel @Inject constructor(
                 .sortedBy { it.label.lowercase() }
                 .toList()
         }
-        _uiState.update { it.copy(installedApps = apps) }
+        guardedUpdate { it.copy(installedApps = apps) }
     }
 
     // --- Domains ----------------------------------------------------------------------------
@@ -154,31 +166,31 @@ class ProfileEditViewModel @Inject constructor(
     fun addDomain(rawValue: String) {
         val normalized = rawValue.trim().lowercase().removePrefix("https://").removePrefix("http://").removePrefix("www.").trimEnd('/')
         if (normalized.isBlank() || !DOMAIN_REGEX.matches(normalized)) {
-            _uiState.update { it.copy(domainError = "Enter a valid domain, e.g. reddit.com") }
+            guardedUpdate { it.copy(domainError = "Enter a valid domain, e.g. reddit.com") }
             return
         }
-        _uiState.update {
+        guardedUpdate {
             val updated = if (normalized in it.draft.domains) it.draft.domains else it.draft.domains + normalized
             it.copy(draft = it.draft.copy(domains = updated), domainError = null)
         }
     }
 
     fun removeDomain(domain: String) {
-        _uiState.update { it.copy(draft = it.draft.copy(domains = it.draft.domains - domain)) }
+        guardedUpdate { it.copy(draft = it.draft.copy(domains = it.draft.domains - domain)) }
     }
 
     fun setAllowModeDomains(enabled: Boolean) {
-        _uiState.update { it.copy(draft = it.draft.copy(allowModeDomains = enabled)) }
+        guardedUpdate { it.copy(draft = it.draft.copy(allowModeDomains = enabled)) }
     }
 
     fun clearDomainError() {
-        _uiState.update { it.copy(domainError = null) }
+        guardedUpdate { it.copy(domainError = null) }
     }
 
     // --- Schedule ---------------------------------------------------------------------------
 
     fun setScheduleEnabled(enabled: Boolean) {
-        _uiState.update {
+        guardedUpdate {
             it.copy(
                 scheduleEnabled = enabled,
                 draft = if (!enabled) it.draft.copy(schedule = null) else it.draft,
@@ -187,7 +199,7 @@ class ProfileEditViewModel @Inject constructor(
     }
 
     fun toggleScheduleDay(day: Weekday) {
-        _uiState.update { state ->
+        guardedUpdate { state ->
             val current = state.draft.schedule ?: BlockedProfileSchedule(emptyList(), 9, 0, 17, 0)
             val days = if (day in current.days) current.days - day else current.days + day
             state.copy(draft = state.draft.copy(schedule = current.copy(days = days, updatedAtEpochMillis = System.currentTimeMillis())))
@@ -195,14 +207,14 @@ class ProfileEditViewModel @Inject constructor(
     }
 
     fun setScheduleStartTime(hour: Int, minute: Int) {
-        _uiState.update { state ->
+        guardedUpdate { state ->
             val current = state.draft.schedule ?: BlockedProfileSchedule(emptyList(), hour, minute, 17, 0)
             state.copy(draft = state.draft.copy(schedule = current.copy(startHour = hour, startMinute = minute)))
         }
     }
 
     fun setScheduleEndTime(hour: Int, minute: Int) {
-        _uiState.update { state ->
+        guardedUpdate { state ->
             val current = state.draft.schedule ?: BlockedProfileSchedule(emptyList(), 9, 0, hour, minute)
             state.copy(draft = state.draft.copy(schedule = current.copy(endHour = hour, endMinute = minute)))
         }
@@ -211,38 +223,39 @@ class ProfileEditViewModel @Inject constructor(
     // --- Breaks -------------------------------------------------------------------------------
 
     fun setEnableBreaks(enabled: Boolean) {
-        _uiState.update { it.copy(draft = it.draft.copy(enableBreaks = enabled)) }
+        guardedUpdate { it.copy(draft = it.draft.copy(enableBreaks = enabled)) }
     }
 
     fun setBreakDurationMinutes(minutes: Int) {
-        _uiState.update { it.copy(draft = it.draft.copy(breakTimeInMinutes = minutes)) }
+        guardedUpdate { it.copy(draft = it.draft.copy(breakTimeInMinutes = minutes)) }
     }
 
     fun setAllowMultipleBreaks(enabled: Boolean) {
-        _uiState.update { it.copy(draft = it.draft.copy(allowMultipleBreaks = enabled)) }
+        guardedUpdate { it.copy(draft = it.draft.copy(allowMultipleBreaks = enabled)) }
     }
 
     // --- Session protection -------------------------------------------------------------------
 
     fun setEnableStrictMode(enabled: Boolean) {
-        _uiState.update { it.copy(draft = it.draft.copy(enableStrictMode = enabled)) }
+        guardedUpdate { it.copy(draft = it.draft.copy(enableStrictMode = enabled)) }
     }
 
     fun setEnableBlockAppInstallation(enabled: Boolean) {
-        _uiState.update { it.copy(draft = it.draft.copy(enableBlockAppInstallation = enabled)) }
+        guardedUpdate { it.copy(draft = it.draft.copy(enableBlockAppInstallation = enabled)) }
     }
 
     fun setDisableBackgroundStops(enabled: Boolean) {
-        _uiState.update { it.copy(draft = it.draft.copy(disableBackgroundStops = enabled)) }
+        guardedUpdate { it.copy(draft = it.draft.copy(disableBackgroundStops = enabled)) }
     }
 
     fun setEnableEmergencyUnblock(enabled: Boolean) {
-        _uiState.update { it.copy(draft = it.draft.copy(enableEmergencyUnblock = enabled)) }
+        guardedUpdate { it.copy(draft = it.draft.copy(enableEmergencyUnblock = enabled)) }
     }
 
     // --- Save / delete ------------------------------------------------------------------------
 
     fun save() {
+        if (sessionManager.activeSession.value != null) return
         val trimmedName = _uiState.value.draft.name.trim()
         if (trimmedName.isBlank()) {
             _uiState.update { it.copy(nameError = "Name is required") }
@@ -251,6 +264,7 @@ class ProfileEditViewModel @Inject constructor(
 
         viewModelScope.launch {
             val current = _uiState.value
+            if (sessionManager.activeSession.value != null) return@launch
             val schedule = current.draft.schedule?.takeIf { current.scheduleEnabled && it.isConfigured }
             val toSave = current.draft.copy(name = trimmedName, schedule = schedule, updatedAt = Instant.now())
 
@@ -273,8 +287,10 @@ class ProfileEditViewModel @Inject constructor(
     }
 
     fun delete() {
+        if (sessionManager.activeSession.value != null) return
         val id = _uiState.value.draft.id
         viewModelScope.launch {
+            if (sessionManager.activeSession.value != null) return@launch
             profileRepository.delete(id)
             alarmScheduler.cancelAllForProfile(id)
             _uiState.update { it.copy(deleted = true) }

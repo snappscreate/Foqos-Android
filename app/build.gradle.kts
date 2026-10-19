@@ -124,6 +124,9 @@ dependencies {
     implementation(libs.zxing.android.embedded)
     implementation(libs.zxing.core)
 
+    // Geofence transitions are handled by Google Play services (no continuous GPS polling).
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+
     implementation(libs.glance.appwidget)
     implementation(libs.glance.material3)
 

@@ -112,6 +112,10 @@ fun SettingsScreen(
                 }
             }
 
+            SettingsSection(title = "Location-based blocking") {
+                LocationAutomationSection()
+            }
+
             SettingsSection(title = stringResource(R.string.settings_permissions_title)) {
                 PermissionsChecklist(modifier = Modifier.padding(16.dp))
             }

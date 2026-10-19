@@ -6,6 +6,9 @@ import android.content.Intent
 import com.foqos.android.data.repository.ProfileRepository
 import com.foqos.android.domain.session.SessionManager
 import com.foqos.android.service.alarm.FoqosAlarmScheduler
+import com.foqos.android.service.location.GeofenceManager
+import com.foqos.android.service.location.LocationAutomationStore
+import android.util.Log
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -46,6 +49,14 @@ class BootReceiver : BroadcastReceiver() {
                     }
                 }
                 sessionManager.rebuildStateAfterProcessRestart()
+                LocationAutomationStore(context).read()?.let { rule ->
+                    val manager = GeofenceManager(context)
+                    if (manager.hasRequiredPermissions()) {
+                        manager.register(rule).addOnFailureListener { error ->
+                            Log.w("FoqosGeofence", "Could not restore geofence", error)
+                        }
+                    }
+                }
             } finally {
                 pendingResult.finish()
             }

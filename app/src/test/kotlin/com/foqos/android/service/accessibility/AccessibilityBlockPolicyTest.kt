@@ -127,14 +127,14 @@ class AccessibilityBlockPolicyTest {
     @Test
     fun `strict-mode settings redirect wins over an active break`() {
         val s = state(strictMode = true, breakActive = true)
-        val decision = policy.decideForApp("com.android.settings", s, nowMillis = 1_000L)
+        val decision = policy.decideForApp("com.android.settings", s, nowMillis = 1_000L, protectedSettingsScreen = true)
         assertThat(decision).isEqualTo(BlockDecision.RedirectAway(StrictModeReason.ACCESSIBILITY_SETTINGS))
     }
 
     @Test
     fun `strict-mode settings redirect wins over an active pause`() {
         val s = state(strictMode = true, pauseActive = true)
-        val decision = policy.decideForApp("com.android.settings", s, nowMillis = 1_000L)
+        val decision = policy.decideForApp("com.android.settings", s, nowMillis = 1_000L, protectedSettingsScreen = true)
         assertThat(decision).isEqualTo(BlockDecision.RedirectAway(StrictModeReason.ACCESSIBILITY_SETTINGS))
     }
 

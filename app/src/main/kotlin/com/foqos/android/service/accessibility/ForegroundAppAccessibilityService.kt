@@ -45,6 +45,7 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
     private lateinit var sessionManager: SessionManager
     private var connected = false
     private var lastLoggedSettingsClass: String? = null
+    private var lastLoggedSettingsProbe: String? = null
 
     private var lastOverlayPackage: String? = null
     private var lastOverlayAtElapsedMillis: Long = 0L
@@ -82,18 +83,34 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
         val state = blockingStateHolder.state.value
         val neverBlock = AccessibilityBlockPolicy.neverBlockWithLauncher(currentLauncherPackageName())
 
-        // Diagnostic only. Works with Strict Mode OFF so Settings screens can be
-        // inspected safely before changing enforcement. Never log window text or nodes.
-        if (packageName in AccessibilityBlockPolicy.SETTINGS_PACKAGES &&
-            event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-        ) {
+        // Diagnostics only: never emit Settings window text or accessibility-node contents.
+        // Log whether Foqos-specific markers are visible, so generic Settings activities can
+        // be distinguished in a later, separately tested policy change.
+        if (packageName in AccessibilityBlockPolicy.SETTINGS_PACKAGES) {
             val activityClass = event.className?.toString() ?: "<unknown>"
-            if (activityClass != lastLoggedSettingsClass) {
+            if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
+                activityClass != lastLoggedSettingsClass
+            ) {
                 lastLoggedSettingsClass = activityClass
                 Log.d(TAG, "Settings window diagnostic: package=$packageName class=$activityClass")
             }
-        } else if (packageName !in AccessibilityBlockPolicy.SETTINGS_PACKAGES) {
+            if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
+                event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+            ) {
+                val markers = settingsFoqosMarkers()
+                val signature = "$activityClass:${markers.first}:${markers.second}"
+                if (signature != lastLoggedSettingsProbe) {
+                    lastLoggedSettingsProbe = signature
+                    Log.d(
+                        TAG,
+                        "Settings Foqos markers: class=$activityClass " +
+                            "nameVisible=${markers.first} packageVisible=${markers.second}",
+                    )
+                }
+            }
+        } else {
             lastLoggedSettingsClass = null
+            lastLoggedSettingsProbe = null
         }
 
         val decision = if (packageName in AccessibilityBlockPolicy.BROWSER_PACKAGES) {
@@ -128,6 +145,36 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
             if (domain != null) putExtra(BlockOverlayActivity.EXTRA_DOMAIN, domain)
         }
         startActivity(intent)
+    }
+
+    /**
+     * Diagnostic presence checks only. Inspect at most 160 accessible nodes and log only
+     * booleans, never screen contents. A visible app label is NOT sufficient evidence to
+     * enforce a block; these results are for Pixel device investigation.
+     */
+    private fun settingsFoqosMarkers(): Pair<Boolean, Boolean> {
+        val root = rootInActiveWindow ?: return false to false
+        val pending = ArrayDeque<android.view.accessibility.AccessibilityNodeInfo>()
+        pending.add(root)
+        var nameVisible = false
+        var packageVisible = false
+        var visited = 0
+        while (pending.isNotEmpty() && visited < 160) {
+            val node = pending.removeFirst()
+            visited++
+            val texts = listOfNotNull(node.text?.toString(), node.contentDescription?.toString())
+            for (value in texts) {
+                if (value.trim().equals("Foqos", ignoreCase = true)) nameVisible = true
+                if (value.contains(AccessibilityBlockPolicy.FOQOS_PACKAGE_NAME, ignoreCase = true)) {
+                    packageVisible = true
+                }
+            }
+            if (nameVisible && packageVisible) break
+            for (index in 0 until node.childCount) {
+                node.getChild(index)?.let { pending.add(it) }
+            }
+        }
+        return nameVisible to packageVisible
     }
 
     /** Reads the current text of [packageName]'s address bar, or null if it can't be found. */

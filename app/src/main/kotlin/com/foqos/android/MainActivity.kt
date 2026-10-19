@@ -108,7 +108,9 @@ class MainActivity : ComponentActivity() {
             NfcAdapter.ACTION_NDEF_DISCOVERED,
             NfcAdapter.ACTION_TECH_DISCOVERED,
             NfcAdapter.ACTION_TAG_DISCOVERED,
-            -> nfcDispatchManager.handleIntent(intent) { profileId -> toggleProfile(profileId) }
+            -> nfcDispatchManager.handleIntent(intent) { profileId ->
+                lifecycleScope.launch { sessionManager.onProfileNfcScan(profileId) }
+            }
 
             Intent.ACTION_VIEW -> {
                 val data = intent.dataString

@@ -94,10 +94,6 @@ class SessionManager @Inject constructor(
         }
     }
 
-    companion object {
-        const val LOCATION_SESSION_TAG = "location_geofence"
-    }
-
     // --- Public API ------------------------------------------------------------------------
 
     /**
@@ -835,6 +831,8 @@ class SessionManager @Inject constructor(
     }
 
     companion object {
+        const val LOCATION_SESSION_TAG = "location_geofence"
+
         /** Not a real profile id - just a stable scheduling key for the global emergency-allowance reset alarm. */
         const val EMERGENCY_ALLOWANCE_KEY = "global-emergency-allowance"
         private const val DAYS_PER_WEEK = 7L

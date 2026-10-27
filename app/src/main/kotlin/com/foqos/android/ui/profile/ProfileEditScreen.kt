@@ -196,6 +196,8 @@ fun ProfileEditScreen(
                         profileId = uiState.draft.id,
                         profileRepository = viewModel.profileRepository,
                         nfcDispatchManager = viewModel.nfcDispatchManager,
+                        editingLocked = uiState.editingLocked,
+                        onEditBlocked = { showLockedDialog = true },
                     )
                 }
             } else {

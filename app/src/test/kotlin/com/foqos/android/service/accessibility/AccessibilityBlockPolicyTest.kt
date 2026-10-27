@@ -219,6 +219,20 @@ class AccessibilityBlockPolicyTest {
     }
 
     @Test
+    fun `paused session allows blocked domains`() {
+        val s = state(blockedDomains = listOf("youtube.com"), pauseActive = true)
+        assertThat(policy.decideForUrl("com.android.chrome", "https://youtube.com", s, nowMillis = 1_000L))
+            .isEqualTo(BlockDecision.Allow)
+    }
+
+    @Test
+    fun `timed break allows blocked domains`() {
+        val s = state(blockedDomains = listOf("youtube.com"), breakActive = true)
+        assertThat(policy.decideForUrl("com.android.chrome", "https://youtube.com", s, nowMillis = 1_000L))
+            .isEqualTo(BlockDecision.Allow)
+    }
+
+    @Test
     fun `allowModeDomains blocks a domain not in the list`() {
         val s = state(blockedDomains = listOf("docs.google.com"), allowModeDomains = true)
         val decision = policy.decideForUrl("com.android.chrome", "https://youtube.com", s, nowMillis = 1_000L)

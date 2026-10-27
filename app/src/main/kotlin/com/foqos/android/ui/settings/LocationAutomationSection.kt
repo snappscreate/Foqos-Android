@@ -57,6 +57,7 @@ class LocationAutomationViewModel @Inject constructor(
     val profiles = repository.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     private val store = LocationAutomationStore(context)
     val initialRule: LocationRule? = store.read()
+    fun savedRule(): LocationRule? = store.read()
     var status by mutableStateOf("")
         private set
 
@@ -170,7 +171,7 @@ fun LocationAutomationSection(viewModel: LocationAutomationViewModel = hiltViewM
             }
         }) { Text("Use current location") }
         OutlinedButton(onClick = {
-            val rule = viewModel.initialRule
+            val rule = viewModel.savedRule()
             if (rule == null) {
                 distanceText = "No saved blocking area."
             } else if (!viewModel.hasPermission()) {

@@ -1,6 +1,29 @@
 package com.foqos.android.service.overlay
 
 import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager as AndroidPackageManager
+import android.location.Location
+import android.nfc.NfcAdapter
+import android.widget.ImageView
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Text
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import com.foqos.android.BuildConfig
+import com.foqos.android.data.model.PhysicalUnblockType
+import com.foqos.android.domain.strategy.PendingStrategyAction
+import com.foqos.android.domain.strategy.StrategyInput
+import com.foqos.android.domain.strategy.StrategyRegistry
+import com.foqos.android.service.location.LocationAutomationStore
+import com.foqos.android.service.nfc.NfcForegroundDispatchManager
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import kotlinx.coroutines.flow.collect
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -49,6 +72,10 @@ class BlockOverlayActivity : ComponentActivity() {
     @Inject lateinit var softUnblockRepository: SoftUnblockRepository
 
     @Inject lateinit var sessionManager: SessionManager
+    @Inject lateinit var nfcDispatchManager: NfcForegroundDispatchManager
+
+    private var nfcScanMessage by mutableStateOf<String?>(null)
+    private var boundaryDistance by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,6 +86,20 @@ class BlockOverlayActivity : ComponentActivity() {
             return
         }
         val targetDomain = intent.getStringExtra(EXTRA_DOMAIN)
+
+        lifecycleScope.launch {
+            nfcDispatchManager.tagScans.collect { content ->
+                try {
+                    processNfcCode(content.value)
+                } catch (error: Exception) {
+                    nfcScanMessage = "NFC scan failed: ${error.message}"
+                }
+            }
+        }
+        lifecycleScope.launch {
+            sessionManager.errors.collect { error -> nfcScanMessage = error }
+        }
+        refreshBoundaryDistance()
 
         setContent {
             FoqosTheme {
@@ -71,6 +112,11 @@ class BlockOverlayActivity : ComponentActivity() {
                     val current = state
                     if (current == null) {
                         finishAndGoHome()
+                        return@LaunchedEffect
+                    }
+                    // A pause or break must also close an already displayed domain/app shield.
+                    if (current.pauseActive || current.breakActive) {
+                        finish()
                         return@LaunchedEffect
                     }
                     val grantExpiry = current.activeGrants[targetPackage]
@@ -90,12 +136,47 @@ class BlockOverlayActivity : ComponentActivity() {
                 }
 
                 val blockedLabel = targetDomain ?: rememberAppLabel(targetPackage)
+                val activeProfile by sessionManager.activeProfile.collectAsStateWithLifecycle()
+                val nfcReady = activeProfile?.let { profile ->
+                    StrategyRegistry.byId(profile.strategyId).usesNfc
+                } ?: false
 
                 BlockScreenContent(
                     profileName = state?.profileName.orEmpty(),
                     blockedLabel = blockedLabel,
                     sessionStartEpochMillis = state?.sessionStartEpochMillis ?: System.currentTimeMillis(),
                     softUnblockInfo = softUnblockInfo,
+                    blockedIcon = {
+                        if (targetDomain == null) {
+                            AndroidView(
+                                factory = { context ->
+                                    ImageView(context).apply {
+                                        setImageDrawable(runCatching {
+                                            context.packageManager.getApplicationIcon(targetPackage)
+                                        }.getOrNull())
+                                    }
+                                },
+                                modifier = Modifier.size(64.dp),
+                            )
+                        } else {
+                            Text("🌐", fontSize = 40.sp)
+                        }
+                    },
+                    nfcReady = nfcReady,
+                    nfcMessage = nfcScanMessage,
+                    distanceDescription = boundaryDistance,
+                    onSimulateNfc = if (BuildConfig.DEBUG && nfcReady) ({
+                        lifecycleScope.launch {
+                            val profile = activeProfile
+                            val session = sessionManager.activeSession.value
+                            if (profile != null && session != null) {
+                                val code = profile.physicalUnblockItems.firstOrNull {
+                                    it.type == PhysicalUnblockType.NFC
+                                }?.codeValue ?: "foqos-debug-virtual-tag"
+                                processNfcCode(code)
+                            }
+                        }
+                    }) else null,
                     onGoBack = { finishAndGoHome() },
                     onOpenTemporarily = {
                         scope.launch {
@@ -108,6 +189,59 @@ class BlockOverlayActivity : ComponentActivity() {
                 BackHandler { finishAndGoHome() }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        nfcDispatchManager.setWaitingForScan(true)
+        runCatching { nfcDispatchManager.enable(this) }
+        refreshBoundaryDistance()
+    }
+
+    override fun onPause() {
+        runCatching { nfcDispatchManager.disable(this) }
+        nfcDispatchManager.setWaitingForScan(false)
+        super.onPause()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        nfcDispatchManager.handleIntent(intent) { }
+    }
+
+    private suspend fun processNfcCode(code: String) {
+        val session = sessionManager.activeSession.value ?: return
+        val profile = profileRepository.getById(session.profileId) ?: return
+        if (!StrategyRegistry.byId(profile.strategyId).usesNfc) return
+        // Always use the strategy's actual validation, never a raw session toggle.
+        sessionManager.deliverInput(
+            PendingStrategyAction.Stop(session.id),
+            StrategyInput.Code(code, StrategyInput.CodeSource.NFC),
+        )
+        nfcScanMessage = "NFC scan processed"
+    }
+
+    private fun refreshBoundaryDistance() {
+        val rule = LocationAutomationStore(this).read() ?: return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) !=
+            AndroidPackageManager.PERMISSION_GRANTED
+        ) return
+        @Suppress("MissingPermission")
+        LocationServices.getFusedLocationProviderClient(this)
+            .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
+            .addOnSuccessListener { location ->
+                if (location != null && sessionManager.activeSession.value?.profileId == rule.profileId) {
+                    val results = FloatArray(1)
+                    Location.distanceBetween(
+                        location.latitude, location.longitude,
+                        rule.latitude, rule.longitude, results,
+                    )
+                    val toBoundary = (results[0] - rule.radiusMeters).coerceAtLeast(0f)
+                    boundaryDistance = if (toBoundary == 0f) "Inside blocking area" else
+                        "Distance to blocking area: ${toBoundary.toInt()} m"
+                }
+            }
     }
 
     private suspend fun loadSoftUnblockInfo(profileId: String, sessionId: String): SoftUnblockInfo? {

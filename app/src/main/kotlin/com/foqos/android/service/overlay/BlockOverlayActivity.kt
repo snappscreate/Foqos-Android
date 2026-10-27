@@ -16,7 +16,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.foqos.android.BuildConfig
 import com.foqos.android.data.model.PhysicalUnblockType
-import com.foqos.android.domain.strategy.PendingStrategyAction
+import com.foqos.android.domain.session.PendingStrategyAction
 import com.foqos.android.domain.strategy.StrategyInput
 import com.foqos.android.domain.strategy.StrategyRegistry
 import com.foqos.android.service.location.LocationAutomationStore

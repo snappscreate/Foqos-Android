@@ -1,6 +1,7 @@
 package com.foqos.android.ui.settings
 
 import android.Manifest
+import android.location.Location
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -113,6 +114,7 @@ fun LocationAutomationSection(viewModel: LocationAutomationViewModel = hiltViewM
     var radius by remember { mutableStateOf(original?.radiusMeters?.toInt()?.toString() ?: "200") }
     var expanded by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
+    var distanceText by remember { mutableStateOf<String?>(null) }
     val foregroundRequest = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
@@ -167,6 +169,34 @@ fun LocationAutomationSection(viewModel: LocationAutomationViewModel = hiltViewM
                     }.addOnFailureListener { message = "Location lookup failed: ${it.message}" }
             }
         }) { Text("Use current location") }
+        OutlinedButton(onClick = {
+            val rule = viewModel.initialRule
+            if (rule == null) {
+                distanceText = "No saved blocking area."
+            } else if (!viewModel.hasPermission()) {
+                distanceText = "Location permission required."
+            } else {
+                @Suppress("MissingPermission")
+                locationClient.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
+                    .addOnSuccessListener { current ->
+                        if (current == null) {
+                            distanceText = "Current location unavailable."
+                        } else {
+                            val result = FloatArray(1)
+                            Location.distanceBetween(
+                                current.latitude, current.longitude,
+                                rule.latitude, rule.longitude, result,
+                            )
+                            val remaining = (result[0] - rule.radiusMeters).coerceAtLeast(0f)
+                            distanceText = if (remaining == 0f) "Inside saved blocking area" else
+                                "${remaining.toInt()} m to saved blocking area"
+                        }
+                    }.addOnFailureListener {
+                        distanceText = "Could not determine distance: ${it.message}"
+                    }
+            }
+        }) { Text("Check distance to saved blocking area") }
+        if (distanceText != null) Text(distanceText!!, style = MaterialTheme.typography.bodySmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { viewModel.save(selected, lat, lon, radius) }) {
                 Text("Enable location rule")

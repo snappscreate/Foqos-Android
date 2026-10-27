@@ -82,6 +82,11 @@ fun BlockScreenContent(
     softUnblockInfo: SoftUnblockInfo?,
     onGoBack: () -> Unit,
     onOpenTemporarily: () -> Unit,
+    blockedIcon: (@Composable () -> Unit)? = null,
+    nfcReady: Boolean = false,
+    onSimulateNfc: (() -> Unit)? = null,
+    distanceDescription: String? = null,
+    nfcMessage: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val message = remember(blockedLabel) { pickFunMessage(blockedLabel) }
@@ -123,7 +128,7 @@ fun BlockScreenContent(
                     .padding(20.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(text = "🔒", fontSize = 40.sp)
+                if (blockedIcon != null) blockedIcon() else Text(text = "🔒", fontSize = 40.sp)
             }
 
             AnimatedContent(targetState = message, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "fun-message") { msg ->
@@ -139,6 +144,22 @@ fun BlockScreenContent(
                 Text(text = profileName, fontSize = 14.sp, color = Color.White.copy(alpha = 0.7f))
                 Text(text = "Blocking $blockedLabel", fontSize = 14.sp, color = Color.White.copy(alpha = 0.7f))
                 Text(text = formatElapsed(elapsedMillis), fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+            }
+
+            if (distanceDescription != null) {
+                Text(distanceDescription, fontSize = 14.sp, color = Color.White, textAlign = TextAlign.Center)
+            }
+            if (nfcReady) {
+                Text("Hold a registered NFC tag near your phone to unlock or pause",
+                    fontSize = 14.sp, color = Color.White, textAlign = TextAlign.Center)
+            }
+            if (!nfcMessage.isNullOrBlank()) {
+                Text(nfcMessage, fontSize = 14.sp, color = Color.White, textAlign = TextAlign.Center)
+            }
+            if (onSimulateNfc != null) {
+                OutlinedButton(onClick = onSimulateNfc, modifier = Modifier.fillMaxWidth()) {
+                    Text("DEBUG: Simulate NFC scan")
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))

@@ -57,6 +57,8 @@ fun PhysicalUnlockEditor(
     profileRepository: ProfileRepository,
     nfcDispatchManager: NfcForegroundDispatchManager,
     modifier: Modifier = Modifier,
+    editingLocked: Boolean = false,
+    onEditBlocked: () -> Unit = {},
 ) {
     val profile by profileRepository.observeById(profileId).collectAsStateWithLifecycle(initialValue = null)
     val scope = rememberCoroutineScope()
@@ -68,12 +70,12 @@ fun PhysicalUnlockEditor(
 
     PhysicalUnlockEditorContent(
         items = items,
-        onAddNfc = { activeScan = ScanMode.NFC },
-        onAddQr = { activeScan = ScanMode.QR },
+        onAddNfc = { if (editingLocked) onEditBlocked() else activeScan = ScanMode.NFC },
+        onAddQr = { if (editingLocked) onEditBlocked() else activeScan = ScanMode.QR },
         onDelete = { item ->
-            scope.launch { updateItems(profileRepository, profileId) { current -> current.filterNot { it.id == item.id } } }
+            if (editingLocked) { onEditBlocked() } else scope.launch { updateItems(profileRepository, profileId) { current -> current.filterNot { it.id == item.id } } }
         },
-        onRenameRequested = { item -> renamingItem = item },
+        onRenameRequested = { item -> if (editingLocked) onEditBlocked() else renamingItem = item },
         modifier = modifier,
     )
 

@@ -267,7 +267,16 @@ class ProfileEditViewModel @Inject constructor(
             val current = _uiState.value
             if (sessionManager.activeSession.value != null) return@launch
             val schedule = current.draft.schedule?.takeIf { current.scheduleEnabled && it.isConfigured }
-            val toSave = current.draft.copy(name = trimmedName, schedule = schedule, updatedAt = Instant.now())
+            // Physical unlock items are edited in a separate repository-backed component.
+            // Never overwrite newer NFC/QR registrations with this screen's stale draft.
+            val latestPersisted = if (current.isPersisted) profileRepository.getById(current.draft.id) else null
+            val toSave = current.draft.copy(
+                name = trimmedName,
+                schedule = schedule,
+                physicalUnblockItems = latestPersisted?.physicalUnblockItems
+                    ?: current.draft.physicalUnblockItems,
+                updatedAt = Instant.now(),
+            )
 
             val saved = if (!current.isPersisted) profileRepository.create(toSave) else profileRepository.upsert(toSave)
 

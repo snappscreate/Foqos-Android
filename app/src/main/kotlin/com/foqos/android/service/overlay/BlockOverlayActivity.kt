@@ -217,7 +217,10 @@ class BlockOverlayActivity : ComponentActivity() {
         if (!StrategyRegistry.byId(profile.strategyId).usesNfc) return
         // Never silently accept unknown NFC codes, even on location-started sessions.
         val registered = profile.physicalUnblockItems.filter { it.type == PhysicalUnblockType.NFC }
-        if (registered.isNotEmpty() && !profile.canUnblock(code, PhysicalUnblockType.NFC)) {
+        val requiresRegistration = session.tag == SessionManager.LOCATION_SESSION_TAG ||
+            profile.strategyId == com.foqos.android.domain.strategy.NfcPauseTimerBlockingStrategy.ID
+        if ((requiresRegistration && registered.isEmpty()) ||
+            (registered.isNotEmpty() && !profile.canUnblock(code, PhysicalUnblockType.NFC))) {
             nfcScanMessage = "このNFCは登録されていません"
             return
         }

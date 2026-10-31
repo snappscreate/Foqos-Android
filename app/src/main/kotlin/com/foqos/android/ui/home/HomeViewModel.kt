@@ -18,6 +18,9 @@ import com.foqos.android.domain.insights.WeeklySessionAggregation
 import com.foqos.android.domain.insights.WeeklySessionAggregator
 import com.foqos.android.domain.insights.WeeklySessionInterval
 import com.foqos.android.domain.session.SessionManager
+import com.foqos.android.BuildConfig
+import com.foqos.android.service.location.LocationAutomationStore
+import com.foqos.android.service.location.LocationRule
 import com.foqos.android.service.accessibility.ForegroundAppAccessibilityService
 import com.foqos.android.service.session.PermissionChecks
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -65,13 +68,18 @@ class HomeViewModel @Inject constructor(
         val monthlyAggregation: MonthlySessionAggregation? = null,
         val permissionsMissing: Boolean = false,
         val scheduleOutOfSync: Boolean = false,
+        val locationRule: LocationRule? = null,
+        val locationInside: Boolean? = null,
     )
+
+    private val locationStore = LocationAutomationStore(context)
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     init {
         refreshPermissions()
+        refreshLocationState()
         viewModelScope.launch {
             combine(
                 profileRepository.observeAll(),
@@ -98,6 +106,36 @@ class HomeViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    fun refreshLocationState() {
+        _uiState.update {
+            it.copy(
+                locationRule = locationStore.read(),
+                locationInside = locationStore.manualInside() ?: locationStore.lastInside(),
+            )
+        }
+    }
+
+    fun simulateLocation(inside: Boolean) {
+        if (!BuildConfig.DEBUG) return
+        val rule = locationStore.read() ?: return
+        viewModelScope.launch {
+            // Store override before changing sessions so future screen refreshes retain it.
+            locationStore.setManualInside(inside)
+            locationStore.setLastInside(inside)
+            sessionManager.onLocationTransition(rule.profileId, inside)
+            refreshLocationState()
+        }
+    }
+
+    fun onLocationProfileAction(profileId: String) {
+        val state = _uiState.value
+        val isInside = state.locationInside == true
+        viewModelScope.launch {
+            if (isInside) sessionManager.pauseLocationSessionFromHome(profileId)
+            else sessionManager.onLocationTransition(profileId, inside = false)
         }
     }
 

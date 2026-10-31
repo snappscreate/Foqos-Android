@@ -135,7 +135,7 @@ class HomeViewModel @Inject constructor(
         val isInside = state.locationInside == true
         viewModelScope.launch {
             if (isInside) sessionManager.pauseLocationSessionFromHome(profileId)
-            else sessionManager.onLocationTransition(profileId, inside = false)
+            else sessionManager.stopLocationProfileFromHome(profileId)
         }
     }
 

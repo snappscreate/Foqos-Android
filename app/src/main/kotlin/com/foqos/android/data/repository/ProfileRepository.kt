@@ -13,6 +13,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** CRUD + ordering + cloning for [BlockedProfile]s, backed by [BlockedProfileDao]. */
 @Singleton
@@ -20,6 +22,10 @@ class ProfileRepository @Inject constructor(
     private val dao: BlockedProfileDao,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) {
+
+    // Physical items and the profile editor must share one write lock; otherwise a stale
+    // editor draft can overwrite a just-registered NFC code.
+    private val writeMutex = Mutex()
 
     fun observeAll(): Flow<List<BlockedProfile>> =
         dao.observeAll().map { entities -> entities.map { it.toDomain() } }
@@ -43,6 +49,37 @@ class ProfileRepository @Inject constructor(
     suspend fun upsert(profile: BlockedProfile): BlockedProfile = withContext(ioDispatcher) {
         dao.upsert(profile.toEntity())
         profile
+    }
+
+    /**
+     * Save the editable profile fields without ever replacing separately managed NFC/QR items.
+     * Read+merge+write are serialized with [updatePhysicalUnblockItems].
+     */
+    suspend fun saveEditorDraft(profile: BlockedProfile): BlockedProfile = withContext(ioDispatcher) {
+        writeMutex.withLock {
+            val persisted = dao.getById(profile.id)?.toDomain()
+            val merged = profile.copy(
+                physicalUnblockItems = persisted?.physicalUnblockItems ?: profile.physicalUnblockItems,
+            )
+            dao.upsert(merged.toEntity())
+            merged
+        }
+    }
+
+    suspend fun updatePhysicalUnblockItems(
+        id: String,
+        transform: (List<com.foqos.android.data.model.PhysicalUnblockItem>) ->
+            List<com.foqos.android.data.model.PhysicalUnblockItem>,
+    ): BlockedProfile? = withContext(ioDispatcher) {
+        writeMutex.withLock {
+            val current = dao.getById(id)?.toDomain() ?: return@withLock null
+            val updated = current.copy(
+                physicalUnblockItems = transform(current.physicalUnblockItems),
+                updatedAt = Instant.now(),
+            )
+            dao.upsert(updated.toEntity())
+            updated
+        }
     }
 
     suspend fun delete(id: String) = withContext(ioDispatcher) {

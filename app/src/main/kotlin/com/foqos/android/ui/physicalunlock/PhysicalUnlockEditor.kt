@@ -133,8 +133,7 @@ private suspend fun updateItems(
     profileId: String,
     transform: (List<PhysicalUnblockItem>) -> List<PhysicalUnblockItem>,
 ) {
-    val profile = profileRepository.getById(profileId) ?: return
-    profileRepository.upsert(profile.copy(physicalUnblockItems = transform(profile.physicalUnblockItems), updatedAt = Instant.now()))
+    profileRepository.updatePhysicalUnblockItems(profileId, transform)
 }
 
 /** Pure, previewable rendering of the item list + add buttons - no repository/NFC dependency. */

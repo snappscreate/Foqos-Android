@@ -27,6 +27,29 @@ class LocationAutomationStore(context: Context) {
             .apply()
     }
 
+    /**
+     * Debug override is persisted across process restarts. Only a genuine ENTER/EXIT
+     * transition clears it, not app launch, screen resume, or geofence re-registration.
+     */
+    fun manualInside(): Boolean? =
+        if (prefs.contains("debug_manual_inside")) prefs.getBoolean("debug_manual_inside", false) else null
+
+    fun setManualInside(inside: Boolean) {
+        prefs.edit().putBoolean("debug_manual_inside", inside).commit()
+    }
+
+    fun clearManualInside() {
+        prefs.edit().remove("debug_manual_inside").commit()
+    }
+
+    /** Last effective transition, used by the home UI without polling GPS. */
+    fun lastInside(): Boolean? =
+        if (prefs.contains("last_inside")) prefs.getBoolean("last_inside", false) else null
+
+    fun setLastInside(inside: Boolean) {
+        prefs.edit().putBoolean("last_inside", inside).apply()
+    }
+
     fun clear() {
         prefs.edit().clear().apply()
     }

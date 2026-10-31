@@ -120,7 +120,7 @@ class SessionManager @Inject constructor(
      */
     suspend fun pauseLocationSessionFromHome(profileId: String) = withContext(ioDispatcher) {
         val current = _activeSession.value ?: return@withContext
-        if (current.profileId != profileId || current.tag != LOCATION_SESSION_TAG ||
+        if (current.profileId != profileId ||
             current.isPauseActive()
         ) return@withContext
         val profile = profileRepository.getById(profileId) ?: return@withContext
@@ -132,6 +132,12 @@ class SessionManager @Inject constructor(
             profile.breakTimeInMinutes.coerceAtLeast(1)
         }
         beginPause(current, minutes)
+    }
+
+    /** Explicit home Stop action for a location-configured profile while outside its area. */
+    suspend fun stopLocationProfileFromHome(profileId: String) = withContext(ioDispatcher) {
+        val current = _activeSession.value ?: return@withContext
+        if (current.profileId == profileId) endSession(current, Instant.now())
     }
 
     /** NFC profile tags pause NFC + Pause Timer sessions instead of acting as forced toggles. */

@@ -37,7 +37,7 @@ android {
         targetSdk = 36
         versionCode = 2
         versionName = "1.0.0"
-        buildConfigField("String", "GIT_REVISION", "\\"$gitRevision\\"")
+        buildConfigField("String", "GIT_REVISION", "\"$gitRevision\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

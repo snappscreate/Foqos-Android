@@ -16,9 +16,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.foqos.android.BuildConfig
 import com.foqos.android.data.model.PhysicalUnblockType
-import com.foqos.android.domain.session.PendingStrategyAction
 import com.foqos.android.domain.strategy.StrategyInput
 import com.foqos.android.domain.strategy.StrategyRegistry
+import com.foqos.android.domain.strategy.SessionOutcome
 import com.foqos.android.service.location.LocationAutomationStore
 import com.foqos.android.service.nfc.NfcForegroundDispatchManager
 import com.google.android.gms.location.LocationServices
@@ -178,6 +178,7 @@ class BlockOverlayActivity : ComponentActivity() {
                         }
                     }) else null,
                     onGoBack = { finishAndGoHome() },
+                    onOpenFoqosHome = { openFoqosHome() },
                     onOpenTemporarily = {
                         scope.launch {
                             sessionManager.issueSoftUnblockGrant(targetPackage)
@@ -214,12 +215,23 @@ class BlockOverlayActivity : ComponentActivity() {
         val session = sessionManager.activeSession.value ?: return
         val profile = profileRepository.getById(session.profileId) ?: return
         if (!StrategyRegistry.byId(profile.strategyId).usesNfc) return
-        // Always use the strategy's actual validation, never a raw session toggle.
-        sessionManager.deliverInput(
-            PendingStrategyAction.Stop(session.id),
-            StrategyInput.Code(code, StrategyInput.CodeSource.NFC),
-        )
-        nfcScanMessage = "NFC scan processed"
+        // Never silently accept unknown NFC codes, even on location-started sessions.
+        val registered = profile.physicalUnblockItems.filter { it.type == PhysicalUnblockType.NFC }
+        if (registered.isNotEmpty() && !profile.canUnblock(code, PhysicalUnblockType.NFC)) {
+            nfcScanMessage = "このNFCは登録されていません"
+            return
+        }
+        // Existing strategy performs the final NFC permission and pause-only checks.
+        when (val outcome = StrategyRegistry.byId(profile.strategyId).onStopInput(
+            profile, session, StrategyInput.Code(code, StrategyInput.CodeSource.NFC), sessionManager
+        )) {
+            SessionOutcome.Paused -> nfcScanMessage = "一時停止を開始したよ"
+            SessionOutcome.Stopped -> nfcScanMessage = "ブロックを解除したよ"
+            is SessionOutcome.Rejected -> nfcScanMessage =
+                if (registered.isNotEmpty()) "このNFCは登録されていません、または現在は使用できません"
+                else outcome.reason
+            else -> nfcScanMessage = "NFCを読み取ったよ"
+        }
     }
 
     private fun refreshBoundaryDistance() {
@@ -270,6 +282,14 @@ class BlockOverlayActivity : ComponentActivity() {
                 pm.getApplicationLabel(appInfo).toString()
             }.getOrDefault(packageName)
         }
+    }
+
+    private fun openFoqosHome() {
+        // Navigate into the actual Foqos UI rather than another full-screen active-session UI.
+        finish()
+        startActivity(Intent(this, com.foqos.android.MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        })
     }
 
     private fun finishAndGoHome() {

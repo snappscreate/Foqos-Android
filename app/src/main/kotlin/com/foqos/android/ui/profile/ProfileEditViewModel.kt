@@ -278,7 +278,7 @@ class ProfileEditViewModel @Inject constructor(
                 updatedAt = Instant.now(),
             )
 
-            val saved = if (!current.isPersisted) profileRepository.create(toSave) else profileRepository.upsert(toSave)
+            val saved = if (!current.isPersisted) profileRepository.create(toSave) else profileRepository.saveEditorDraft(toSave)
 
             if (saved.schedule?.isConfigured == true) {
                 alarmScheduler.scheduleWeeklySchedule(saved)

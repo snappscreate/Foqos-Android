@@ -160,7 +160,7 @@ fun SettingsScreen(
 
             SettingsSection(title = stringResource(R.string.settings_about_title)) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(stringResource(R.string.settings_version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.settings_version, BuildConfig.VERSION_NAME) + " / Build " + BuildConfig.VERSION_CODE + " / " + BuildConfig.GIT_REVISION, style = MaterialTheme.typography.bodyMedium)
                     Text(
                         stringResource(R.string.settings_attribution),
                         style = MaterialTheme.typography.bodySmall,

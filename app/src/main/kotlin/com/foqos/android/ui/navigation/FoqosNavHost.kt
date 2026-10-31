@@ -59,18 +59,9 @@ fun FoqosNavHost(
 
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
-    var previousActiveSessionId by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(sessionManager) {
-        sessionManager.activeSession.collect { session ->
-            val previous = previousActiveSessionId
-            previousActiveSessionId = session?.id
-            val currentRoute = navController.currentDestination?.route
-            if (previous == null && session != null && currentRoute == Routes.HOME) {
-                navController.navigate(Routes.ACTIVE_SESSION)
-            }
-        }
-    }
+    // The home screen must remain accessible while blocking is active.
+    // Session starts no longer auto-navigate to a second full-screen blocker.
 
     NavHost(
         navController = navController,

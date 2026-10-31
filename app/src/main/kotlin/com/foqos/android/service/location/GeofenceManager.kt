@@ -41,7 +41,7 @@ class GeofenceManager(private val context: Context) {
             .setExpirationDuration(Geofence.NEVER_EXPIRE)
             .build()
         val request = GeofencingRequest.Builder()
-            .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
+            .setInitialTrigger(if (LocationAutomationStore(context).manualInside() != null) 0 else GeofencingRequest.INITIAL_TRIGGER_ENTER)
             .addGeofence(fence)
             .build()
         return client.addGeofences(request, pendingIntent())

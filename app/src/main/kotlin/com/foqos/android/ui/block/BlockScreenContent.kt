@@ -46,16 +46,17 @@ data class SoftUnblockInfo(val remainingOpens: Int, val accessMinutes: Int)
 private data class FunMessage(val emoji: String, val title: String, val subtitle: (String) -> String)
 
 private val FUN_MESSAGES = listOf(
-    FunMessage("📵", "Not right now") { name -> "$name can wait. You're choosing your time on purpose." },
-    FunMessage("🧠", "Brain check") { name -> "Do you actually want $name... or was it autopilot?" },
-    FunMessage("🎯", "Stay on target") { name -> "One small step toward your goal first. Then decide on $name." },
-    FunMessage("⏳", "Give it 2 minutes") { name -> "Finish the next tiny thing. $name will still be there after." },
-    FunMessage("🛡️", "Shield up") { _ -> "Focus is protected. You've got this." },
-    FunMessage("🔒", "Locked in") { _ -> "This block is temporary. Your momentum isn't." },
-    FunMessage("🧱", "Boundary set") { _ -> "You made a plan. This is you sticking to it." },
-    FunMessage("✨", "Glow mode") { _ -> "You're building attention - that's the real flex." },
-    FunMessage("🫶", "Be kind to you") { _ -> "No shame. Just a gentle nudge back to what matters." },
-    FunMessage("🌐", "Not this detour") { name -> "$name isn't part of the mission right now." },
+    FunMessage("📵", "今はお休み") { name -> "${name}は後でも開ける。今やることを優先しよう。" },
+    FunMessage("🧠", "ちょっと確認") { name -> "${name}を開くのは本当に必要？ それとも習慣？" },
+    FunMessage("🎯", "目標に集中") { _ -> "目の前のことを一つ終わらせてから考えよう。" },
+    FunMessage("⏳", "あと少しだけ") { _ -> "まず2分だけ、やるべきことを進めてみよう。" },
+    FunMessage("🛡️", "集中を守ろう") { _ -> "自分で決めた時間を守っているところだよ。" },
+    FunMessage("🔒", "今はブロック中") { _ -> "誘惑から離れて、やりたいことに戻ろう。" },
+    FunMessage("🧱", "境界線を引こう") { _ -> "決めたルールを、今日も大切に。" },
+    FunMessage("✨", "時間を取り戻そう") { _ -> "今日の小さな集中が、後で効いてくる。" },
+    FunMessage("🌱", "自分のペースで") { _ -> "焦らず、ひとつずつ進めればいい。" },
+    FunMessage("🌐", "寄り道はあとで") { name -> "${name}を見るのは、集中時間が終わってから。" },
+
 )
 
 /**
@@ -81,6 +82,7 @@ fun BlockScreenContent(
     sessionStartEpochMillis: Long,
     softUnblockInfo: SoftUnblockInfo?,
     onGoBack: () -> Unit,
+    onOpenFoqosHome: () -> Unit = onGoBack,
     onOpenTemporarily: () -> Unit,
     blockedIcon: (@Composable () -> Unit)? = null,
     nfcReady: Boolean = false,
@@ -133,7 +135,7 @@ fun BlockScreenContent(
 
             AnimatedContent(targetState = message, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "fun-message") { msg ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(text = "${msg.emoji}  Stay focused", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.Center)
+                    Text(text = "${msg.emoji}  ${msg.title}", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.Center)
                     Text(text = msg.subtitle(blockedLabel), fontSize = 16.sp, color = Color.White.copy(alpha = 0.88f), textAlign = TextAlign.Center)
                 }
             }
@@ -142,7 +144,7 @@ fun BlockScreenContent(
 
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(text = profileName, fontSize = 14.sp, color = Color.White.copy(alpha = 0.7f))
-                Text(text = "Blocking $blockedLabel", fontSize = 14.sp, color = Color.White.copy(alpha = 0.7f))
+                Text(text = "${blockedLabel} をブロック中", fontSize = 14.sp, color = Color.White.copy(alpha = 0.7f))
                 Text(text = formatElapsed(elapsedMillis), fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
             }
 
@@ -150,7 +152,7 @@ fun BlockScreenContent(
                 Text(distanceDescription, fontSize = 14.sp, color = Color.White, textAlign = TextAlign.Center)
             }
             if (nfcReady) {
-                Text("Hold a registered NFC tag near your phone to unlock or pause",
+                Text("登録したNFCをかざすと一時停止・解除できます",
                     fontSize = 14.sp, color = Color.White, textAlign = TextAlign.Center)
             }
             if (!nfcMessage.isNullOrBlank()) {
@@ -158,7 +160,7 @@ fun BlockScreenContent(
             }
             if (onSimulateNfc != null) {
                 OutlinedButton(onClick = onSimulateNfc, modifier = Modifier.fillMaxWidth()) {
-                    Text("DEBUG: Simulate NFC scan")
+                    Text("開発用：NFCスキャンを再現")
                 }
             }
 
@@ -169,7 +171,15 @@ fun BlockScreenContent(
                 colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(text = "Go back")
+                Text(text = "戻る")
+            }
+
+            OutlinedButton(
+                onClick = onOpenFoqosHome,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+            ) {
+                Text("Foqosのホームを開く")
             }
 
             if (softUnblockInfo != null && softUnblockInfo.remainingOpens > 0) {

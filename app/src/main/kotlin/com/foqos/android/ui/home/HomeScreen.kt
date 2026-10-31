@@ -57,6 +57,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foqos.android.R
 import com.foqos.android.BuildConfig
 import com.foqos.android.data.model.StrategyPauseTimerData
+import com.foqos.android.data.model.PhysicalUnblockType
 import com.foqos.android.data.model.BlockedProfile
 import com.foqos.android.domain.strategy.StrategyRegistry
 import com.foqos.android.ui.common.formatScheduleSummary
@@ -371,6 +372,12 @@ private fun ProfileCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (BuildConfig.DEBUG) {
+                    Text(
+                        "DEBUG: NFC登録 ${profile.physicalUnblockItems.count { it.type == PhysicalUnblockType.NFC }}件",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
                 if (isLocationProfile) {
                     Text(
                         text = "位置連動：" + when (locationInside) {

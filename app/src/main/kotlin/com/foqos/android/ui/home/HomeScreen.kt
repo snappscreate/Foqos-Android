@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Warning
@@ -54,6 +55,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foqos.android.R
+import com.foqos.android.BuildConfig
+import com.foqos.android.data.model.StrategyPauseTimerData
 import com.foqos.android.data.model.BlockedProfile
 import com.foqos.android.domain.strategy.StrategyRegistry
 import com.foqos.android.ui.common.formatScheduleSummary
@@ -81,7 +84,10 @@ fun HomeScreen(
 
     LaunchedEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshPermissions()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshPermissions()
+                viewModel.refreshLocationState()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
     }
@@ -114,7 +120,7 @@ fun HomeScreen(
                     ActiveSessionBar(
                         profileName = profile.name,
                         startTime = session.startTime,
-                        onOpen = onOpenActiveSession,
+
                     )
                 }
             }
@@ -144,6 +150,33 @@ fun HomeScreen(
                 }
             }
 
+            if (BuildConfig.DEBUG && uiState.locationRule != null) {
+                item {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("開発用・位置範囲の擬似切替", style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                "現在の判定: " + when (uiState.locationInside) {
+                                    true -> "範囲内"
+                                    false -> "範囲外"
+                                    null -> "未判定"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = { viewModel.simulateLocation(true) }) {
+                                    Text("範囲に入る")
+                                }
+                                Button(onClick = { viewModel.simulateLocation(false) }) {
+                                    Text("範囲から出る")
+                                }
+                            }
+                            Text("次の実際の入退出イベントまで手動状態を維持", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+
             item {
                 ActivityChartCard(
                     uiState = uiState,
@@ -158,10 +191,15 @@ fun HomeScreen(
                     ProfileCard(
                         profile = profile,
                         isActive = uiState.activeSession?.profileId == profile.id,
+                        activeSession = uiState.activeSession?.takeIf { it.profileId == profile.id },
+                        isLocationProfile = uiState.locationRule?.profileId == profile.id,
+                        locationInside = uiState.locationInside,
                         onCardClick = { onEditProfile(profile.id) },
                         onPlayStop = {
                             if (uiState.activeSession?.profileId == profile.id) {
-                                viewModel.stopActiveSession()
+                                if (uiState.locationRule?.profileId == profile.id) {
+                                    viewModel.onLocationProfileAction(profile.id)
+                                } else viewModel.stopActiveSession()
                             } else {
                                 viewModel.startProfile(profile.id)
                             }
@@ -289,6 +327,9 @@ private fun EmptyProfilesState(onCreateProfile: () -> Unit) {
 private fun ProfileCard(
     profile: BlockedProfile,
     isActive: Boolean,
+    activeSession: com.foqos.android.data.model.BlockedProfileSession? = null,
+    isLocationProfile: Boolean = false,
+    locationInside: Boolean? = null,
     onCardClick: () -> Unit,
     onPlayStop: () -> Unit,
     onEdit: () -> Unit,
@@ -330,6 +371,33 @@ private fun ProfileCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (isLocationProfile) {
+                    Text(
+                        text = "位置連動：" + when (locationInside) {
+                            true -> "範囲内"
+                            false -> "範囲外"
+                            null -> "判定待ち"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                if (activeSession?.isPauseActive() == true) {
+                    var nowMillis by remember(activeSession.id) { mutableStateOf(System.currentTimeMillis()) }
+                    LaunchedEffect(activeSession.id, activeSession.pauseStartTime) {
+                        while (true) {
+                            nowMillis = System.currentTimeMillis()
+                            delay(1000L)
+                        }
+                    }
+                    val pauseMinutes = if (profile.strategyId ==
+                        com.foqos.android.domain.strategy.NfcPauseTimerBlockingStrategy.ID
+                    ) StrategyPauseTimerData.fromJsonOrNull(profile.strategyDataJson).pauseDurationInMinutes
+                    else profile.breakTimeInMinutes.coerceAtLeast(1)
+                    val elapsedMs = nowMillis - (activeSession.pauseStartTime?.toEpochMilli() ?: nowMillis)
+                    val leftSeconds = ((pauseMinutes * 60_000L - elapsedMs).coerceAtLeast(0L) + 999L) / 1000L
+                    Text("一時停止中：残り ${leftSeconds / 60}分${leftSeconds % 60}秒",
+                        style = MaterialTheme.typography.bodySmall)
+                }
                 profile.schedule?.takeIf { it.isConfigured }?.let { schedule ->
                     Text(
                         text = formatScheduleSummary(schedule),
@@ -341,7 +409,7 @@ private fun ProfileCard(
 
             IconButton(onClick = onPlayStop) {
                 Icon(
-                    imageVector = if (isActive) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                    imageVector = if (isActive && isLocationProfile && locationInside == true) Icons.Filled.Pause else if (isActive) Icons.Filled.Stop else Icons.Filled.PlayArrow,
                     contentDescription = if (isActive) stringResource(R.string.home_stop_action) else stringResource(R.string.home_start_action),
                 )
             }
@@ -364,7 +432,7 @@ private fun ProfileCard(
 private fun pluralizeBlockedCount(count: Int): String = if (count == 1) "1 app/site blocked" else "$count apps/sites blocked"
 
 @Composable
-private fun ActiveSessionBar(profileName: String, startTime: Instant, onOpen: () -> Unit) {
+private fun ActiveSessionBar(profileName: String, startTime: Instant) {
     var now by remember { mutableStateOf(Instant.now()) }
     LaunchedEffect(startTime) {
         while (true) {
@@ -378,7 +446,6 @@ private fun ActiveSessionBar(profileName: String, startTime: Instant, onOpen: ()
         modifier = Modifier
             .fillMaxWidth()
             .padding(12.dp),
-        onClick = onOpen,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
     ) {
         Row(
@@ -392,7 +459,7 @@ private fun ActiveSessionBar(profileName: String, startTime: Instant, onOpen: ()
                 Text(text = profileName, style = MaterialTheme.typography.titleSmall)
                 Text(text = formatDuration(elapsed), style = MaterialTheme.typography.bodySmall)
             }
-            TextButton(onClick = onOpen) { Text(stringResource(R.string.home_open_session_action)) }
+            Text("ブロック中", style = MaterialTheme.typography.labelMedium)
         }
     }
 }

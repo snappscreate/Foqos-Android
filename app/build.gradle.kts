@@ -20,6 +20,12 @@ val keystoreProperties = Properties().apply {
     }
 }
 val hasReleaseSigningConfig = keystorePropertiesFile.exists()
+// Shown in Settings to make field-test APK revisions identifiable.
+val gitRevision = runCatching {
+    providers.exec { commandLine("git", "rev-parse", "--short", "HEAD") }
+        .standardOutput.asText.get().trim()
+}.getOrDefault("unknown")
+
 
 android {
     namespace = "com.foqos.android"
@@ -29,8 +35,9 @@ android {
         applicationId = "com.foqos.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
+        versionCode = 2
         versionName = "1.0.0"
+        buildConfigField("String", "GIT_REVISION", "\\"$gitRevision\\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

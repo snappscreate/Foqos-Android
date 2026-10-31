@@ -113,6 +113,27 @@ class SessionManager @Inject constructor(
         }
     }
 
+    /**
+     * Home action for an active location-owned session. Inside the configured area this
+     * starts a timed pause without destroying the session or its NFC registrations.
+     * Outside the area use [onLocationTransition] to fully end location-owned sessions.
+     */
+    suspend fun pauseLocationSessionFromHome(profileId: String) = withContext(ioDispatcher) {
+        val current = _activeSession.value ?: return@withContext
+        if (current.profileId != profileId || current.tag != LOCATION_SESSION_TAG ||
+            current.isPauseActive()
+        ) return@withContext
+        val profile = profileRepository.getById(profileId) ?: return@withContext
+        val minutes = if (profile.strategyId ==
+            com.foqos.android.domain.strategy.NfcPauseTimerBlockingStrategy.ID
+        ) {
+            StrategyPauseTimerData.fromJsonOrNull(profile.strategyDataJson).pauseDurationInMinutes
+        } else {
+            profile.breakTimeInMinutes.coerceAtLeast(1)
+        }
+        beginPause(current, minutes)
+    }
+
     /** NFC profile tags pause NFC + Pause Timer sessions instead of acting as forced toggles. */
     suspend fun onProfileNfcScan(profileId: String) {
         val current = _activeSession.value ?: sessionRepository.activeSessionOnce()

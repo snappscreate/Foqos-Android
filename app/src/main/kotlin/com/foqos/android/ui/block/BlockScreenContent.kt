@@ -5,6 +5,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -86,6 +88,8 @@ fun BlockScreenContent(
     onOpenAllowedApps: (() -> Unit)? = null,
     onOpenAndroidSettings: (() -> Unit)? = null,
     onOpenTemporarily: () -> Unit,
+    fullScreenMode: Boolean = false,
+    fullScreenShortcuts: (@Composable () -> Unit)? = null,
     blockedIcon: (@Composable () -> Unit)? = null,
     nfcReady: Boolean = false,
     onSimulateNfc: (() -> Unit)? = null,
@@ -121,7 +125,8 @@ fun BlockScreenContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(32.dp),
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -168,7 +173,7 @@ fun BlockScreenContent(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Button(
+            if (!fullScreenMode) Button(
                 onClick = onGoBack,
                 colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
                 modifier = Modifier.fillMaxWidth(),
@@ -176,7 +181,9 @@ fun BlockScreenContent(
                 Text(text = "戻る")
             }
 
-            if (onOpenAllowedApps != null) {
+            if (fullScreenShortcuts != null) fullScreenShortcuts()
+
+            if (onOpenAllowedApps != null && !fullScreenMode) {
                 OutlinedButton(
                     onClick = onOpenAllowedApps,
                     modifier = Modifier.fillMaxWidth(),

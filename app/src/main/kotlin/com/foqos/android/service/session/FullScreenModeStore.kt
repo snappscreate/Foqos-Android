@@ -32,11 +32,15 @@ class FullScreenModeStore(context: Context) {
      * A short grace period is needed while the browser opens the requested URL, before its
      * address bar reports the destination. It is not a permanent browser allowance.
      */
-    fun grantBrowserStartup(profileId: String, packageName: String, durationMillis: Long = 6_000L) {
+    fun grantBrowserStartup(profileId: String, packageName: String, durationMillis: Long = 12_000L) {
         prefs.edit().putString("${profileId}_browser", packageName)
             .putLong("${profileId}_browser_until", System.currentTimeMillis() + durationMillis)
             .apply()
     }
+
+    /** Browser package used for the last approved website launch, not an intent chooser. */
+    fun launchedBrowserPackage(profileId: String): String? =
+        prefs.getString("${profileId}_browser", null)
 
     fun browserStartupUntil(profileId: String, packageName: String): Long =
         if (prefs.getString("${profileId}_browser", null) == packageName)
@@ -74,6 +78,6 @@ class FullScreenModeStore(context: Context) {
     }
 
     fun delete(profileId: String) {
-        prefs.edit().remove("${profileId}_enabled").remove("${profileId}_allowed").remove("${profileId}_urls").apply()
+        prefs.edit().remove("${profileId}_enabled").remove("${profileId}_allowed").remove("${profileId}_urls").remove("${profileId}_browser").remove("${profileId}_browser_until").apply()
     }
 }

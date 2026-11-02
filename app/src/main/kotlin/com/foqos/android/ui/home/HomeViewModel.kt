@@ -21,6 +21,7 @@ import com.foqos.android.domain.session.SessionManager
 import com.foqos.android.BuildConfig
 import com.foqos.android.service.location.LocationAutomationStore
 import com.foqos.android.service.location.LocationRule
+import com.foqos.android.service.session.FullScreenModeStore
 import com.foqos.android.service.accessibility.ForegroundAppAccessibilityService
 import com.foqos.android.service.session.PermissionChecks
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -163,14 +164,27 @@ class HomeViewModel @Inject constructor(
     fun duplicateProfile(profileId: String) {
         if (isLocationEditProtected(profileId)) return
         viewModelScope.launch {
-            if (!isLocationEditProtected(profileId)) profileRepository.clone(profileId)
+            if (!isLocationEditProtected(profileId)) {
+                val duplicate = profileRepository.clone(profileId)
+                if (duplicate != null) {
+                    val store = FullScreenModeStore(context)
+                    store.save(
+                        duplicate.id,
+                        store.enabled(profileId),
+                        store.allowedPackages(profileId),
+                    )
+                }
+            }
         }
     }
 
     fun deleteProfile(profileId: String) {
         if (isLocationEditProtected(profileId)) return
         viewModelScope.launch {
-            if (!isLocationEditProtected(profileId)) profileRepository.delete(profileId)
+            if (!isLocationEditProtected(profileId)) {
+                profileRepository.delete(profileId)
+                FullScreenModeStore(context).delete(profileId)
+            }
         }
     }
 

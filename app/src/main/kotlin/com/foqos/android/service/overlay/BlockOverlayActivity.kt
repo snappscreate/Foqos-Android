@@ -132,9 +132,10 @@ class BlockOverlayActivity : ComponentActivity() {
                         finishAndGoHome()
                         return@LaunchedEffect
                     }
-                    // A pause or break must also close an already displayed domain/app shield.
+                    // Full-screen focus pause must return to the real Android launcher.
+                    // Simply finish() can reveal an underlying blocked app instead.
                     if (current.pauseActive || current.breakActive) {
-                        finish()
+                        if (fullScreen) finishAndGoHome() else finish()
                         return@LaunchedEffect
                     }
                     val grantExpiry = current.activeGrants[targetPackage]

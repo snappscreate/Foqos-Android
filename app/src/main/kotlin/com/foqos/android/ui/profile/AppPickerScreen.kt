@@ -22,7 +22,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -62,25 +61,12 @@ fun AppPickerScreen(
         },
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(text = stringResource(R.string.app_picker_allow_mode_title), style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        text = if (uiState.draft.allowModeEnabled) {
-                            stringResource(R.string.app_picker_allow_mode_on_body)
-                        } else {
-                            stringResource(R.string.app_picker_allow_mode_off_body)
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(checked = uiState.draft.allowModeEnabled, onCheckedChange = viewModel::setAllowMode)
-            }
+            Text(
+                text = "ここで選択したアプリのみブロックします",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            )
 
             OutlinedTextField(
                 value = uiState.appSearchQuery,

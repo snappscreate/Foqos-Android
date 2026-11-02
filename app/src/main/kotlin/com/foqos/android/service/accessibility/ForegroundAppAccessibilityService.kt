@@ -83,6 +83,12 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
             return
         }
 
+        // IME events are not app switches. The current editor remains foreground
+        // even when the keyboard is visible over it.
+        val configuredIme = android.provider.Settings.Secure.getString(
+            contentResolver, android.provider.Settings.Secure.DEFAULT_INPUT_METHOD
+        )?.substringBefore('/')
+        if (configuredIme == event.packageName?.toString()) return
         val eventPackage = event.packageName?.toString() ?: return
         // Keyboard/IME windows emit accessibility events but are not foreground apps.
         val appWindow = windows.firstOrNull {

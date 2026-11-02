@@ -18,9 +18,24 @@ object DefaultBrowserResolver {
             PackageManager.MATCH_DEFAULT_ONLY,
         )?.activityInfo?.packageName
 
-        // A resolver/chooser is not itself a browser. Do not grant it web access.
-        return resolved?.takeUnless {
+        // A resolver/chooser is not itself a browser. When no default is configured,
+        // prefer a real installed browser instead of launching the Android chooser,
+        // which full-screen focus would rightly block.
+        val valid = resolved?.takeUnless {
             it == "android" || it == "com.google.android.packageinstaller"
         }
+        if (valid != null) return valid
+        val installedHandlers = context.packageManager.queryIntentActivities(
+            intent, PackageManager.MATCH_DEFAULT_ONLY
+        ).map { it.activityInfo.packageName }.toSet()
+        return listOf(
+            "com.android.chrome",
+            "org.mozilla.firefox",
+            "com.brave.browser",
+            "com.microsoft.emmx",
+            "com.sec.android.app.sbrowser",
+        ).firstOrNull { it in installedHandlers }
+            ?: installedHandlers.firstOrNull { it != "android" }
+
     }
 }

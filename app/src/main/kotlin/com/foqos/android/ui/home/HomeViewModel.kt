@@ -81,6 +81,11 @@ class HomeViewModel @Inject constructor(
         refreshPermissions()
         refreshLocationState()
         viewModelScope.launch {
+            locationStore.observeState().collect { (rule, inside) ->
+                _uiState.update { it.copy(locationRule = rule, locationInside = inside) }
+            }
+        }
+        viewModelScope.launch {
             combine(
                 profileRepository.observeAll(),
                 sessionManager.activeSession,
@@ -147,12 +152,26 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { sessionManager.stopActiveSession(fromBackground = false) }
     }
 
+    /** Location-owned active profile is protected from duplicate/delete inside the area. */
+    private fun isLocationEditProtected(profileId: String): Boolean {
+        val rule = locationStore.read()
+        val inside = locationStore.manualInside() ?: locationStore.lastInside()
+        val current = sessionManager.activeSession.value
+        return rule?.profileId == profileId && inside == true && current?.profileId == profileId
+    }
+
     fun duplicateProfile(profileId: String) {
-        viewModelScope.launch { profileRepository.clone(profileId) }
+        if (isLocationEditProtected(profileId)) return
+        viewModelScope.launch {
+            if (!isLocationEditProtected(profileId)) profileRepository.clone(profileId)
+        }
     }
 
     fun deleteProfile(profileId: String) {
-        viewModelScope.launch { profileRepository.delete(profileId) }
+        if (isLocationEditProtected(profileId)) return
+        viewModelScope.launch {
+            if (!isLocationEditProtected(profileId)) profileRepository.delete(profileId)
+        }
     }
 
     fun setChartType(chartType: ChartType) {

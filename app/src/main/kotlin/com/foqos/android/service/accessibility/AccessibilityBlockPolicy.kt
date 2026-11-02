@@ -98,6 +98,8 @@ class AccessibilityBlockPolicy @Inject constructor() {
     ): BlockDecision {
         val appDecision = decideForApp(packageName, state, nowMillis, neverBlockPackages)
         if (appDecision !is BlockDecision.Allow) return appDecision
+        // An explicitly allowed browser is unrestricted in full-screen mode.
+        if (state?.fullScreenMode == true) return BlockDecision.Allow
         // App-level pause/break must also suspend URL filtering.
         if (state?.pauseActive == true || state?.breakActive == true) return BlockDecision.Allow
         if (state == null || state.blockedDomains.isEmpty() || url.isNullOrBlank()) return BlockDecision.Allow

@@ -5,6 +5,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import com.foqos.android.service.session.FullScreenModeStore
+import com.foqos.android.service.session.DefaultBrowserResolver
 import android.content.Intent
 import android.net.Uri
 import android.Manifest
@@ -217,8 +218,7 @@ class BlockOverlayActivity : ComponentActivity() {
                             onUrl = { url ->
                                 val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                                     .addCategory(Intent.CATEGORY_BROWSABLE)
-                                val resolvedPackage = packageManager.resolveActivity(browserIntent, 0)
-                                    ?.activityInfo?.packageName
+                                val resolvedPackage = DefaultBrowserResolver.packageName(this@BlockOverlayActivity)
                                 val profileId = state?.profileId
                                 if (profileId != null && resolvedPackage != null &&
                                     resolvedPackage != "android"

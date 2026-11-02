@@ -11,6 +11,7 @@ import android.provider.Settings
 import com.foqos.android.service.accessibility.AccessibilityBlockPolicy
 import com.foqos.android.service.accessibility.BlockDecision
 import com.foqos.android.service.overlay.BlockOverlayActivity
+import com.foqos.android.service.session.FullScreenModeStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -62,7 +63,14 @@ class UsageStatsPoller @Inject constructor(
 
     private fun pollOnce() {
         val packageName = mostRecentForegroundPackage() ?: return
-        val state = blockingStateHolder.state.value
+        val snapshot = blockingStateHolder.state.value
+        val state = snapshot?.let { current ->
+            val store = FullScreenModeStore(context)
+            if (store.enabled(current.profileId)) current.copy(
+                fullScreenMode = true,
+                fullScreenAllowedPackages = store.allowedPackages(current.profileId),
+            ) else current
+        }
         val neverBlock = AccessibilityBlockPolicy.neverBlockWithLauncher(currentLauncherPackageName())
 
         // No URL detection in fallback mode - always decide at the app level, even for browsers.

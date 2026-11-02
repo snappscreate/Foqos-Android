@@ -1,6 +1,8 @@
 package com.foqos.android.service.accessibility
 
 import android.accessibilityservice.AccessibilityService
+import android.view.accessibility.AccessibilityWindowInfo
+import android.net.Uri
 import android.content.Intent
 import android.os.SystemClock
 import android.util.Log
@@ -80,14 +82,36 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
             return
         }
 
-        val packageName = event.packageName?.toString() ?: return
+        val eventPackage = event.packageName?.toString() ?: return
+        // Keyboard/IME windows emit accessibility events but are not foreground apps.
+        val appWindow = windows.firstOrNull {
+            it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.isActive
+        } ?: windows.firstOrNull {
+            it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.isFocused
+        }
+        val foregroundPackage = appWindow?.root?.packageName?.toString()
+        val packageName = foregroundPackage ?: eventPackage
+        if (eventPackage != packageName && windows.any {
+                it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD &&
+                    it.root?.packageName?.toString() == eventPackage
+            }) return
         val snapshot = blockingStateHolder.state.value
         val state = snapshot?.let { current ->
             val store = FullScreenModeStore(applicationContext)
-            if (store.enabled(current.profileId)) current.copy(
-                fullScreenMode = true,
-                fullScreenAllowedPackages = store.allowedPackages(current.profileId),
-            ) else current
+            if (store.enabled(current.profileId)) {
+                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"))
+                val browserPackage = packageManager.resolveActivity(browserIntent, 0)
+                    ?.activityInfo?.packageName
+                current.copy(
+                    fullScreenMode = true,
+                    fullScreenAllowedPackages = store.allowedPackages(current.profileId),
+                    fullScreenAllowedUrls = store.allowedUrls(current.profileId),
+                    fullScreenBrowserPackage = browserPackage,
+                    fullScreenBrowserStartupUntil = browserPackage?.let {
+                        store.browserStartupUntil(current.profileId, it)
+                    } ?: 0L,
+                )
+            } else current
         }
         val neverBlock = AccessibilityBlockPolicy.neverBlockWithLauncher(currentLauncherPackageName())
 
@@ -125,7 +149,8 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
             packageName in AccessibilityBlockPolicy.SETTINGS_PACKAGES &&
             isProtectedFoqosSettingsScreen()
 
-        val decision = if (packageName in AccessibilityBlockPolicy.BROWSER_PACKAGES) {
+        val decision = if (packageName in AccessibilityBlockPolicy.BROWSER_PACKAGES ||
+            (state?.fullScreenMode == true && packageName == state.fullScreenBrowserPackage)) {
             val url = readUrlBarText(packageName)
             blockPolicy.decideForUrl(packageName, url, state, neverBlockPackages = neverBlock)
         } else {

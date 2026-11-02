@@ -1,5 +1,10 @@
 package com.foqos.android.service.overlay
 
+import android.provider.Settings
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Button
+import com.foqos.android.service.session.FullScreenModeStore
 import android.content.Intent
 import android.Manifest
 import android.content.pm.PackageManager as AndroidPackageManager
@@ -10,6 +15,8 @@ import android.util.Log
 import com.foqos.android.service.nfc.NfcTagContentParser
 import android.widget.ImageView
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -108,6 +115,10 @@ class BlockOverlayActivity : ComponentActivity() {
             FoqosTheme {
                 val state by blockingStateHolder.state.collectAsStateWithLifecycle()
                 val scope = rememberCoroutineScope()
+                val fullScreenStore = remember { FullScreenModeStore(this@BlockOverlayActivity) }
+                val fullScreen = state?.profileId?.let(fullScreenStore::enabled) == true
+                val allowedPackages = state?.profileId?.let(fullScreenStore::allowedPackages).orEmpty()
+                var showAllowedApps by remember { mutableStateOf(false) }
 
                 // Auto-finishes on session end or once a grant for this exact package is issued
                 // (by this screen's own "Open for N min" button below, or another path entirely).
@@ -182,6 +193,11 @@ class BlockOverlayActivity : ComponentActivity() {
                     }) else null,
                     onGoBack = { finishAndGoHome() },
                     onOpenFoqosHome = { openFoqosHome() },
+                    onOpenAllowedApps = if (fullScreen) ({ showAllowedApps = true }) else null,
+                    onOpenAndroidSettings = if (fullScreen) ({
+                        startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        finish()
+                    }) else null,
                     onOpenTemporarily = {
                         scope.launch {
                             sessionManager.issueSoftUnblockGrant(targetPackage)
@@ -189,6 +205,38 @@ class BlockOverlayActivity : ComponentActivity() {
                         }
                     },
                 )
+
+                if (showAllowedApps) {
+                    AlertDialog(
+                        onDismissRequest = { showAllowedApps = false },
+                        title = { Text("許可したアプリ") },
+                        text = {
+                            androidx.compose.foundation.lazy.LazyColumn(
+                                modifier = Modifier.heightIn(max = 360.dp),
+                            ) {
+                                items(allowedPackages.toList().sorted()) { pkg ->
+                                    val label = rememberAppLabel(pkg)
+                                    TextButton(onClick = {
+                                        showAllowedApps = false
+                                        val launch = packageManager.getLaunchIntentForPackage(pkg)
+                                        if (launch != null) {
+                                            startActivity(launch)
+                                            finish()
+                                        } else {
+                                            nfcScanMessage = "アプリを起動できませんでした：$pkg"
+                                        }
+                                    }) { Text(label) }
+                                }
+                                if (allowedPackages.isEmpty()) {
+                                    item { Text("許可アプリが登録されていません") }
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showAllowedApps = false }) { Text("閉じる") }
+                        },
+                    )
+                }
 
                 BackHandler { finishAndGoHome() }
             }

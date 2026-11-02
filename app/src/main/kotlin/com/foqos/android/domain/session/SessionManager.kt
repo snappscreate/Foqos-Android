@@ -775,7 +775,7 @@ class SessionManager @Inject constructor(
                 blockAppInstallation = profile.enableBlockAppInstallation,
                 breakActive = false,
                 pauseActive = false,
-                locationSuspended = tag == LOCATION_SESSION_TAG && locationStoreOutside(profile.id),
+                locationSuspended = session.tag == LOCATION_SESSION_TAG && locationStoreOutside(profile.id),
                 activeGrants = emptyMap(),
                 disableBackgroundStops = profile.disableBackgroundStops,
                 sessionStartEpochMillis = session.startTime.toEpochMilli(),

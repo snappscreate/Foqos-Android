@@ -10,6 +10,7 @@ import android.view.accessibility.AccessibilityEvent
 import com.foqos.android.domain.session.SessionManager
 import com.foqos.android.service.overlay.BlockOverlayActivity
 import com.foqos.android.service.session.FullScreenModeStore
+import com.foqos.android.service.session.DefaultBrowserResolver
 import com.foqos.android.service.session.BlockingStateHolder
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -99,9 +100,7 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
         val state = snapshot?.let { current ->
             val store = FullScreenModeStore(applicationContext)
             if (store.enabled(current.profileId)) {
-                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"))
-                val browserPackage = packageManager.resolveActivity(browserIntent, 0)
-                    ?.activityInfo?.packageName
+                val browserPackage = DefaultBrowserResolver.packageName(this)
                 current.copy(
                     fullScreenMode = true,
                     fullScreenAllowedPackages = store.allowedPackages(current.profileId),

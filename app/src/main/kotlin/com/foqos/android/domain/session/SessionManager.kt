@@ -1,5 +1,8 @@
 package com.foqos.android.domain.session
 
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import com.foqos.android.service.location.LocationAutomationStore
 import com.foqos.android.data.model.BlockedProfile
 import com.foqos.android.data.model.BlockedProfileSession
 import com.foqos.android.data.model.SoftUnblockGrant
@@ -66,6 +69,7 @@ class SessionManager @Inject constructor(
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     private val sessionServiceController: SessionServiceController,
     private val widgetRefresher: WidgetRefresher,
+    @ApplicationContext private val appContext: Context,
 ) : StrategyHost {
 
     private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
@@ -94,6 +98,12 @@ class SessionManager @Inject constructor(
         }
     }
 
+    private fun locationStoreOutside(profileId: String): Boolean {
+        val store = LocationAutomationStore(appContext)
+        return store.read()?.profileId == profileId &&
+            (store.manualInside() ?: store.lastInside()) == false
+    }
+
     // --- Public API ------------------------------------------------------------------------
 
     /**
@@ -103,12 +113,21 @@ class SessionManager @Inject constructor(
     suspend fun onLocationTransition(profileId: String, inside: Boolean) = withContext(ioDispatcher) {
         val current = _activeSession.value ?: sessionRepository.activeSessionOnce()
         if (inside) {
-            if (current != null) return@withContext
+            if (current != null) {
+                // Restore blocking in the same location-owned session; NFC timed pauses
+                // remain independent and keep their remaining duration.
+                if (current.profileId == profileId && current.tag == LOCATION_SESSION_TAG) {
+                    blockingStateHolder.setLocationSuspended(false)
+                }
+                return@withContext
+            }
             val profile = profileRepository.getById(profileId) ?: return@withContext
             createSession(profile, tag = LOCATION_SESSION_TAG, forceStarted = false)
         } else {
             if (current?.profileId == profileId && current.tag == LOCATION_SESSION_TAG) {
-                endSession(current, Instant.now())
+                // Do not end the session on EXIT. Keep history, NFC registrations and
+                // timed pause state intact, only suspend enforcement until ENTER.
+                blockingStateHolder.setLocationSuspended(true)
             }
         }
     }
@@ -520,6 +539,8 @@ class SessionManager @Inject constructor(
                 blockAppInstallation = profile.enableBlockAppInstallation,
                 breakActive = session.isBreakActive(now),
                 pauseActive = session.isPauseActive(now),
+                locationSuspended = session.tag == LOCATION_SESSION_TAG &&
+                    locationStoreOutside(profile.id),
                 activeGrants = activeGrants,
                 disableBackgroundStops = profile.disableBackgroundStops,
                 sessionStartEpochMillis = session.startTime.toEpochMilli(),

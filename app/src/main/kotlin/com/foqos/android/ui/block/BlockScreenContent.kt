@@ -130,14 +130,16 @@ fun BlockScreenContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .padding(bottom = 8.dp)
-                    .background(Color.White.copy(alpha = 0.15f), shape = RoundedCornerShape(32.dp))
-                    .padding(20.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (blockedIcon != null) blockedIcon() else Text(text = "🔒", fontSize = 40.sp)
+            if (!fullScreenMode) {
+                Box(
+                    modifier = Modifier
+                        .padding(bottom = 8.dp)
+                        .background(Color.White.copy(alpha = 0.15f), shape = RoundedCornerShape(32.dp))
+                        .padding(20.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (blockedIcon != null) blockedIcon() else Text(text = "🔒", fontSize = 40.sp)
+                }
             }
 
             AnimatedContent(targetState = message, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "fun-message") { msg ->

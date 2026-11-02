@@ -72,6 +72,7 @@ class ProfileEditViewModel @Inject constructor(
         val editingLocked: Boolean = false,
         val fullScreenEnabled: Boolean = false,
         val fullScreenAllowedPackages: Set<String> = emptySet(),
+        val fullScreenAllowedUrls: Set<String> = emptySet(),
     )
 
     private val fullScreenStore = FullScreenModeStore(context)
@@ -94,6 +95,7 @@ class ProfileEditViewModel @Inject constructor(
                         scheduleEnabled = existing.schedule?.isConfigured == true,
                         fullScreenEnabled = fullScreenStore.enabled(existing.id),
                         fullScreenAllowedPackages = fullScreenStore.allowedPackages(existing.id),
+                        fullScreenAllowedUrls = fullScreenStore.allowedUrls(existing.id),
                     )
                 } else {
                     it.copy(loading = false)
@@ -141,6 +143,19 @@ class ProfileEditViewModel @Inject constructor(
             val allowed = current.fullScreenAllowedPackages
             current.copy(fullScreenAllowedPackages =
                 if (packageName in allowed) allowed - packageName else allowed + packageName)
+        }
+    }
+
+    fun addFullScreenAllowedUrl(value: String) {
+        val normalized = FullScreenModeStore.normalizeUrl(value) ?: return
+        guardedUpdate {
+            it.copy(fullScreenAllowedUrls = it.fullScreenAllowedUrls + normalized)
+        }
+    }
+
+    fun removeFullScreenAllowedUrl(value: String) {
+        guardedUpdate {
+            it.copy(fullScreenAllowedUrls = it.fullScreenAllowedUrls - value)
         }
     }
 
@@ -303,6 +318,7 @@ class ProfileEditViewModel @Inject constructor(
 
             val saved = if (!current.isPersisted) profileRepository.create(toSave) else profileRepository.saveEditorDraft(toSave)
             fullScreenStore.save(saved.id, current.fullScreenEnabled, current.fullScreenAllowedPackages)
+            fullScreenStore.saveUrls(saved.id, current.fullScreenAllowedUrls)
 
             if (saved.schedule?.isConfigured == true) {
                 alarmScheduler.scheduleWeeklySchedule(saved)

@@ -116,7 +116,7 @@ class SessionManager @Inject constructor(
             if (current != null) {
                 // Restore blocking in the same location-owned session; NFC timed pauses
                 // remain independent and keep their remaining duration.
-                if (current.profileId == profileId && current.tag == LOCATION_SESSION_TAG) {
+                if (current.profileId == profileId) {
                     blockingStateHolder.setLocationSuspended(false)
                 }
                 return@withContext
@@ -539,8 +539,7 @@ class SessionManager @Inject constructor(
                 blockAppInstallation = profile.enableBlockAppInstallation,
                 breakActive = session.isBreakActive(now),
                 pauseActive = session.isPauseActive(now),
-                locationSuspended = session.tag == LOCATION_SESSION_TAG &&
-                    locationStoreOutside(profile.id),
+                locationSuspended = locationStoreOutside(profile.id),
                 activeGrants = activeGrants,
                 disableBackgroundStops = profile.disableBackgroundStops,
                 sessionStartEpochMillis = session.startTime.toEpochMilli(),
@@ -588,7 +587,7 @@ class SessionManager @Inject constructor(
                 blockAppInstallation = profile.enableBlockAppInstallation,
                 breakActive = session.isBreakActive(now),
                 pauseActive = session.isPauseActive(now),
-                locationSuspended = session.tag == LOCATION_SESSION_TAG && locationStoreOutside(profile.id),
+                locationSuspended = locationStoreOutside(profile.id),
                 activeGrants = activeGrants,
                 disableBackgroundStops = profile.disableBackgroundStops,
                 sessionStartEpochMillis = session.startTime.toEpochMilli(),
@@ -775,7 +774,7 @@ class SessionManager @Inject constructor(
                 blockAppInstallation = profile.enableBlockAppInstallation,
                 breakActive = false,
                 pauseActive = false,
-                locationSuspended = session.tag == LOCATION_SESSION_TAG && locationStoreOutside(profile.id),
+                locationSuspended = locationStoreOutside(profile.id),
                 activeGrants = emptyMap(),
                 disableBackgroundStops = profile.disableBackgroundStops,
                 sessionStartEpochMillis = session.startTime.toEpochMilli(),

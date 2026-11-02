@@ -341,6 +341,12 @@ private fun ProfileCard(
     var menuExpanded by remember { mutableStateOf(false) }
     val strategy = StrategyRegistry.byId(profile.strategyId)
     val blockedCount = profile.blockedPackages.size + profile.domains.size
+    val locationProtected = isActive && isLocationProfile && locationInside == true
+    val isPaused = activeSession?.isPauseActive() == true
+    // While paused and inside: no further pause action. Paused and outside:
+    // explicitly offer full Stop, because location status has priority.
+    val showControl = !isActive || !isPaused || (isLocationProfile && locationInside == false)
+
 
     Card(
         modifier = Modifier
@@ -414,13 +420,19 @@ private fun ProfileCard(
                 }
             }
 
-            // During an active pause the remaining-time label is enough; a second
-            // pause button would do nothing and suggest that pause can be extended.
-            if (activeSession?.isPauseActive() != true) {
+            if (showControl) {
                 IconButton(onClick = onPlayStop) {
                     Icon(
-                        imageVector = if (isActive && isLocationProfile && locationInside == true) Icons.Filled.Pause else if (isActive) Icons.Filled.Stop else Icons.Filled.PlayArrow,
-                        contentDescription = if (isActive) stringResource(R.string.home_stop_action) else stringResource(R.string.home_start_action),
+                        imageVector = when {
+                            isActive && isLocationProfile && locationInside == true -> Icons.Filled.Pause
+                            isActive -> Icons.Filled.Stop
+                            else -> Icons.Filled.PlayArrow
+                        },
+                        contentDescription = when {
+                            isActive && isLocationProfile && locationInside == true -> "一時停止"
+                            isActive -> stringResource(R.string.home_stop_action)
+                            else -> stringResource(R.string.home_start_action)
+                        },
                     )
                 }
             }
@@ -432,8 +444,16 @@ private fun ProfileCard(
                 DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                     DropdownMenuItem(text = { Text(stringResource(R.string.action_edit)) }, onClick = { menuExpanded = false; onEdit() })
                     DropdownMenuItem(text = { Text(stringResource(R.string.home_menu_insights)) }, onClick = { menuExpanded = false; onInsights() })
-                    DropdownMenuItem(text = { Text(stringResource(R.string.home_menu_duplicate)) }, onClick = { menuExpanded = false; onDuplicate() })
-                    DropdownMenuItem(text = { Text(stringResource(R.string.action_delete)) }, onClick = { menuExpanded = false; onDeleteRequested() })
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.home_menu_duplicate)) },
+                        enabled = !locationProtected,
+                        onClick = { menuExpanded = false; if (!locationProtected) onDuplicate() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.action_delete)) },
+                        enabled = !locationProtected,
+                        onClick = { menuExpanded = false; if (!locationProtected) onDeleteRequested() },
+                    )
                 }
             }
         }

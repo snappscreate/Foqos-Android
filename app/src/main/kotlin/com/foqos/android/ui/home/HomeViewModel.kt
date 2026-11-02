@@ -136,10 +136,10 @@ class HomeViewModel @Inject constructor(
     }
 
     fun onLocationProfileAction(profileId: String) {
-        val state = _uiState.value
-        val isInside = state.locationInside == true
         viewModelScope.launch {
-            if (isInside) sessionManager.pauseLocationSessionFromHome(profileId)
+            // Read authoritative state at click execution time, not an old composed row.
+            val inside = locationStore.manualInside() ?: locationStore.lastInside()
+            if (inside == true) sessionManager.pauseLocationSessionFromHome(profileId)
             else sessionManager.stopLocationProfileFromHome(profileId)
         }
     }

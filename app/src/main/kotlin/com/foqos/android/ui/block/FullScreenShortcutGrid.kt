@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -28,6 +29,7 @@ import kotlinx.coroutines.withContext
  * On-shield launcher icons. Favicon fetches are best effort and only request
  * /favicon.ico from the explicitly allowlisted host, never page content.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun FullScreenShortcutGrid(
     packages: Set<String>,

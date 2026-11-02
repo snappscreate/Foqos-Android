@@ -320,6 +320,7 @@ class ProfileEditViewModel @Inject constructor(
             val toSave = current.draft.copy(
                 name = trimmedName,
                 schedule = schedule,
+                allowModeEnabled = false,
                 // The shared website whitelist also drives app-block-mode URL policy.
                 domains = sharedWebsiteHosts,
                 allowModeDomains = true,
@@ -354,6 +355,7 @@ class ProfileEditViewModel @Inject constructor(
         viewModelScope.launch {
             if (sessionManager.activeSession.value != null) return@launch
             profileRepository.delete(id)
+            fullScreenStore.delete(id)
             alarmScheduler.cancelAllForProfile(id)
             _uiState.update { it.copy(deleted = true) }
         }

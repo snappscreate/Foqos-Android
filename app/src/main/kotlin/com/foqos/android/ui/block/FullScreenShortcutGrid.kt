@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
@@ -36,6 +39,7 @@ fun FullScreenShortcutGrid(
     urls: Set<String>,
     appLabel: (String) -> String,
     onApp: (String) -> Unit,
+    onPhone: () -> Unit,
     onUrl: (String) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -45,6 +49,25 @@ fun FullScreenShortcutGrid(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             maxItemsInEachRow = 4,
         ) {
+            Column(
+                modifier = Modifier.size(width = 72.dp, height = 92.dp)
+                    .clickable(onClick = onPhone),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Call,
+                    contentDescription = "電話を開く",
+                    tint = androidx.compose.ui.graphics.Color.White,
+                    modifier = Modifier.size(48.dp),
+                )
+                Text(
+                    "電話",
+                    color = androidx.compose.ui.graphics.Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    textAlign = TextAlign.Center,
+                )
+            }
             packages.sorted().forEach { pkg ->
                 Column(
                     modifier = Modifier.size(width = 72.dp, height = 92.dp)

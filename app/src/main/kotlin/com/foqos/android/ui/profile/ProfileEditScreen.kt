@@ -15,11 +15,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -30,6 +33,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -112,6 +116,7 @@ fun ProfileEditScreen(
     var showStartTimePicker by remember { mutableStateOf(false) }
     var showEndTimePicker by remember { mutableStateOf(false) }
     var showLockedDialog by remember { mutableStateOf(false) }
+    var showFullScreenAllowedPicker by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -180,6 +185,39 @@ fun ProfileEditScreen(
                 onStrategyDataChange = viewModel::updateStrategyDataJson,
             )
 
+            SectionCard(title = "全画面集中モード") {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("全画面ブロックを使用", style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                "許可したアプリとAndroid設定以外はブロック画面を表示。電話など必須のシステム機能は除外。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(
+                            checked = uiState.fullScreenEnabled,
+                            enabled = !uiState.editingLocked,
+                            onCheckedChange = viewModel::setFullScreenEnabled,
+                        )
+                    }
+                    if (uiState.fullScreenEnabled) {
+                        Text("許可アプリ：${uiState.fullScreenAllowedPackages.size}件")
+                        OutlinedButton(
+                            onClick = { showFullScreenAllowedPicker = true },
+                        ) { Text("許可するアプリを選ぶ") }
+                        Text(
+                            "設定アプリとFoqosは常に使用可。ホーム画面・通常のアプリは原則ブロックされます。",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+
             AppsSection(
                 blockedPackages = uiState.draft.blockedPackages,
                 editingLocked = uiState.editingLocked,
@@ -246,6 +284,41 @@ fun ProfileEditScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
         }
+    }
+
+    if (showFullScreenAllowedPicker) {
+        AlertDialog(
+            onDismissRequest = { showFullScreenAllowedPicker = false },
+            title = { Text("全画面モードで許可するアプリ") },
+            text = {
+                LazyColumn(modifier = Modifier.heightIn(max = 380.dp)) {
+                    items(uiState.installedApps, key = { it.packageName }) { app ->
+                        val checked = app.packageName in uiState.fullScreenAllowedPackages
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            val bitmap = rememberAppIconBitmap(app.packageName)
+                            if (bitmap != null) Image(
+                                bitmap = bitmap,
+                                contentDescription = null,
+                                modifier = Modifier.size(28.dp),
+                            )
+                            Text(app.label, modifier = Modifier.weight(1f))
+                            Checkbox(
+                                checked = checked,
+                                enabled = !uiState.editingLocked,
+                                onCheckedChange = { viewModel.toggleFullScreenAllowedPackage(app.packageName) },
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showFullScreenAllowedPicker = false }) { Text("完了") }
+            },
+        )
     }
 
     if (showLockedDialog) {

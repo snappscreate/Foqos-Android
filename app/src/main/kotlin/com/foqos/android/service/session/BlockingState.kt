@@ -15,6 +15,8 @@ data class BlockingState(
     val profileName: String,
     val blockedPackages: Set<String> = emptySet(),
     val allowMode: Boolean = false,
+    val fullScreenMode: Boolean = false,
+    val fullScreenAllowedPackages: Set<String> = emptySet(),
     val blockedDomains: List<String> = emptyList(),
     val allowModeDomains: Boolean = false,
     val strictMode: Boolean = false,

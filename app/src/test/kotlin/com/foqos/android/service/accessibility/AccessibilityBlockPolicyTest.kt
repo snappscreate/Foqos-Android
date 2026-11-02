@@ -141,6 +141,34 @@ class AccessibilityBlockPolicyTest {
             .isEqualTo(BlockDecision.Allow)
     }
 
+    @Test fun `fullscreen browser tolerates old tab during approved URL launch`() {
+        val state = state().copy(
+            fullScreenMode = true,
+            fullScreenAllowedUrls = setOf("https://example.com"),
+            fullScreenBrowserPackage = "com.android.chrome",
+            fullScreenBrowserStartupUntil = 12_000L,
+        )
+        assertThat(policy.decideForUrl(
+            "com.android.chrome", "https://previous-site.com", state, nowMillis = 3_000L
+        )).isEqualTo(BlockDecision.Allow)
+        assertThat(policy.decideForUrl(
+            "com.android.chrome", "https://previous-site.com", state, nowMillis = 13_000L
+        )).isEqualTo(BlockDecision.BlockDomain("com.android.chrome", "previous-site.com"))
+    }
+
+    @Test fun `geofence suspension allows everything until reentry`() {
+        val suspended = state().copy(
+            fullScreenMode = true, locationSuspended = true
+        )
+        assertThat(policy.decideForApp("com.example.blocked", suspended))
+            .isEqualTo(BlockDecision.Allow)
+        assertThat(policy.decideForUrl("com.android.chrome", "https://blocked.com", suspended))
+            .isEqualTo(BlockDecision.Allow)
+        assertThat(policy.decideForApp("com.example.blocked",
+            suspended.copy(locationSuspended = false)))
+            .isEqualTo(BlockDecision.BlockApp("com.example.blocked"))
+    }
+
     // --- Block-list / allow-list -------------------------------------------------------------
 
     @Test

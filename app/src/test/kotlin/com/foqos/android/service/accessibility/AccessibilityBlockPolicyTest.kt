@@ -103,6 +103,44 @@ class AccessibilityBlockPolicyTest {
             .isEqualTo(BlockDecision.Allow)
     }
 
+    @Test fun `fullscreen website only permits approved host in default browser`() {
+        val s = state().copy(
+            fullScreenMode = true,
+            fullScreenAllowedUrls = setOf("https://example.com"),
+            fullScreenBrowserPackage = "com.android.chrome",
+        )
+        assertThat(policy.decideForUrl(
+            "com.android.chrome", "https://sub.example.com/read", s
+        )).isEqualTo(BlockDecision.Allow)
+        assertThat(policy.decideForUrl(
+            "com.android.chrome", "https://youtube.com", s
+        )).isEqualTo(BlockDecision.BlockDomain("com.android.chrome", "youtube.com"))
+    }
+
+    @Test fun `fullscreen browser startup grace is temporary`() {
+        val s = state().copy(
+            fullScreenMode = true,
+            fullScreenAllowedUrls = setOf("https://example.com"),
+            fullScreenBrowserPackage = "com.android.chrome",
+            fullScreenBrowserStartupUntil = 4_000L,
+        )
+        assertThat(policy.decideForApp("com.android.chrome", s, nowMillis = 3_000L))
+            .isEqualTo(BlockDecision.Allow)
+        assertThat(policy.decideForApp("com.android.chrome", s, nowMillis = 5_000L))
+            .isEqualTo(BlockDecision.BlockApp("com.android.chrome"))
+    }
+
+    @Test fun `fullscreen browser can navigate during active pause`() {
+        val s = state().copy(
+            fullScreenMode = true,
+            fullScreenAllowedUrls = setOf("https://example.com"),
+            fullScreenBrowserPackage = "com.android.chrome",
+            pauseActive = true,
+        )
+        assertThat(policy.decideForUrl("com.android.chrome", "https://youtube.com", s))
+            .isEqualTo(BlockDecision.Allow)
+    }
+
     // --- Block-list / allow-list -------------------------------------------------------------
 
     @Test

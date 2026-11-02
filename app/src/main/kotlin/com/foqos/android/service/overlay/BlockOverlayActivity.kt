@@ -209,6 +209,15 @@ class BlockOverlayActivity : ComponentActivity() {
                                     packageManager.getApplicationLabel(info).toString()
                                 }.getOrDefault(pkg)
                             },
+                            onPhone = {
+                                val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:"))
+                                runCatching {
+                                    startActivity(dialIntent)
+                                    finish()
+                                }.onFailure {
+                                    nfcScanMessage = "電話アプリを起動できませんでした"
+                                }
+                            },
                             onApp = { pkg ->
                                 val launch = packageManager.getLaunchIntentForPackage(pkg)
                                 if (launch != null) {
@@ -221,16 +230,20 @@ class BlockOverlayActivity : ComponentActivity() {
                                     .addCategory(Intent.CATEGORY_BROWSABLE)
                                 val resolvedPackage = DefaultBrowserResolver.packageName(this@BlockOverlayActivity)
                                 val profileId = state?.profileId
-                                if (profileId != null && resolvedPackage != null &&
-                                    resolvedPackage != "android"
-                                ) {
-                                    fullScreenStore.grantBrowserStartup(profileId, resolvedPackage)
+                                if (profileId == null || resolvedPackage == null) {
+                                    nfcScanMessage = "ブラウザを特定できません。Android設定で標準ブラウザを選択してください"
+                                } else {
                                     browserIntent.setPackage(resolvedPackage)
+                                    // Register the concrete browser package *before* launching.
+                                    // This is what the accessibility policy checks while loading.
+                                    fullScreenStore.grantBrowserStartup(profileId, resolvedPackage)
+                                    runCatching {
+                                        startActivity(browserIntent)
+                                        finish()
+                                    }.onFailure {
+                                        nfcScanMessage = "ブラウザを起動できませんでした"
+                                    }
                                 }
-                                runCatching {
-                                    startActivity(browserIntent)
-                                    finish()
-                                }.onFailure { nfcScanMessage = "ブラウザを起動できませんでした" }
                             },
                         )
                     }) else null,

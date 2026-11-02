@@ -13,6 +13,7 @@ import com.foqos.android.service.accessibility.AccessibilityBlockPolicy
 import com.foqos.android.service.accessibility.BlockDecision
 import com.foqos.android.service.overlay.BlockOverlayActivity
 import com.foqos.android.service.session.FullScreenModeStore
+import com.foqos.android.service.session.DefaultBrowserResolver
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -68,9 +69,7 @@ class UsageStatsPoller @Inject constructor(
         val state = snapshot?.let { current ->
             val store = FullScreenModeStore(context)
             if (store.enabled(current.profileId)) {
-                val browser = context.packageManager.resolveActivity(
-                    Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")), 0
-                )?.activityInfo?.packageName
+                val browser = DefaultBrowserResolver.packageName(context)
                 current.copy(
                     fullScreenMode = true,
                     fullScreenAllowedPackages = store.allowedPackages(current.profileId),

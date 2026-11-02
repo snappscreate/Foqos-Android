@@ -56,6 +56,7 @@ import com.foqos.android.domain.session.SessionManager
 import com.foqos.android.domain.strategy.NfcSoftUnblockBlockingStrategy
 import com.foqos.android.domain.strategy.QrSoftUnblockBlockingStrategy
 import com.foqos.android.service.session.BlockingStateHolder
+import com.foqos.android.ui.common.DeveloperUiVisibility
 import com.foqos.android.ui.block.BlockScreenContent
 import com.foqos.android.ui.block.FullScreenShortcutGrid
 import com.foqos.android.ui.block.SoftUnblockInfo
@@ -193,7 +194,7 @@ class BlockOverlayActivity : ComponentActivity() {
                     nfcReady = nfcReady,
                     nfcMessage = nfcScanMessage,
                     distanceDescription = boundaryDistance,
-                    onSimulateNfc = if (BuildConfig.DEBUG && nfcReady) ({
+                    onSimulateNfc = if (BuildConfig.DEBUG && DeveloperUiVisibility.showDiagnosticControls && nfcReady) ({
                         lifecycleScope.launch {
                             val profile = activeProfile
                             val session = sessionManager.activeSession.value

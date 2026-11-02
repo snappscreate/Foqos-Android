@@ -153,6 +153,28 @@ class SessionManagerTest {
         }
     }
 
+    @Test
+    fun `manually started linked profile is suspended outside the area too`() = runTest {
+        val profile = createProfile(strategyId = ManualBlockingStrategy.ID)
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val location = LocationAutomationStore(context)
+        location.save(LocationRule(profile.id, 33.60, 130.42, 200f))
+        try {
+            location.setLastInside(true)
+            sessionManager.startProfile(profile.id)
+            val originalId = sessionManager.activeSession.value!!.id
+            location.setLastInside(false)
+            sessionManager.onLocationTransition(profile.id, false)
+            assertThat(blockingStateHolder.state.value?.locationSuspended).isTrue()
+            assertThat(sessionManager.activeSession.value?.id).isEqualTo(originalId)
+            location.setLastInside(true)
+            sessionManager.onLocationTransition(profile.id, true)
+            assertThat(blockingStateHolder.state.value?.locationSuspended).isFalse()
+        } finally {
+            location.clear()
+        }
+    }
+
     // --- Manual start/stop lifecycle --------------------------------------------------------
 
     @Test

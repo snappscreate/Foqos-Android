@@ -5,6 +5,7 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
@@ -66,10 +67,20 @@ class UsageStatsPoller @Inject constructor(
         val snapshot = blockingStateHolder.state.value
         val state = snapshot?.let { current ->
             val store = FullScreenModeStore(context)
-            if (store.enabled(current.profileId)) current.copy(
-                fullScreenMode = true,
-                fullScreenAllowedPackages = store.allowedPackages(current.profileId),
-            ) else current
+            if (store.enabled(current.profileId)) {
+                val browser = context.packageManager.resolveActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")), 0
+                )?.activityInfo?.packageName
+                current.copy(
+                    fullScreenMode = true,
+                    fullScreenAllowedPackages = store.allowedPackages(current.profileId),
+                    fullScreenAllowedUrls = store.allowedUrls(current.profileId),
+                    fullScreenBrowserPackage = browser,
+                    fullScreenBrowserStartupUntil = browser?.let {
+                        store.browserStartupUntil(current.profileId, it)
+                    } ?: 0L,
+                )
+            } else current
         }
         val neverBlock = AccessibilityBlockPolicy.neverBlockWithLauncher(currentLauncherPackageName())
 

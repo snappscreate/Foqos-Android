@@ -63,6 +63,7 @@ import com.foqos.android.data.model.BlockedProfile
 import com.foqos.android.domain.strategy.StrategyRegistry
 import com.foqos.android.ui.common.formatScheduleSummary
 import com.foqos.android.ui.common.strategyEmoji
+import com.foqos.android.ui.common.DeveloperUiVisibility
 import com.foqos.android.ui.insights.charts.HeatmapChart
 import com.foqos.android.ui.insights.charts.MonthlyGridChart
 import com.foqos.android.ui.insights.charts.WeeklyBarChart
@@ -153,7 +154,7 @@ fun HomeScreen(
                 }
             }
 
-            if (BuildConfig.DEBUG && uiState.locationRule != null) {
+            if (BuildConfig.DEBUG && DeveloperUiVisibility.showDiagnosticControls && uiState.locationRule != null) {
                 item {
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

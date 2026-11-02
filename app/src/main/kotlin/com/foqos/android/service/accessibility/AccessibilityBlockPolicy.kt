@@ -42,7 +42,7 @@ class AccessibilityBlockPolicy @Inject constructor() {
         neverBlockPackages: Set<String> = DEFAULT_NEVER_BLOCK,
         protectedSettingsScreen: Boolean = false,
     ): BlockDecision {
-        if (state == null) return BlockDecision.Allow
+        if (state == null || state.locationSuspended) return BlockDecision.Allow
         if (state.fullScreenMode) {
             // Preserve emergency calls, System UI and the user's ability to open Settings.
             // Do not exempt launchers: their foreground windows should show the shield.
@@ -104,6 +104,7 @@ class AccessibilityBlockPolicy @Inject constructor() {
     ): BlockDecision {
         if (state?.fullScreenMode == true && (state.pauseActive || state.breakActive))
             return BlockDecision.Allow
+        if (state?.locationSuspended == true) return BlockDecision.Allow
         val appDecision = decideForApp(packageName, state, nowMillis, neverBlockPackages)
         val restrictedBrowser = state?.fullScreenMode == true &&
             packageName == state.fullScreenBrowserPackage &&
@@ -123,7 +124,10 @@ class AccessibilityBlockPolicy @Inject constructor() {
                     val allowedHost = extractHost(allowed)
                     allowedHost != null && hostMatchesDomain(host, allowedHost)
                 }
-                return if (matched) BlockDecision.Allow
+                // A browser may briefly show the previous tab while navigating
+                // to the shortcut. Honor the short transition grant, never permanently.
+                val navigating = nowMillis < state.fullScreenBrowserStartupUntil
+                return if (matched || navigating) BlockDecision.Allow
                     else BlockDecision.BlockDomain(packageName, host)
             }
             return appDecision

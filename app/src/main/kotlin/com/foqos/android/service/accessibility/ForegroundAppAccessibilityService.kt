@@ -106,7 +106,8 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
         val state = snapshot?.let { current ->
             val store = FullScreenModeStore(applicationContext)
             if (store.enabled(current.profileId)) {
-                val browserPackage = DefaultBrowserResolver.packageName(this)
+                val browserPackage = store.launchedBrowserPackage(current.profileId)
+                    ?: DefaultBrowserResolver.packageName(this)
                 current.copy(
                     fullScreenMode = true,
                     fullScreenAllowedPackages = store.allowedPackages(current.profileId),

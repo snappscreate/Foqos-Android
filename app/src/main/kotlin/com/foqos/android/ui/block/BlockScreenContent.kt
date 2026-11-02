@@ -83,6 +83,8 @@ fun BlockScreenContent(
     softUnblockInfo: SoftUnblockInfo?,
     onGoBack: () -> Unit,
     onOpenFoqosHome: () -> Unit = onGoBack,
+    onOpenAllowedApps: (() -> Unit)? = null,
+    onOpenAndroidSettings: (() -> Unit)? = null,
     onOpenTemporarily: () -> Unit,
     blockedIcon: (@Composable () -> Unit)? = null,
     nfcReady: Boolean = false,
@@ -172,6 +174,21 @@ fun BlockScreenContent(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(text = "戻る")
+            }
+
+            if (onOpenAllowedApps != null) {
+                OutlinedButton(
+                    onClick = onOpenAllowedApps,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                ) { Text("許可アプリを開く") }
+            }
+            if (onOpenAndroidSettings != null) {
+                OutlinedButton(
+                    onClick = onOpenAndroidSettings,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                ) { Text("Androidの設定を開く") }
             }
 
             OutlinedButton(

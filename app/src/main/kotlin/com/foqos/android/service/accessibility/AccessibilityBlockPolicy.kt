@@ -43,6 +43,25 @@ class AccessibilityBlockPolicy @Inject constructor() {
         protectedSettingsScreen: Boolean = false,
     ): BlockDecision {
         if (state == null) return BlockDecision.Allow
+        if (state.fullScreenMode) {
+            // Preserve emergency calls, System UI and the user's ability to open Settings.
+            // Do not exempt launchers: their foreground windows should show the shield.
+            if (packageName == FOQOS_PACKAGE_NAME ||
+                packageName == SYSTEM_UI_PACKAGE ||
+                packageName in DIALER_PACKAGES
+            ) return BlockDecision.Allow
+            if (packageName in SETTINGS_PACKAGES) {
+                return if (state.strictMode && protectedSettingsScreen) {
+                    BlockDecision.RedirectAway(StrictModeReason.ACCESSIBILITY_SETTINGS)
+                } else BlockDecision.Allow
+            }
+            if (state.blockAppInstallation && packageName in PACKAGE_INSTALLER_PACKAGES) {
+                return BlockDecision.RedirectAway(StrictModeReason.UNINSTALL)
+            }
+            if (state.pauseActive || state.breakActive) return BlockDecision.Allow
+            return if (packageName in state.fullScreenAllowedPackages)
+                BlockDecision.Allow else BlockDecision.BlockApp(packageName)
+        }
         if (packageName in neverBlockPackages) return BlockDecision.Allow
 
         if (packageName in SETTINGS_PACKAGES) {

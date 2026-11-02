@@ -134,7 +134,7 @@ class BlockOverlayActivity : ComponentActivity() {
                     }
                     // Full-screen focus pause must return to the real Android launcher.
                     // Simply finish() can reveal an underlying blocked app instead.
-                    if (current.pauseActive || current.breakActive) {
+                    if (current.pauseActive || current.breakActive || current.locationSuspended) {
                         if (fullScreen) finishAndGoHome() else finish()
                         return@LaunchedEffect
                     }

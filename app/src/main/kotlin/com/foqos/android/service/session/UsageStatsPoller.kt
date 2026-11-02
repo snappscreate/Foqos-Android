@@ -69,7 +69,8 @@ class UsageStatsPoller @Inject constructor(
         val state = snapshot?.let { current ->
             val store = FullScreenModeStore(context)
             if (store.enabled(current.profileId)) {
-                val browser = DefaultBrowserResolver.packageName(context)
+                val browser = store.launchedBrowserPackage(current.profileId)
+                    ?: DefaultBrowserResolver.packageName(context)
                 current.copy(
                     fullScreenMode = true,
                     fullScreenAllowedPackages = store.allowedPackages(current.profileId),

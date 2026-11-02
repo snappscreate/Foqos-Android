@@ -76,13 +76,16 @@ class MainActivity : ComponentActivity() {
 
             val activeSession by sessionManager.activeSession.collectAsStateWithLifecycle()
             val fullScreenStore = remember { FullScreenModeStore(this@MainActivity) }
-            var lastPresentedFullScreenId by remember { mutableStateOf<String?>(null) }
             LaunchedEffect(activeSession?.id) {
                 val session = activeSession
+                val launches = getSharedPreferences("fullscreen_focus_launches", MODE_PRIVATE)
                 if (session != null && fullScreenStore.enabled(session.profileId) &&
-                    session.id != lastPresentedFullScreenId && !session.isPauseActive()
+                    launches.getString("last_shield_session", null) != session.id &&
+                    !session.isPauseActive()
                 ) {
-                    lastPresentedFullScreenId = session.id
+                    // Persist before launch; returning from the shield to Foqos must not
+                    // immediately relaunch it and trap the user in an Activity loop.
+                    launches.edit().putString("last_shield_session", session.id).commit()
                     startActivity(Intent(this@MainActivity, BlockOverlayActivity::class.java).apply {
                         putExtra(BlockOverlayActivity.EXTRA_PACKAGE_NAME, BlockOverlayActivity.FULL_SCREEN_HOME_TARGET)
                     })

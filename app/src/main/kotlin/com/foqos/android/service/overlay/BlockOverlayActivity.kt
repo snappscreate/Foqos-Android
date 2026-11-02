@@ -6,6 +6,7 @@ import android.content.pm.PackageManager as AndroidPackageManager
 import android.location.Location
 import android.nfc.NfcAdapter
 import android.nfc.tech.Ndef
+import android.util.Log
 import com.foqos.android.service.nfc.NfcTagContentParser
 import android.widget.ImageView
 import androidx.compose.foundation.layout.size
@@ -223,11 +224,20 @@ class BlockOverlayActivity : ComponentActivity() {
                         NfcTagContentParser.fromTag(tag, message)
                     }
                     lifecycleScope.launch {
-                        content.onSuccess { processNfcCode(it.value) }
-                            .onFailure { nfcScanMessage = "NFCの読み取りに失敗しました" }
+                        if (content.isSuccess) {
+                            val parsed = content.getOrThrow()
+                            Log.d("FoqosNfcShield", "Reader received NFC: source=${parsed.source}")
+                            processNfcCode(parsed.value)
+                        } else {
+                            Log.w("FoqosNfcShield", "Reader could not parse NFC", content.exceptionOrNull())
+                            nfcScanMessage = "NFCの読み取りに失敗しました"
+                        }
                     }
                 }, flags, null)
-            }.onFailure { nfcScanMessage = "NFCリーダーを開始できませんでした" }
+            }.onFailure {
+                Log.e("FoqosNfcShield", "Unable to enable NFC reader mode", it)
+                nfcScanMessage = "NFCリーダーを開始できませんでした"
+            }
         }
         refreshBoundaryDistance()
     }

@@ -26,6 +26,7 @@ data class BlockingState(
     val blockAppInstallation: Boolean = false,
     val breakActive: Boolean = false,
     val pauseActive: Boolean = false,
+    val locationSuspended: Boolean = false,
     val activeGrants: Map<String, Long> = emptyMap(),
     val disableBackgroundStops: Boolean = false,
     val sessionStartEpochMillis: Long = 0L,

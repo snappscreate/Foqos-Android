@@ -103,7 +103,11 @@ class AccessibilityBlockPolicy @Inject constructor() {
         neverBlockPackages: Set<String> = DEFAULT_NEVER_BLOCK,
     ): BlockDecision {
         val appDecision = decideForApp(packageName, state, nowMillis, neverBlockPackages)
-        if (appDecision !is BlockDecision.Allow) return appDecision
+        val restrictedBrowser = state?.fullScreenMode == true &&
+            packageName == state.fullScreenBrowserPackage &&
+            state.fullScreenAllowedUrls.isNotEmpty() &&
+            packageName !in state.fullScreenAllowedPackages
+        if (!restrictedBrowser && appDecision !is BlockDecision.Allow) return appDecision
         // An explicitly allowed browser is unrestricted in full-screen mode.
         if (state?.fullScreenMode == true) {
             if (packageName in state.fullScreenAllowedPackages) return BlockDecision.Allow

@@ -119,6 +119,13 @@ class BlockOverlayActivity : ComponentActivity() {
                 val state by blockingStateHolder.state.collectAsStateWithLifecycle()
                 val scope = rememberCoroutineScope()
                 val fullScreenStore = remember { FullScreenModeStore(this@BlockOverlayActivity) }
+                val locationStore = remember { LocationAutomationStore(this@BlockOverlayActivity) }
+                val locationStatus by remember { locationStore.observeState() }
+                    .collectAsStateWithLifecycle(
+                        initialValue = locationStore.read() to
+                            (locationStore.manualInside() ?: locationStore.lastInside()),
+                    )
+
                 val fullScreen = state?.profileId?.let(fullScreenStore::enabled) == true
                 val allowedPackages = state?.profileId?.let(fullScreenStore::allowedPackages).orEmpty()
                 val allowedUrls = state?.profileId?.let(fullScreenStore::allowedUrls).orEmpty()
@@ -126,7 +133,7 @@ class BlockOverlayActivity : ComponentActivity() {
 
                 // Auto-finishes on session end or once a grant for this exact package is issued
                 // (by this screen's own "Open for N min" button below, or another path entirely).
-                LaunchedEffect(state, targetPackage) {
+                LaunchedEffect(state, targetPackage, locationStatus) {
                     val current = state
                     if (current == null) {
                         finishAndGoHome()
@@ -134,7 +141,9 @@ class BlockOverlayActivity : ComponentActivity() {
                     }
                     // Full-screen focus pause must return to the real Android launcher.
                     // Simply finish() can reveal an underlying blocked app instead.
-                    if (current.pauseActive || current.breakActive || current.locationSuspended) {
+                    val outside = locationStatus.first?.profileId == current.profileId &&
+                        locationStatus.second == false
+                    if (current.pauseActive || current.breakActive || current.locationSuspended || outside) {
                         if (fullScreen) finishAndGoHome() else finish()
                         return@LaunchedEffect
                     }

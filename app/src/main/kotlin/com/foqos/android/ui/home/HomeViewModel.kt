@@ -173,6 +173,7 @@ class HomeViewModel @Inject constructor(
                         store.enabled(profileId),
                         store.allowedPackages(profileId),
                     )
+                    store.saveUrls(duplicate.id, store.allowedUrls(profileId))
                 }
             }
         }

@@ -13,6 +13,7 @@ import com.foqos.android.service.accessibility.AccessibilityBlockPolicy
 import com.foqos.android.service.accessibility.BlockDecision
 import com.foqos.android.service.overlay.BlockOverlayActivity
 import com.foqos.android.service.session.FullScreenModeStore
+import com.foqos.android.service.location.LocationAutomationStore
 import com.foqos.android.service.session.DefaultBrowserResolver
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -82,10 +83,19 @@ class UsageStatsPoller @Inject constructor(
                 )
             } else current
         }
+        // Location status is the authority. Persisted session snapshots can lag behind
+        // a geofence transition, especially after process restoration.
+        val location = LocationAutomationStore(context)
+        val rule = location.read()
+        val effectiveState = state?.copy(
+            locationSuspended = state.locationSuspended ||
+                (rule?.profileId == state.profileId &&
+                    (location.manualInside() ?: location.lastInside()) == false),
+        )
         val neverBlock = AccessibilityBlockPolicy.neverBlockWithLauncher(currentLauncherPackageName())
 
         // No URL detection in fallback mode - always decide at the app level, even for browsers.
-        val decision = blockPolicy.decideForApp(packageName, state, neverBlockPackages = neverBlock)
+        val decision = blockPolicy.decideForApp(packageName, effectiveState, neverBlockPackages = neverBlock)
         when (decision) {
             BlockDecision.Allow -> Unit
             is BlockDecision.BlockApp -> maybeLaunchOverlay(decision.packageName, domain = null)

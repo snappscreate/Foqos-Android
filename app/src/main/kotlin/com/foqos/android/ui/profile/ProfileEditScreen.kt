@@ -180,7 +180,11 @@ fun ProfileEditScreen(
                 onStrategyDataChange = viewModel::updateStrategyDataJson,
             )
 
-            AppsSection(blockedCount = uiState.draft.blockedPackages.size, onOpenAppPicker = onOpenAppPicker)
+            AppsSection(
+                blockedPackages = uiState.draft.blockedPackages,
+                editingLocked = uiState.editingLocked,
+                onOpenAppPicker = { if (uiState.editingLocked) showLockedDialog = true else onOpenAppPicker() },
+            )
 
             WebsitesSection(
                 domains = uiState.draft.domains,
@@ -420,21 +424,53 @@ private fun StrategySection(
 }
 
 @Composable
-private fun AppsSection(blockedCount: Int, onOpenAppPicker: () -> Unit) {
+private fun AppsSection(
+    blockedPackages: List<String>,
+    editingLocked: Boolean,
+    onOpenAppPicker: () -> Unit,
+) {
     SectionCard(title = stringResource(R.string.profile_edit_apps_title)) {
         Card(modifier = Modifier.fillMaxWidth().padding(16.dp), onClick = onOpenAppPicker) {
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
-                    text = if (blockedCount == 1) {
+                    text = if (blockedPackages.size == 1) {
                         stringResource(R.string.profile_edit_apps_count_singular)
                     } else {
-                        stringResource(R.string.profile_edit_apps_count_plural, blockedCount)
+                        stringResource(R.string.profile_edit_apps_count_plural, blockedPackages.size)
                     },
                 )
+                if (blockedPackages.isNotEmpty()) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        blockedPackages.forEach { packageName ->
+                            val icon = rememberAppIconBitmap(packageName)
+                            if (icon != null) {
+                                Image(
+                                    bitmap = icon,
+                                    contentDescription = packageName,
+                                    modifier = Modifier.size(32.dp),
+                                )
+                            } else {
+                                Text(
+                                    text = "▣",
+                                    modifier = Modifier.size(32.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+                if (editingLocked) {
+                    Text(
+                        text = "ブロック中は閲覧のみ。変更はできません",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }

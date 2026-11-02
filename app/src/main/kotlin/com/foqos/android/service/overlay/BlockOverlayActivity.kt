@@ -149,7 +149,7 @@ class BlockOverlayActivity : ComponentActivity() {
                     }
                 }
 
-                val blockedLabel = targetDomain ?: rememberAppLabel(targetPackage)
+                val blockedLabel = if (targetPackage == FULL_SCREEN_HOME_TARGET) "集中モード" else targetDomain ?: rememberAppLabel(targetPackage)
                 val activeProfile by sessionManager.activeProfile.collectAsStateWithLifecycle()
                 val nfcReady = activeProfile?.let { profile ->
                     StrategyRegistry.byId(profile.strategyId).usesNfc
@@ -161,7 +161,7 @@ class BlockOverlayActivity : ComponentActivity() {
                     sessionStartEpochMillis = state?.sessionStartEpochMillis ?: System.currentTimeMillis(),
                     softUnblockInfo = softUnblockInfo,
                     blockedIcon = {
-                        if (targetDomain == null) {
+                        if (targetDomain == null && targetPackage != FULL_SCREEN_HOME_TARGET) {
                             AndroidView(
                                 factory = { context ->
                                     ImageView(context).apply {
@@ -390,6 +390,7 @@ class BlockOverlayActivity : ComponentActivity() {
     }
 
     companion object {
+        const val FULL_SCREEN_HOME_TARGET = "com.foqos.android.fullscreen.home"
         const val EXTRA_PACKAGE_NAME = "com.foqos.android.extra.BLOCKED_PACKAGE_NAME"
         const val EXTRA_DOMAIN = "com.foqos.android.extra.BLOCKED_DOMAIN"
 

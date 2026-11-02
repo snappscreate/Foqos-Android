@@ -7,6 +7,7 @@ import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import com.foqos.android.domain.session.SessionManager
 import com.foqos.android.service.overlay.BlockOverlayActivity
+import com.foqos.android.service.session.FullScreenModeStore
 import com.foqos.android.service.session.BlockingStateHolder
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -80,7 +81,14 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
         }
 
         val packageName = event.packageName?.toString() ?: return
-        val state = blockingStateHolder.state.value
+        val snapshot = blockingStateHolder.state.value
+        val state = snapshot?.let { current ->
+            val store = FullScreenModeStore(applicationContext)
+            if (store.enabled(current.profileId)) current.copy(
+                fullScreenMode = true,
+                fullScreenAllowedPackages = store.allowedPackages(current.profileId),
+            ) else current
+        }
         val neverBlock = AccessibilityBlockPolicy.neverBlockWithLauncher(currentLauncherPackageName())
 
         // Diagnostics only: never emit Settings window text or accessibility-node contents.

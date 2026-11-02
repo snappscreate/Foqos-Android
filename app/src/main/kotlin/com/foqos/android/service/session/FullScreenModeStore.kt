@@ -32,7 +32,7 @@ class FullScreenModeStore(context: Context) {
      * A short grace period is needed while the browser opens the requested URL, before its
      * address bar reports the destination. It is not a permanent browser allowance.
      */
-    fun grantBrowserStartup(profileId: String, packageName: String, durationMillis: Long = 12_000L) {
+    fun grantBrowserStartup(profileId: String, packageName: String, durationMillis: Long = 5_000L) {
         prefs.edit().putString("${profileId}_browser", packageName)
             .putLong("${profileId}_browser_until", System.currentTimeMillis() + durationMillis)
             .apply()

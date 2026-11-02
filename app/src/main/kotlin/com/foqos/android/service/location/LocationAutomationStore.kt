@@ -1,6 +1,10 @@
 package com.foqos.android.service.location
 
 import android.content.Context
+import android.content.SharedPreferences
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 
 /** One locally stored geofence, kept outside profile schema to avoid a Room migration. */
 class LocationAutomationStore(context: Context) {
@@ -48,6 +52,16 @@ class LocationAutomationStore(context: Context) {
 
     fun setLastInside(inside: Boolean) {
         prefs.edit().putBoolean("last_inside", inside).apply()
+    }
+
+    /** Observe actual or debug transitions without GPS polling. */
+    fun observeState(): Flow<Pair<LocationRule?, Boolean?>> = callbackFlow {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+            trySend(read() to (manualInside() ?: lastInside()))
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        trySend(read() to (manualInside() ?: lastInside()))
+        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
 
     fun clear() {

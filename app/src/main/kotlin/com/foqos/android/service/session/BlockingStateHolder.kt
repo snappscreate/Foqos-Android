@@ -30,6 +30,10 @@ class BlockingStateHolder @Inject constructor() {
         _state.update { it?.copy(breakActive = active) }
     }
 
+    fun setLocationSuspended(suspended: Boolean) {
+        _state.update { it?.copy(locationSuspended = suspended) }
+    }
+
     fun setPauseActive(active: Boolean) {
         _state.update { it?.copy(pauseActive = active) }
     }

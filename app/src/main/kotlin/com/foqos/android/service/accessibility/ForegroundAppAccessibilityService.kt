@@ -10,6 +10,7 @@ import android.view.accessibility.AccessibilityEvent
 import com.foqos.android.domain.session.SessionManager
 import com.foqos.android.service.overlay.BlockOverlayActivity
 import com.foqos.android.service.session.FullScreenModeStore
+import com.foqos.android.service.location.LocationAutomationStore
 import com.foqos.android.service.session.DefaultBrowserResolver
 import com.foqos.android.service.session.BlockingStateHolder
 import dagger.hilt.EntryPoint
@@ -119,6 +120,15 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
                 )
             } else current
         }
+        // Location status is the authority. Persisted session snapshots can lag behind
+        // a geofence transition, especially after process restoration.
+        val location = LocationAutomationStore(applicationContext)
+        val rule = location.read()
+        val effectiveState = state?.copy(
+            locationSuspended = state.locationSuspended ||
+                (rule?.profileId == state.profileId &&
+                    (location.manualInside() ?: location.lastInside()) == false),
+        )
         val neverBlock = AccessibilityBlockPolicy.neverBlockWithLauncher(currentLauncherPackageName())
 
         // Diagnostics only: never emit Settings window text or accessibility-node contents.
@@ -151,16 +161,16 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
             lastLoggedSettingsProbe = null
         }
 
-        val protectedSettingsScreen = state?.strictMode == true &&
+        val protectedSettingsScreen = effectiveState?.strictMode == true &&
             packageName in AccessibilityBlockPolicy.SETTINGS_PACKAGES &&
             isProtectedFoqosSettingsScreen()
 
         val decision = if (packageName in AccessibilityBlockPolicy.BROWSER_PACKAGES ||
-            (state?.fullScreenMode == true && packageName == state.fullScreenBrowserPackage)) {
+            (effectiveState?.fullScreenMode == true && packageName == effectiveState.fullScreenBrowserPackage)) {
             val url = readUrlBarText(packageName)
-            blockPolicy.decideForUrl(packageName, url, state, neverBlockPackages = neverBlock)
+            blockPolicy.decideForUrl(packageName, url, effectiveState, neverBlockPackages = neverBlock)
         } else {
-            blockPolicy.decideForApp(packageName, state, neverBlockPackages = neverBlock,
+            blockPolicy.decideForApp(packageName, effectiveState, neverBlockPackages = neverBlock,
                 protectedSettingsScreen = protectedSettingsScreen)
         }
 

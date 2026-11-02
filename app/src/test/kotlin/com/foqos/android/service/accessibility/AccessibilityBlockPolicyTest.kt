@@ -78,6 +78,31 @@ class AccessibilityBlockPolicyTest {
         assertThat(policy.decideForApp("com.samsung.android.dialer", s, nowMillis = 1_000L)).isEqualTo(BlockDecision.Allow)
     }
 
+    // --- Full-screen focus mode ----------------------------------------------------------
+
+    @Test fun `fullscreen mode blocks launcher even when normally exempt`() {
+        val s = state().copy(fullScreenMode = true, fullScreenAllowedPackages = setOf("com.example.allowed"))
+        val exemptions = AccessibilityBlockPolicy.neverBlockWithLauncher("com.example.launcher")
+        assertThat(policy.decideForApp("com.example.launcher", s, neverBlockPackages = exemptions))
+            .isEqualTo(BlockDecision.BlockApp("com.example.launcher"))
+    }
+
+    @Test fun `fullscreen mode permits selected apps and Android settings`() {
+        val s = state().copy(fullScreenMode = true, fullScreenAllowedPackages = setOf("com.example.allowed"))
+        assertThat(policy.decideForApp("com.example.allowed", s)).isEqualTo(BlockDecision.Allow)
+        assertThat(policy.decideForApp("com.android.settings", s)).isEqualTo(BlockDecision.Allow)
+        assertThat(policy.decideForApp("com.example.unlisted", s))
+            .isEqualTo(BlockDecision.BlockApp("com.example.unlisted"))
+    }
+
+    @Test fun `fullscreen mode keeps emergency apps reachable and allows pause`() {
+        val s = state().copy(fullScreenMode = true)
+        assertThat(policy.decideForApp("com.android.dialer", s)).isEqualTo(BlockDecision.Allow)
+        assertThat(policy.decideForApp("com.android.systemui", s)).isEqualTo(BlockDecision.Allow)
+        assertThat(policy.decideForApp("com.example.unlisted", s.copy(pauseActive = true)))
+            .isEqualTo(BlockDecision.Allow)
+    }
+
     // --- Block-list / allow-list -------------------------------------------------------------
 
     @Test

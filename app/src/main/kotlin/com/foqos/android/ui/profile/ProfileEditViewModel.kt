@@ -95,7 +95,13 @@ class ProfileEditViewModel @Inject constructor(
                         scheduleEnabled = existing.schedule?.isConfigured == true,
                         fullScreenEnabled = fullScreenStore.enabled(existing.id),
                         fullScreenAllowedPackages = fullScreenStore.allowedPackages(existing.id),
-                        fullScreenAllowedUrls = fullScreenStore.allowedUrls(existing.id),
+                        // One shared website whitelist across both modes. Prefer the persisted
+                        // fullscreen list; fall back to legacy website allow-mode entries.
+                        fullScreenAllowedUrls = fullScreenStore.allowedUrls(existing.id).ifEmpty {
+                            if (existing.allowModeDomains) existing.domains.mapNotNull {
+                                domain -> FullScreenModeStore.normalizeUrl(domain)
+                            }.toSet() else emptySet()
+                        },
                     )
                 } else {
                     it.copy(loading = false)
@@ -308,9 +314,15 @@ class ProfileEditViewModel @Inject constructor(
             // Physical unlock items are edited in a separate repository-backed component.
             // Never overwrite newer NFC/QR registrations with this screen's stale draft.
             val latestPersisted = if (current.isPersisted) profileRepository.getById(current.draft.id) else null
+            val sharedWebsiteHosts = current.fullScreenAllowedUrls.mapNotNull {
+                FullScreenModeStore.normalizeUrl(it)?.removePrefix("https://")
+            }.distinct()
             val toSave = current.draft.copy(
                 name = trimmedName,
                 schedule = schedule,
+                // The shared website whitelist also drives app-block-mode URL policy.
+                domains = sharedWebsiteHosts,
+                allowModeDomains = true,
                 physicalUnblockItems = latestPersisted?.physicalUnblockItems
                     ?: current.draft.physicalUnblockItems,
                 updatedAt = Instant.now(),

@@ -59,8 +59,14 @@ class AccessibilityBlockPolicy @Inject constructor() {
                 return BlockDecision.RedirectAway(StrictModeReason.UNINSTALL)
             }
             if (state.pauseActive || state.breakActive) return BlockDecision.Allow
-            return if (packageName in state.fullScreenAllowedPackages)
-                BlockDecision.Allow else BlockDecision.BlockApp(packageName)
+            if (packageName in state.fullScreenAllowedPackages) return BlockDecision.Allow
+            // A default browser may only open approved URLs. Initial navigation briefly
+            // lacks an address-bar host, so permit only its startup grace window.
+            if (packageName == state.fullScreenBrowserPackage &&
+                state.fullScreenAllowedUrls.isNotEmpty() &&
+                nowMillis < state.fullScreenBrowserStartupUntil
+            ) return BlockDecision.Allow
+            return BlockDecision.BlockApp(packageName)
         }
         if (packageName in neverBlockPackages) return BlockDecision.Allow
 
@@ -99,7 +105,23 @@ class AccessibilityBlockPolicy @Inject constructor() {
         val appDecision = decideForApp(packageName, state, nowMillis, neverBlockPackages)
         if (appDecision !is BlockDecision.Allow) return appDecision
         // An explicitly allowed browser is unrestricted in full-screen mode.
-        if (state?.fullScreenMode == true) return BlockDecision.Allow
+        if (state?.fullScreenMode == true) {
+            if (packageName in state.fullScreenAllowedPackages) return BlockDecision.Allow
+            if (packageName != state.fullScreenBrowserPackage || state.fullScreenAllowedUrls.isEmpty()) {
+                return appDecision
+            }
+            // Only explicitly authorized websites may remain visible after navigation.
+            val host = url?.let(::extractHost)
+            if (host != null) {
+                val matched = state.fullScreenAllowedUrls.any { allowed ->
+                    val allowedHost = extractHost(allowed)
+                    allowedHost != null && hostMatchesDomain(host, allowedHost)
+                }
+                return if (matched) BlockDecision.Allow
+                    else BlockDecision.BlockDomain(packageName, host)
+            }
+            return appDecision
+        }
         // App-level pause/break must also suspend URL filtering.
         if (state?.pauseActive == true || state?.breakActive == true) return BlockDecision.Allow
         if (state == null || state.blockedDomains.isEmpty() || url.isNullOrBlank()) return BlockDecision.Allow

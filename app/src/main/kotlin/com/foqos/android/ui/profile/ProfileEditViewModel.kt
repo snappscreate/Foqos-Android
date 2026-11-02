@@ -20,6 +20,7 @@ import com.foqos.android.domain.strategy.StrategyRegistry
 import com.foqos.android.service.alarm.AlarmActivityType
 import com.foqos.android.service.alarm.FoqosAlarmScheduler
 import com.foqos.android.service.nfc.NfcForegroundDispatchManager
+import com.foqos.android.service.session.FullScreenModeStore
 import com.foqos.android.ui.navigation.Routes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -69,7 +70,11 @@ class ProfileEditViewModel @Inject constructor(
         val appSearchQuery: String = "",
         val scheduleEnabled: Boolean = false,
         val editingLocked: Boolean = false,
+        val fullScreenEnabled: Boolean = false,
+        val fullScreenAllowedPackages: Set<String> = emptySet(),
     )
+
+    private val fullScreenStore = FullScreenModeStore(context)
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -84,7 +89,12 @@ class ProfileEditViewModel @Inject constructor(
             val existing = existingProfileId?.let { profileRepository.getById(it) }
             _uiState.update {
                 if (existing != null) {
-                    it.copy(loading = false, draft = existing, isPersisted = true, scheduleEnabled = existing.schedule?.isConfigured == true)
+                    it.copy(
+                        loading = false, draft = existing, isPersisted = true,
+                        scheduleEnabled = existing.schedule?.isConfigured == true,
+                        fullScreenEnabled = fullScreenStore.enabled(existing.id),
+                        fullScreenAllowedPackages = fullScreenStore.allowedPackages(existing.id),
+                    )
                 } else {
                     it.copy(loading = false)
                 }
@@ -119,6 +129,19 @@ class ProfileEditViewModel @Inject constructor(
 
     fun updateStrategyDataJson(json: String) {
         guardedUpdate { it.copy(draft = it.draft.copy(strategyDataJson = json)) }
+    }
+
+    // Fullscreen mode has its own allowlist. The existing block list is unchanged.
+    fun setFullScreenEnabled(enabled: Boolean) {
+        guardedUpdate { it.copy(fullScreenEnabled = enabled) }
+    }
+
+    fun toggleFullScreenAllowedPackage(packageName: String) {
+        guardedUpdate { current ->
+            val allowed = current.fullScreenAllowedPackages
+            current.copy(fullScreenAllowedPackages =
+                if (packageName in allowed) allowed - packageName else allowed + packageName)
+        }
     }
 
     // --- Apps -----------------------------------------------------------------------------
@@ -279,6 +302,7 @@ class ProfileEditViewModel @Inject constructor(
             )
 
             val saved = if (!current.isPersisted) profileRepository.create(toSave) else profileRepository.saveEditorDraft(toSave)
+            fullScreenStore.save(saved.id, current.fullScreenEnabled, current.fullScreenAllowedPackages)
 
             if (saved.schedule?.isConfigured == true) {
                 alarmScheduler.scheduleWeeklySchedule(saved)

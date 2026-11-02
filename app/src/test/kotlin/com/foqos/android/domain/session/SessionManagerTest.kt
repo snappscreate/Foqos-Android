@@ -25,6 +25,8 @@ import com.foqos.android.receiver.AlarmReceiver
 import com.foqos.android.service.alarm.AlarmActivityType
 import com.foqos.android.service.alarm.FoqosAlarmScheduler
 import com.foqos.android.service.session.BlockingStateHolder
+import com.foqos.android.service.location.LocationAutomationStore
+import com.foqos.android.service.location.LocationRule
 import com.google.common.truth.Truth.assertThat
 import java.time.Instant
 import java.util.UUID
@@ -122,6 +124,32 @@ class SessionManagerTest {
         val shadow = Shadows.shadowOf(alarmManager)
         return shadow.scheduledAlarms.mapNotNull {
             Shadows.shadowOf(it.operation).savedIntent.getStringExtra(AlarmReceiver.EXTRA_KEY)
+        }
+    }
+
+    @Test
+    fun `leaving the location pauses enforcement without ending session and reentry restores it`() = runTest {
+        val profile = createProfile(strategyId = ManualBlockingStrategy.ID)
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val location = LocationAutomationStore(context)
+        location.save(LocationRule(profile.id, 33.60, 130.42, 200f))
+        try {
+            location.setLastInside(true)
+            sessionManager.onLocationTransition(profile.id, true)
+            val originalId = sessionManager.activeSession.value!!.id
+            assertThat(blockingStateHolder.state.value?.locationSuspended).isFalse()
+
+            location.setLastInside(false)
+            sessionManager.onLocationTransition(profile.id, false)
+            assertThat(sessionManager.activeSession.value?.id).isEqualTo(originalId)
+            assertThat(blockingStateHolder.state.value?.locationSuspended).isTrue()
+
+            location.setLastInside(true)
+            sessionManager.onLocationTransition(profile.id, true)
+            assertThat(sessionManager.activeSession.value?.id).isEqualTo(originalId)
+            assertThat(blockingStateHolder.state.value?.locationSuspended).isFalse()
+        } finally {
+            location.clear()
         }
     }
 

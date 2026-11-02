@@ -102,6 +102,8 @@ class AccessibilityBlockPolicy @Inject constructor() {
         nowMillis: Long = System.currentTimeMillis(),
         neverBlockPackages: Set<String> = DEFAULT_NEVER_BLOCK,
     ): BlockDecision {
+        if (state?.fullScreenMode == true && (state.pauseActive || state.breakActive))
+            return BlockDecision.Allow
         val appDecision = decideForApp(packageName, state, nowMillis, neverBlockPackages)
         val restrictedBrowser = state?.fullScreenMode == true &&
             packageName == state.fullScreenBrowserPackage &&

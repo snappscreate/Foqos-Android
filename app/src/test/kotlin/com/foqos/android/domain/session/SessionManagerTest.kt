@@ -82,6 +82,7 @@ class SessionManagerTest {
             ioDispatcher = Dispatchers.Unconfined,
             sessionServiceController = NoOpSessionServiceController(),
             widgetRefresher = NoOpWidgetRefresher(),
+            appContext = context,
         )
     }
 
@@ -613,6 +614,7 @@ class SessionManagerTest {
             ioDispatcher = Dispatchers.Unconfined,
             sessionServiceController = NoOpSessionServiceController(),
             widgetRefresher = NoOpWidgetRefresher(),
+            appContext = context,
         )
 
         freshSessionManager.rebuildStateAfterProcessRestart()

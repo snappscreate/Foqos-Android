@@ -5,6 +5,8 @@ import android.Manifest
 import android.content.pm.PackageManager as AndroidPackageManager
 import android.location.Location
 import android.nfc.NfcAdapter
+import android.nfc.tech.Ndef
+import com.foqos.android.service.nfc.NfcTagContentParser
 import android.widget.ImageView
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
@@ -194,21 +196,45 @@ class BlockOverlayActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        nfcDispatchManager.setWaitingForScan(true)
-        runCatching { nfcDispatchManager.enable(this) }
+        // Reader mode delivers a Tag directly to this visible shield. Foreground
+        // dispatch alone can be bypassed by NDEF intent routing on Pixel devices.
+        val adapter = NfcAdapter.getDefaultAdapter(this)
+        if (adapter == null || !adapter.isEnabled) {
+            nfcScanMessage = "NFCが無効です。設定でNFCをオンにしてください"
+        } else {
+            val flags = NfcAdapter.FLAG_READER_NFC_A or
+                NfcAdapter.FLAG_READER_NFC_B or
+                NfcAdapter.FLAG_READER_NFC_F or
+                NfcAdapter.FLAG_READER_NFC_V
+            runCatching {
+                adapter.enableReaderMode(this, { tag ->
+                    // Reader callback is on a binder thread. Read NDEF there, then
+                    // hand the resulting code to the same strategy as the debug button.
+                    val content = runCatching {
+                        val ndef = Ndef.get(tag)
+                        val message = ndef?.cachedNdefMessage ?: ndef?.let {
+                            try {
+                                it.connect()
+                                it.ndefMessage
+                            } finally {
+                                runCatching { it.close() }
+                            }
+                        }
+                        NfcTagContentParser.fromTag(tag, message)
+                    }
+                    lifecycleScope.launch {
+                        content.onSuccess { processNfcCode(it.value) }
+                            .onFailure { nfcScanMessage = "NFCの読み取りに失敗しました" }
+                    }
+                }, flags, null)
+            }.onFailure { nfcScanMessage = "NFCリーダーを開始できませんでした" }
+        }
         refreshBoundaryDistance()
     }
 
     override fun onPause() {
-        runCatching { nfcDispatchManager.disable(this) }
-        nfcDispatchManager.setWaitingForScan(false)
+        runCatching { NfcAdapter.getDefaultAdapter(this)?.disableReaderMode(this) }
         super.onPause()
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        nfcDispatchManager.handleIntent(intent) { }
     }
 
     private suspend fun processNfcCode(code: String) {

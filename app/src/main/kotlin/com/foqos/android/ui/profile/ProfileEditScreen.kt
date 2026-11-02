@@ -117,6 +117,7 @@ fun ProfileEditScreen(
     var showEndTimePicker by remember { mutableStateOf(false) }
     var showLockedDialog by remember { mutableStateOf(false) }
     var showFullScreenAllowedPicker by remember { mutableStateOf(false) }
+    var newAllowedUrl by remember { mutableStateOf("") }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -207,6 +208,35 @@ fun ProfileEditScreen(
                     }
                     if (uiState.fullScreenEnabled) {
                         Text("許可アプリ：${uiState.fullScreenAllowedPackages.size}件")
+                        Text("許可するWebサイト", style = MaterialTheme.typography.titleSmall)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            OutlinedTextField(
+                                value = newAllowedUrl,
+                                onValueChange = { newAllowedUrl = it },
+                                label = { Text("例：example.com") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                                enabled = !uiState.editingLocked,
+                            )
+                            OutlinedButton(
+                                onClick = {
+                                    viewModel.addFullScreenAllowedUrl(newAllowedUrl)
+                                    newAllowedUrl = ""
+                                },
+                                enabled = !uiState.editingLocked,
+                            ) { Text("追加") }
+                        }
+                        uiState.fullScreenAllowedUrls.sorted().forEach { url ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(url.removePrefix("https://"), modifier = Modifier.weight(1f))
+                                if (!uiState.editingLocked) TextButton(
+                                    onClick = { viewModel.removeFullScreenAllowedUrl(url) }
+                                ) { Text("削除") }
+                            }
+                        }
                         OutlinedButton(
                             onClick = { showFullScreenAllowedPicker = true },
                         ) { Text("許可するアプリを選ぶ") }

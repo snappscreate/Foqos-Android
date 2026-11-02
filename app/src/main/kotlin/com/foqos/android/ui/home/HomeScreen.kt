@@ -58,6 +58,7 @@ import com.foqos.android.R
 import com.foqos.android.BuildConfig
 import com.foqos.android.data.model.StrategyPauseTimerData
 import com.foqos.android.data.model.PhysicalUnblockType
+import com.foqos.android.service.session.FullScreenModeStore
 import com.foqos.android.data.model.BlockedProfile
 import com.foqos.android.domain.strategy.StrategyRegistry
 import com.foqos.android.ui.common.formatScheduleSummary
@@ -94,6 +95,7 @@ fun HomeScreen(
     }
 
     val context = LocalContext.current
+    val fullScreenStore = remember(context) { FullScreenModeStore(context) }
     var deleteCandidate by remember { mutableStateOf<BlockedProfile?>(null) }
 
     Scaffold(
@@ -195,6 +197,7 @@ fun HomeScreen(
                         activeSession = uiState.activeSession?.takeIf { it.profileId == profile.id },
                         isLocationProfile = uiState.locationRule?.profileId == profile.id,
                         locationInside = uiState.locationInside,
+                        fullScreenMode = fullScreenStore.enabled(profile.id),
                         onCardClick = { onEditProfile(profile.id) },
                         onPlayStop = {
                             if (uiState.activeSession?.profileId == profile.id) {
@@ -331,6 +334,7 @@ private fun ProfileCard(
     activeSession: com.foqos.android.data.model.BlockedProfileSession? = null,
     isLocationProfile: Boolean = false,
     locationInside: Boolean? = null,
+    fullScreenMode: Boolean = false,
     onCardClick: () -> Unit,
     onPlayStop: () -> Unit,
     onEdit: () -> Unit,
@@ -369,6 +373,11 @@ private fun ProfileCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = profile.name, style = MaterialTheme.typography.titleMedium)
                 Text(
+                    text = if (fullScreenMode) "全画面集中モード" else "アプリブロックモード",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
                     text = strategy.name,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -393,6 +402,9 @@ private fun ProfileCard(
                         },
                         style = MaterialTheme.typography.bodySmall,
                     )
+                }
+                if (isActive && isLocationProfile && locationInside == false) {
+                    Text("範囲外：自動一時停止中", style = MaterialTheme.typography.bodySmall)
                 }
                 if (activeSession?.isPauseActive() == true) {
                     var nowMillis by remember(activeSession.id) { mutableStateOf(System.currentTimeMillis()) }

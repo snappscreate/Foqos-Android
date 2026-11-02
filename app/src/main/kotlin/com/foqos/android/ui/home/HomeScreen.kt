@@ -414,11 +414,15 @@ private fun ProfileCard(
                 }
             }
 
-            IconButton(onClick = onPlayStop) {
-                Icon(
-                    imageVector = if (isActive && isLocationProfile && locationInside == true) Icons.Filled.Pause else if (isActive) Icons.Filled.Stop else Icons.Filled.PlayArrow,
-                    contentDescription = if (isActive) stringResource(R.string.home_stop_action) else stringResource(R.string.home_start_action),
-                )
+            // During an active pause the remaining-time label is enough; a second
+            // pause button would do nothing and suggest that pause can be extended.
+            if (activeSession?.isPauseActive() != true) {
+                IconButton(onClick = onPlayStop) {
+                    Icon(
+                        imageVector = if (isActive && isLocationProfile && locationInside == true) Icons.Filled.Pause else if (isActive) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                        contentDescription = if (isActive) stringResource(R.string.home_stop_action) else stringResource(R.string.home_start_action),
+                    )
+                }
             }
 
             Box {

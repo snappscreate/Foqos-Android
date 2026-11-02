@@ -10,6 +10,10 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
@@ -18,6 +22,8 @@ import com.foqos.android.data.repository.ProfileRepository
 import com.foqos.android.domain.session.SessionManager
 import com.foqos.android.service.nfc.NfcForegroundDispatchManager
 import com.foqos.android.service.nfc.ProfileLinkCodec
+import com.foqos.android.service.session.FullScreenModeStore
+import com.foqos.android.service.overlay.BlockOverlayActivity
 import com.foqos.android.ui.navigation.FoqosNavHost
 import com.foqos.android.ui.strategyflow.StrategyFlowHost
 import com.foqos.android.ui.theme.FoqosTheme
@@ -68,6 +74,20 @@ class MainActivity : ComponentActivity() {
             }
             val seedColor = PRESET_SEED_COLORS.getOrNull(themeColorIndex)
 
+            val activeSession by sessionManager.activeSession.collectAsStateWithLifecycle()
+            val fullScreenStore = remember { FullScreenModeStore(this@MainActivity) }
+            var lastPresentedFullScreenId by remember { mutableStateOf<String?>(null) }
+            LaunchedEffect(activeSession?.id) {
+                val session = activeSession
+                if (session != null && fullScreenStore.enabled(session.profileId) &&
+                    session.id != lastPresentedFullScreenId && !session.isPauseActive()
+                ) {
+                    lastPresentedFullScreenId = session.id
+                    startActivity(Intent(this@MainActivity, BlockOverlayActivity::class.java).apply {
+                        putExtra(BlockOverlayActivity.EXTRA_PACKAGE_NAME, BlockOverlayActivity.FULL_SCREEN_HOME_TARGET)
+                    })
+                }
+            }
             FoqosTheme(darkTheme = darkTheme, dynamicColor = seedColor == null, seedColor = seedColor) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     FoqosNavHost(sessionManager = sessionManager, settingsDataStore = settingsDataStore)

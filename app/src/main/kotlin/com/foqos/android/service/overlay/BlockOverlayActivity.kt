@@ -6,6 +6,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import com.foqos.android.service.session.FullScreenModeStore
 import android.content.Intent
+import android.net.Uri
 import android.Manifest
 import android.content.pm.PackageManager as AndroidPackageManager
 import android.location.Location
@@ -55,6 +56,7 @@ import com.foqos.android.domain.strategy.NfcSoftUnblockBlockingStrategy
 import com.foqos.android.domain.strategy.QrSoftUnblockBlockingStrategy
 import com.foqos.android.service.session.BlockingStateHolder
 import com.foqos.android.ui.block.BlockScreenContent
+import com.foqos.android.ui.block.FullScreenShortcutGrid
 import com.foqos.android.ui.block.SoftUnblockInfo
 import com.foqos.android.ui.theme.FoqosTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -118,6 +120,7 @@ class BlockOverlayActivity : ComponentActivity() {
                 val fullScreenStore = remember { FullScreenModeStore(this@BlockOverlayActivity) }
                 val fullScreen = state?.profileId?.let(fullScreenStore::enabled) == true
                 val allowedPackages = state?.profileId?.let(fullScreenStore::allowedPackages).orEmpty()
+                val allowedUrls = state?.profileId?.let(fullScreenStore::allowedUrls).orEmpty()
                 var showAllowedApps by remember { mutableStateOf(false) }
 
                 // Auto-finishes on session end or once a grant for this exact package is issued
@@ -193,7 +196,44 @@ class BlockOverlayActivity : ComponentActivity() {
                     }) else null,
                     onGoBack = { finishAndGoHome() },
                     onOpenFoqosHome = { openFoqosHome() },
-                    onOpenAllowedApps = if (fullScreen) ({ showAllowedApps = true }) else null,
+                    fullScreenMode = fullScreen,
+                    fullScreenShortcuts = if (fullScreen) ({
+                        FullScreenShortcutGrid(
+                            packages = allowedPackages,
+                            urls = allowedUrls,
+                            appLabel = { pkg ->
+                                runCatching {
+                                    val info = packageManager.getApplicationInfo(pkg, 0)
+                                    packageManager.getApplicationLabel(info).toString()
+                                }.getOrDefault(pkg)
+                            },
+                            onApp = { pkg ->
+                                val launch = packageManager.getLaunchIntentForPackage(pkg)
+                                if (launch != null) {
+                                    startActivity(launch)
+                                    finish()
+                                } else nfcScanMessage = "アプリを起動できませんでした"
+                            },
+                            onUrl = { url ->
+                                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                    .addCategory(Intent.CATEGORY_BROWSABLE)
+                                val resolvedPackage = packageManager.resolveActivity(browserIntent, 0)
+                                    ?.activityInfo?.packageName
+                                val profileId = state?.profileId
+                                if (profileId != null && resolvedPackage != null &&
+                                    resolvedPackage != "android"
+                                ) {
+                                    fullScreenStore.grantBrowserStartup(profileId, resolvedPackage)
+                                    browserIntent.setPackage(resolvedPackage)
+                                }
+                                runCatching {
+                                    startActivity(browserIntent)
+                                    finish()
+                                }.onFailure { nfcScanMessage = "ブラウザを起動できませんでした" }
+                            },
+                        )
+                    }) else null,
+                    onOpenAllowedApps = null,
                     onOpenAndroidSettings = if (fullScreen) ({
                         startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                         finish()
@@ -238,7 +278,7 @@ class BlockOverlayActivity : ComponentActivity() {
                     )
                 }
 
-                BackHandler { finishAndGoHome() }
+                BackHandler { if (!fullScreen) finishAndGoHome() }
             }
         }
     }

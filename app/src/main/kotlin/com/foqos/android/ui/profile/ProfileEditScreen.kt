@@ -186,81 +186,117 @@ fun ProfileEditScreen(
                 onStrategyDataChange = viewModel::updateStrategyDataJson,
             )
 
-            SectionCard(title = "全画面集中モード") {
+            // Mutually exclusive blocking modes. Selecting a mode does not reset either
+            // mode's saved app selections or the shared website whitelist.
+            SectionCard(title = "ブロック方式") {
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("全画面ブロックを使用", style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                "許可したアプリとAndroid設定以外はブロック画面を表示。電話など必須のシステム機能は除外。",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Switch(
-                            checked = uiState.fullScreenEnabled,
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        SegmentedButton(
+                            selected = !uiState.fullScreenEnabled,
+                            onClick = { viewModel.setFullScreenEnabled(false) },
                             enabled = !uiState.editingLocked,
-                            onCheckedChange = viewModel::setFullScreenEnabled,
-                        )
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                        ) { Text("アプリブロック") }
+                        SegmentedButton(
+                            selected = uiState.fullScreenEnabled,
+                            onClick = { viewModel.setFullScreenEnabled(true) },
+                            enabled = !uiState.editingLocked,
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                        ) { Text("全画面集中") }
                     }
-                    if (uiState.fullScreenEnabled) {
+                    Text(
+                        if (uiState.fullScreenEnabled)
+                            "許可アプリ・サイトと設定以外をブロック画面で制限するモード"
+                        else "選択したアプリだけをブロックするモード",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            if (uiState.fullScreenEnabled) {
+                SectionCard(title = "許可アプリ") {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
                         Text("許可アプリ：${uiState.fullScreenAllowedPackages.size}件")
-                        Text("許可するWebサイト", style = MaterialTheme.typography.titleSmall)
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            OutlinedTextField(
-                                value = newAllowedUrl,
-                                onValueChange = { newAllowedUrl = it },
-                                label = { Text("例：example.com") },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f),
-                                enabled = !uiState.editingLocked,
-                            )
-                            OutlinedButton(
-                                onClick = {
-                                    viewModel.addFullScreenAllowedUrl(newAllowedUrl)
-                                    newAllowedUrl = ""
-                                },
-                                enabled = !uiState.editingLocked,
-                            ) { Text("追加") }
-                        }
-                        uiState.fullScreenAllowedUrls.sorted().forEach { url ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(url.removePrefix("https://"), modifier = Modifier.weight(1f))
-                                if (!uiState.editingLocked) TextButton(
-                                    onClick = { viewModel.removeFullScreenAllowedUrl(url) }
-                                ) { Text("削除") }
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            uiState.fullScreenAllowedPackages.sorted().forEach { pkg ->
+                                val icon = rememberAppIconBitmap(pkg)
+                                if (icon != null) Image(
+                                    bitmap = icon,
+                                    contentDescription = pkg,
+                                    modifier = Modifier.size(32.dp),
+                                )
                             }
                         }
                         OutlinedButton(
                             onClick = { showFullScreenAllowedPicker = true },
                         ) { Text("許可するアプリを選ぶ") }
                         Text(
-                            "設定アプリとFoqosは常に使用可。ホーム画面・通常のアプリは原則ブロックされます。",
+                            "Android設定・電話・Foqosは引き続き開けます",
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
                 }
+            } else {
+                AppsSection(
+                    blockedPackages = uiState.draft.blockedPackages,
+                    editingLocked = uiState.editingLocked,
+                    onOpenAppPicker = {
+                        if (uiState.editingLocked) showLockedDialog = true else onOpenAppPicker()
+                    },
+                )
             }
 
-            AppsSection(
-                blockedPackages = uiState.draft.blockedPackages,
-                editingLocked = uiState.editingLocked,
-                onOpenAppPicker = { if (uiState.editingLocked) showLockedDialog = true else onOpenAppPicker() },
-            )
-
-            WebsitesSection(
-                domains = uiState.draft.domains,
-                allowModeDomains = uiState.draft.allowModeDomains,
-                onAddClick = { showAddDomainDialog = true },
-                onRemove = viewModel::removeDomain,
-                onAllowModeChange = viewModel::setAllowModeDomains,
-            )
+            // Same list and backing state in both tabs.
+            SectionCard(title = "許可するWebサイト（両モード共通）") {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        OutlinedTextField(
+                            value = newAllowedUrl,
+                            onValueChange = { newAllowedUrl = it },
+                            label = { Text("例：example.com") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            enabled = !uiState.editingLocked,
+                        )
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.addFullScreenAllowedUrl(newAllowedUrl)
+                                newAllowedUrl = ""
+                            },
+                            enabled = !uiState.editingLocked,
+                        ) { Text("追加") }
+                    }
+                    uiState.fullScreenAllowedUrls.sorted().forEach { url ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                url.removePrefix("https://"),
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (!uiState.editingLocked) TextButton(
+                                onClick = { viewModel.removeFullScreenAllowedUrl(url) },
+                            ) { Text("削除") }
+                        }
+                    }
+                    Text(
+                        "モードを切り替えても同じURLリストを使用します",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
 
             if (uiState.isPersisted) {
                 SectionCard(title = stringResource(R.string.profile_edit_physical_unlocks_title)) {

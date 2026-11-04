@@ -108,11 +108,11 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
             latestFiles.forEach { it.delete() }
         }
     }
-    LaunchedEffect(granted, front, owner) {
+    LaunchedEffect(granted, front, mode, owner) {
         cameraReady = false
         if (granted) {
             try {
-                camera.bind(owner, front)
+                camera.bind(owner, front, mode == ActivityMode.VIDEO)
                 cameraReady = true
             } catch (error: Exception) {
                 status = "カメラを起動できない: ${error.message}"

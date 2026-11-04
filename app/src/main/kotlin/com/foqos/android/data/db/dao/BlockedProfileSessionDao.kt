@@ -15,6 +15,17 @@ interface BlockedProfileSessionDao {
     @Query("SELECT * FROM blocked_profile_sessions WHERE id = :id")
     suspend fun getById(id: String): BlockedProfileSessionEntity?
 
+    /** Every active profile session; required for independent concurrent restrictions. */
+    @Query("SELECT * FROM blocked_profile_sessions WHERE end_time IS NULL ORDER BY start_time DESC")
+    suspend fun activeSessionsOnce(): List<BlockedProfileSessionEntity>
+
+    @Query("SELECT * FROM blocked_profile_sessions WHERE end_time IS NULL ORDER BY start_time DESC")
+    fun observeActiveSessions(): Flow<List<BlockedProfileSessionEntity>>
+
+    /** Returns one active session for the specified profile, without affecting other profiles. */
+    @Query("SELECT * FROM blocked_profile_sessions WHERE profile_id = :profileId AND end_time IS NULL ORDER BY start_time DESC LIMIT 1")
+    suspend fun activeSessionForProfile(profileId: String): BlockedProfileSessionEntity?
+
     /** The most recently started session that has not yet ended, if any. */
     @Query("SELECT * FROM blocked_profile_sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1")
     suspend fun activeSessionOnce(): BlockedProfileSessionEntity?

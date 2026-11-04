@@ -28,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -113,8 +114,29 @@ fun SettingsScreen(
                 }
             }
 
-            SettingsSection(title = "Location-based blocking") {
-                LocationAutomationSection()
+            SettingsSection(title = "セッション保護（全プロファイル共通）") {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    GlobalProtectionSwitch(
+                        "設定画面へのアクセスを制限",
+                        "ブロック中はFoqosの制限を解除できる設定画面を開かせない",
+                        uiState.protection.strictMode,
+                    ) { enabled -> viewModel.updateProtection { it.copy(strictMode = enabled) } }
+                    GlobalProtectionSwitch(
+                        "アプリのインストール・削除を防止",
+                        "ブロック中のアプリ追加・アンインストール操作を制限",
+                        uiState.protection.blockAppInstallation,
+                    ) { enabled -> viewModel.updateProtection { it.copy(blockAppInstallation = enabled) } }
+                    GlobalProtectionSwitch(
+                        "Foqos内からのみ停止可能",
+                        "ショートカット・外部リンクからの停止を禁止",
+                        uiState.protection.disableBackgroundStops,
+                    ) { enabled -> viewModel.updateProtection { it.copy(disableBackgroundStops = enabled) } }
+                    GlobalProtectionSwitch(
+                        "緊急解除を許可",
+                        "共通の緊急解除回数を使用してセッションを終了できる",
+                        uiState.protection.enableEmergencyUnblock,
+                    ) { enabled -> viewModel.updateProtection { it.copy(enableEmergencyUnblock = enabled) } }
+                }
             }
 
             SettingsSection(title = stringResource(R.string.settings_permissions_title)) {
@@ -277,4 +299,22 @@ private fun ColorSwatch(color: Color?, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun DarkModeChip(label: String, value: String, selected: String, onSelect: (String) -> Unit) {
     FilterChip(selected = selected == value, onClick = { onSelect(value) }, label = { Text(label) })
+}
+
+@Composable
+private fun GlobalProtectionSwitch(
+    title: String,
+    explanation: String,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(explanation, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = onChange)
+    }
 }

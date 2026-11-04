@@ -137,12 +137,12 @@ class SessionManager @Inject constructor(
     /**
      * Home action for an active location-owned session. Inside the configured area this
      * starts a timed pause without destroying the session or its NFC registrations.
-     * Outside the area use [onLocationTransition] to fully end location-owned sessions.
+     * Outside the area the location suspension is independent of timed NFC pauses.
      */
     suspend fun pauseLocationSessionFromHome(profileId: String) = withContext(ioDispatcher) {
         val current = _activeSession.value ?: return@withContext
         if (current.profileId != profileId ||
-            current.isPauseActive()
+            current.isPauseActive() || !locationStoreInside(profileId)
         ) return@withContext
         val profile = profileRepository.getById(profileId) ?: return@withContext
         val strategy = StrategyRegistry.byId(profile.strategyId)

@@ -69,6 +69,7 @@ import com.foqos.android.service.session.PeriodicAccessSchedule
 import com.foqos.android.service.session.PeriodicAccessStore
 import com.foqos.android.ui.common.DeveloperUiVisibility
 import com.foqos.android.ui.block.BlockScreenContent
+import com.foqos.android.ui.block.FeaturedAppsEditor
 import com.foqos.android.ui.block.FullScreenShortcutGrid
 import com.foqos.android.ui.block.SoftUnblockInfo
 import com.foqos.android.ui.theme.FoqosTheme
@@ -375,37 +376,20 @@ class BlockOverlayActivity : ComponentActivity() {
                         onDismissRequest = { showFeaturedPicker = false },
                         title = { Text("おすすめアプリを選択") },
                         text = {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(
-                                    "ホワイトリストの中から選択。10秒後にランダム起動するよ。",
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                                LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
-                                    items(allowedPackages.sorted()) { pkg ->
-                                        val appLabel = rememberAppLabel(pkg)
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                        ) {
-                                            Checkbox(
-                                                checked = pkg in featuredPackages,
-                                                onCheckedChange = { checked ->
-                                                    val next = if (checked) featuredPackages + pkg
-                                                        else featuredPackages - pkg
-                                                    fullScreenStore.saveFeaturedPackages(profileId, next)
-                                                    featuredPackages = fullScreenStore.featuredPackages(profileId)
-                                                },
-                                            )
-                                            TextButton(onClick = {
-                                                val next = if (pkg in featuredPackages) featuredPackages - pkg
-                                                    else featuredPackages + pkg
-                                                fullScreenStore.saveFeaturedPackages(profileId, next)
-                                                featuredPackages = fullScreenStore.featuredPackages(profileId)
-                                            }) { Text(appLabel) }
-                                        }
-                                    }
-                                }
-                            }
+                            FeaturedAppsEditor(
+                                allowed = allowedPackages,
+                                featured = featuredPackages,
+                                labelFor = { pkg ->
+                                    runCatching {
+                                        val info = packageManager.getApplicationInfo(pkg, 0)
+                                        packageManager.getApplicationLabel(info).toString()
+                                    }.getOrDefault(pkg)
+                                },
+                                onFeaturedChange = { selected ->
+                                    fullScreenStore.saveFeaturedPackages(profileId, selected)
+                                    featuredPackages = fullScreenStore.featuredPackages(profileId)
+                                },
+                            )
                         },
                         confirmButton = {
                             TextButton(onClick = { showFeaturedPicker = false }) { Text("完了") }

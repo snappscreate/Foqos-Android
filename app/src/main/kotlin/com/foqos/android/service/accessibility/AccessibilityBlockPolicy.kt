@@ -36,6 +36,39 @@ import javax.inject.Singleton
 @Singleton
 class AccessibilityBlockPolicy @Inject constructor() {
 
+    /**
+     * Evaluate every active restriction independently. A pause, allowance or NFC grant
+     * in one profile cannot cancel another profile's block.
+     *
+     * Never collapse the state into one synthetic allowlist: that would lose URL,
+     * strict-mode and per-profile timer semantics.
+     */
+    fun decideForAppAcrossProfiles(
+        packageName: String,
+        states: Collection<BlockingState>,
+        nowMillis: Long = System.currentTimeMillis(),
+        neverBlockPackages: Set<String> = DEFAULT_NEVER_BLOCK,
+        protectedSettingsScreen: Boolean = false,
+    ): BlockDecision = combineProfileDecisions(states.map { state ->
+        decideForApp(packageName, state, nowMillis, neverBlockPackages, protectedSettingsScreen)
+    })
+
+    fun decideForUrlAcrossProfiles(
+        packageName: String,
+        url: String?,
+        states: Collection<BlockingState>,
+        nowMillis: Long = System.currentTimeMillis(),
+        neverBlockPackages: Set<String> = DEFAULT_NEVER_BLOCK,
+    ): BlockDecision = combineProfileDecisions(states.map { state ->
+        decideForUrl(packageName, url, state, nowMillis, neverBlockPackages)
+    })
+
+    private fun combineProfileDecisions(decisions: List<BlockDecision>): BlockDecision =
+        decisions.firstOrNull { it is BlockDecision.RedirectAway }
+            ?: decisions.firstOrNull { it is BlockDecision.BlockApp }
+            ?: decisions.firstOrNull { it is BlockDecision.BlockDomain }
+            ?: BlockDecision.Allow
+
     /** Decides what should happen for [packageName] being in the foreground right now. */
     fun decideForApp(
         packageName: String,

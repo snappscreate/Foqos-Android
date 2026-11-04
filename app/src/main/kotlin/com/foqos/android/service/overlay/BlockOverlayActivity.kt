@@ -165,10 +165,17 @@ class BlockOverlayActivity : ComponentActivity() {
                     }
                 }
 
-                val blockedLabel = if (targetPackage == FULL_SCREEN_HOME_TARGET) "集中モード" else targetDomain ?: rememberAppLabel(targetPackage)
+                val blockedLabel = when {
+                    locationPauseRequest -> "一時停止の認証"
+                    targetPackage == FULL_SCREEN_HOME_TARGET -> "集中モード"
+                    else -> targetDomain ?: rememberAppLabel(targetPackage)
+                }
                 val activeProfile by sessionManager.activeProfile.collectAsStateWithLifecycle()
                 val nfcReady = activeProfile?.let { profile ->
-                    StrategyRegistry.byId(profile.strategyId).usesNfc
+                    StrategyRegistry.byId(profile.strategyId).usesNfc ||
+                        (locationPauseRequest && profile.physicalUnblockItems.any {
+                            it.type == PhysicalUnblockType.NFC
+                        })
                 } ?: false
 
                 BlockScreenContent(

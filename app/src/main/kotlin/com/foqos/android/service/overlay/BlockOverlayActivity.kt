@@ -177,17 +177,9 @@ class BlockOverlayActivity : ComponentActivity() {
                 val fullScreen = state?.fullScreenMode == true
                 val allowedPackages = state?.profileId
                     ?.let(fullScreenStore::allowedPackages).orEmpty()
-                    .filter { pkg ->
-                        blockPolicy.decideForAppAcrossProfiles(pkg, candidates) == BlockDecision.Allow
-                    }.toSet()
                 val defaultBrowser = DefaultBrowserResolver.packageName(this@BlockOverlayActivity)
                 val allowedUrls = state?.profileId
                     ?.let(fullScreenStore::allowedUrls).orEmpty()
-                    .filter { url ->
-                        defaultBrowser != null && blockPolicy.decideForUrlAcrossProfiles(
-                            defaultBrowser, url, candidates,
-                        ) == BlockDecision.Allow
-                    }.toSet()
                 var showAllowedApps by remember { mutableStateOf(false) }
                 var showFeaturedPicker by remember { mutableStateOf(false) }
                 var featuredShortcuts by remember(state?.profileId, allowedPackages, allowedUrls) {
@@ -222,6 +214,30 @@ class BlockOverlayActivity : ComponentActivity() {
                         .onFailure { nfcScanMessage = "ブラウザを起動できませんでした" }
                 }
                 fun openShortcut(id: String) {
+                    val targetPkg = when {
+                        id.startsWith(FocusShortcut.APP_PREFIX) -> id.removePrefix(FocusShortcut.APP_PREFIX)
+                        id.startsWith(FocusShortcut.URL_PREFIX) -> defaultBrowser
+                        else -> null
+                    }
+                    val targetUrl = id.takeIf { it.startsWith(FocusShortcut.URL_PREFIX) }
+                        ?.removePrefix(FocusShortcut.URL_PREFIX)
+                    val owner = if (targetPkg != null) candidates.firstOrNull { candidate ->
+                        val decision = if (targetUrl != null)
+                            blockPolicy.decideForUrl(targetPkg, targetUrl, candidate)
+                        else blockPolicy.decideForApp(targetPkg, candidate)
+                        decision != BlockDecision.Allow
+                    } else null
+                    if (owner != null && targetPkg != null) {
+                        // Keep the icon visible in B; opening it takes the user to A's blocker.
+                        startActivity(Intent(this@BlockOverlayActivity, BlockOverlayActivity::class.java).apply {
+                            putExtra(EXTRA_PACKAGE_NAME, targetPkg)
+                            putExtra(EXTRA_PROFILE_ID, owner.profileId)
+                            if (targetUrl != null) putExtra(EXTRA_DOMAIN,
+                                Uri.parse(targetUrl).host.orEmpty())
+                            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        })
+                        return
+                    }
                     when {
                         id == FocusShortcut.PHONE -> {
                             runCatching {

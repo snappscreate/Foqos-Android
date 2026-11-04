@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -91,15 +92,16 @@ class SessionManager @Inject constructor(
         _activeSessions.value.firstOrNull { it.profileId == profileId }
 
     private fun cacheSession(session: BlockedProfileSession) {
-        val previous = _activeSessions.value
-        _activeSessions.value = if (previous.any { it.id == session.id }) {
-            previous.map { if (it.id == session.id) session else it }
-        } else listOf(session) + previous.filterNot { it.profileId == session.profileId }
+        _activeSessions.update { previous ->
+            if (previous.any { it.id == session.id }) {
+                previous.map { if (it.id == session.id) session else it }
+            } else listOf(session) + previous.filterNot { it.profileId == session.profileId }
+        }
         _activeSession.value = _activeSessions.value.firstOrNull()
     }
 
     private fun uncacheSession(sessionId: String) {
-        _activeSessions.value = _activeSessions.value.filterNot { it.id == sessionId }
+        _activeSessions.update { previous -> previous.filterNot { it.id == sessionId } }
         _activeSession.value = _activeSessions.value.firstOrNull()
     }
 
@@ -705,7 +707,11 @@ class SessionManager @Inject constructor(
             rearmAlarmsAfterRestart(profile, session, now, grants)
             schedulePeriodicAccess(profile.id, session, now)
         }
-        sessions.firstOrNull()?.let { sessionServiceController.startForegroundService(it.id) }
+        sessions.firstOrNull()?.let { first ->
+            blockingStateHolder.stateForProfile(first.profileId)
+                ?.let(blockingStateHolder::setState)
+            sessionServiceController.startForegroundService(first.id)
+        }
     }
 
     /**

@@ -211,12 +211,12 @@ fun HomeScreen(
                             it.pauseEndTime?.toEpochMilli() ?: 0L,
                             it.breakEndTime?.toEpochMilli() ?: 0L)
                     } ?: 0L
-                    val activatedCycle = session?.let { periodicStore.activatedCycle(profile.id, it.id, anchor) } ?: -1L
+                    val activatedAt = session?.let { periodicStore.activatedAt(profile.id, it.id, anchor) } ?: 0L
                     val recurringActive = session != null && PeriodicAccessSchedule.isActive(
-                        recurringConfig, anchor, activatedCycle, periodicNow)
+                        recurringConfig, anchor, activatedAt, periodicNow)
                     val recurringEligible = session != null && !session.isPauseActive() &&
                         !session.isBreakActive() && !recurringActive &&
-                        PeriodicAccessSchedule.isAccessible(recurringConfig, anchor, periodicNow)
+                        PeriodicAccessSchedule.isAvailable(recurringConfig, anchor, activatedAt, periodicNow)
                     ProfileCard(
                         profile = profile,
                         isActive = uiState.activeSession?.profileId == profile.id,
@@ -226,9 +226,10 @@ fun HomeScreen(
                         fullScreenMode = fullScreenStore.enabled(profile.id),
                         periodicEligible = recurringEligible,
                         periodicActive = recurringActive,
-                        periodicRemainingSeconds = if (session != null) (
-                            PeriodicAccessSchedule.remainingWindowMillis(recurringConfig, anchor, periodicNow) + 999L
-                        ) / 1000L else 0L,
+                        periodicRemainingSeconds = if (recurringEligible) recurringConfig.accessMinutes.toLong() * 60L
+                            else if (session != null) (
+                                PeriodicAccessSchedule.remainingMillis(recurringConfig, anchor, activatedAt, periodicNow) + 999L
+                            ) / 1000L else 0L,
                         onCardClick = { onEditProfile(profile.id) },
                         onPlayStop = {
                             if (uiState.activeSession?.profileId == profile.id) {

@@ -208,9 +208,9 @@ class BlockOverlayActivity : ComponentActivity() {
                     // Simply finish() can reveal an underlying blocked app instead.
                     val outside = locationStatus.first?.profileId == current.profileId &&
                         locationStatus.second == false
-                    val periodicOpen = PeriodicAccessSchedule.isAccessible(
+                    val periodicOpen = PeriodicAccessSchedule.isActive(
                         PeriodicAccessStore.Config(current.periodicWaitMinutes, current.periodicAccessMinutes),
-                        current.periodicAnchorEpochMillis, periodicNow,
+                        current.periodicAnchorEpochMillis, current.periodicActivatedCycle, periodicNow,
                     )
                     if (current.pauseActive || current.breakActive || periodicOpen || current.locationSuspended || outside) {
                         if (fullScreen) finishAndGoHome() else finish()
@@ -250,6 +250,27 @@ class BlockOverlayActivity : ComponentActivity() {
                     blockedLabel = blockedLabel,
                     sessionStartEpochMillis = state?.sessionStartEpochMillis ?: System.currentTimeMillis(),
                     softUnblockInfo = softUnblockInfo,
+                    periodicPauseAvailable = state?.let { current ->
+                        PeriodicAccessSchedule.isAccessible(
+                            PeriodicAccessStore.Config(current.periodicWaitMinutes, current.periodicAccessMinutes),
+                            current.periodicAnchorEpochMillis, periodicNow,
+                        ) && !PeriodicAccessSchedule.isActive(
+                            PeriodicAccessStore.Config(current.periodicWaitMinutes, current.periodicAccessMinutes),
+                            current.periodicAnchorEpochMillis, current.periodicActivatedCycle, periodicNow,
+                        ) && !current.pauseActive && !current.breakActive
+                    } == true,
+                    periodicPauseRemainingSeconds = state?.let { current ->
+                        (PeriodicAccessSchedule.remainingWindowMillis(
+                            PeriodicAccessStore.Config(current.periodicWaitMinutes, current.periodicAccessMinutes),
+                            current.periodicAnchorEpochMillis, periodicNow,
+                        ) + 999L) / 1000L
+                    } ?: 0L,
+                    onActivatePeriodicPause = {
+                        val profileId = state?.profileId
+                        if (profileId != null) scope.launch {
+                            sessionManager.activatePeriodicAccess(profileId)
+                        }
+                    },
                     blockedIcon = {
                         if (targetDomain == null && targetPackage != FULL_SCREEN_HOME_TARGET) {
                             AndroidView(

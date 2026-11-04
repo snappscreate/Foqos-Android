@@ -111,7 +111,7 @@ class SessionManager @Inject constructor(
     private val periodicAccessStore by lazy { PeriodicAccessStore(appContext) }
 
     private fun periodicAnchor(session: BlockedProfileSession): Long =
-        maxOf(session.startTime.toEpochMilli(), session.pauseEndTime?.toEpochMilli() ?: 0L)
+        maxOf(session.startTime.toEpochMilli(), session.pauseEndTime?.toEpochMilli() ?: 0L, session.breakEndTime?.toEpochMilli() ?: 0L)
 
     private fun periodicAccessActive(profileId: String, session: BlockedProfileSession, now: Instant): Boolean =
         PeriodicAccessSchedule.isAccessible(
@@ -473,7 +473,12 @@ class SessionManager @Inject constructor(
             elapsedSeconds
         }
 
-        _activeSession.value = session.copy(breakEndTime = at, usedBreakDurationInSeconds = newUsedDuration)
+        val resumed = session.copy(breakEndTime = at, usedBreakDurationInSeconds = newUsedDuration)
+        _activeSession.value = resumed
+        // A manual break ends with a fresh uninterrupted-blocking countdown.
+        // Unlike NFC pauses this timestamp is already in the session record.
+        blockingStateHolder.setPeriodicAccessAnchor(at.toEpochMilli(), false)
+        schedulePeriodicAccess(profile.id, resumed, at)
     }
 
     /**

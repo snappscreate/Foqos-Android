@@ -73,6 +73,7 @@ class HomeViewModel @Inject constructor(
         val scheduleOutOfSync: Boolean = false,
         val locationRule: LocationRule? = null,
         val locationInside: Boolean? = null,
+        val locationStates: Map<String, Pair<LocationRule, Boolean?>> = emptyMap(),
     )
 
     private val locationStore = LocationAutomationStore(context)
@@ -84,8 +85,12 @@ class HomeViewModel @Inject constructor(
         refreshPermissions()
         refreshLocationState()
         viewModelScope.launch {
-            locationStore.observeState().collect { (rule, inside) ->
-                _uiState.update { it.copy(locationRule = rule, locationInside = inside) }
+            locationStore.observeAllStates().collect { states ->
+                _uiState.update { it.copy(
+                    locationStates = states,
+                    locationRule = states.values.firstOrNull()?.first,
+                    locationInside = states.values.firstOrNull()?.second,
+                ) }
             }
         }
         viewModelScope.launch {
@@ -123,7 +128,13 @@ class HomeViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 locationRule = locationStore.read(),
-                locationInside = locationStore.manualInside() ?: locationStore.lastInside(),
+                locationInside = locationStore.read()?.let {
+                    locationStore.manualInside(it.profileId) ?: locationStore.lastInside(it.profileId)
+                },
+                locationStates = locationStore.readAll().associate { rule ->
+                    rule.profileId to (rule to
+                        (locationStore.manualInside(rule.profileId) ?: locationStore.lastInside(rule.profileId)))
+                },
             )
         }
     }
@@ -133,8 +144,8 @@ class HomeViewModel @Inject constructor(
         val rule = locationStore.read() ?: return
         viewModelScope.launch {
             // Store override before changing sessions so future screen refreshes retain it.
-            locationStore.setManualInside(inside)
-            locationStore.setLastInside(inside)
+            locationStore.setManualInside(rule.profileId, inside)
+            locationStore.setLastInside(rule.profileId, inside)
             sessionManager.onLocationTransition(rule.profileId, inside)
             refreshLocationState()
         }
@@ -147,7 +158,7 @@ class HomeViewModel @Inject constructor(
     fun onLocationProfileAction(profileId: String) {
         viewModelScope.launch {
             // Read authoritative state at click execution time, not an old composed row.
-            val inside = locationStore.manualInside() ?: locationStore.lastInside()
+            val inside = locationStore.manualInside(profileId) ?: locationStore.lastInside(profileId)
             if (inside == true) sessionManager.requestLocationPauseFromHome(profileId)
             else sessionManager.stopLocationProfileFromHome(profileId)
         }
@@ -166,10 +177,10 @@ class HomeViewModel @Inject constructor(
 
     /** Location-owned active profile is protected from duplicate/delete inside the area. */
     private fun isLocationEditProtected(profileId: String): Boolean {
-        val rule = locationStore.read()
-        val inside = locationStore.manualInside() ?: locationStore.lastInside()
+        val rule = locationStore.read(profileId)
+        val inside = locationStore.manualInside(profileId) ?: locationStore.lastInside(profileId)
         val active = sessionManager.activeSessions.value.any { it.profileId == profileId }
-        return rule?.profileId == profileId && inside == true && active
+        return rule != null && inside == true && active
     }
 
     fun duplicateProfile(profileId: String) {

@@ -141,11 +141,11 @@ class BlockOverlayActivity : ComponentActivity() {
                 val fullScreenStore = remember { FullScreenModeStore(this@BlockOverlayActivity) }
                 val scope = rememberCoroutineScope()
                 val locationStore = remember { LocationAutomationStore(this@BlockOverlayActivity) }
-                val locationStatus by remember { locationStore.observeState() }
-                    .collectAsStateWithLifecycle(
-                        initialValue = locationStore.read() to
-                            (locationStore.manualInside() ?: locationStore.lastInside()),
-                    )
+                val allLocationStates by remember { locationStore.observeAllStates() }
+                    .collectAsStateWithLifecycle(initialValue = locationStore.readAll().associate { rule ->
+                        rule.profileId to (rule to (locationStore.manualInside(rule.profileId)
+                            ?: locationStore.lastInside(rule.profileId)))
+                    })
                 val requestedProfileId = intent.getStringExtra(EXTRA_PROFILE_ID)
                 val candidates = allStates.values.map { entry ->
                     val browser = fullScreenStore.launchedBrowserPackage(entry.profileId)
@@ -163,8 +163,7 @@ class BlockOverlayActivity : ComponentActivity() {
                     } else entry
                     configured.copy(
                         locationSuspended = configured.locationSuspended ||
-                            (locationStatus.first?.profileId == configured.profileId &&
-                                locationStatus.second == false),
+                            (allLocationStates[configured.profileId]?.second == false),
                     )
                 }
                 val state = candidates.firstOrNull { requestedProfileId == it.profileId }
@@ -174,6 +173,7 @@ class BlockOverlayActivity : ComponentActivity() {
                         } else blockPolicy.decideForApp(targetPackage, entry)
                         decision != BlockDecision.Allow
                     } ?: candidates.firstOrNull()
+                val locationStatus = state?.profileId?.let { allLocationStates[it] }
                 val fullScreen = state?.fullScreenMode == true
                 val allowedPackages = state?.profileId
                     ?.let(fullScreenStore::allowedPackages).orEmpty()
@@ -313,8 +313,7 @@ class BlockOverlayActivity : ComponentActivity() {
                     }
                     // Full-screen focus pause must return to the real Android launcher.
                     // Simply finish() can reveal an underlying blocked app instead.
-                    val outside = locationStatus.first?.profileId == current.profileId &&
-                        locationStatus.second == false
+                    val outside = locationStatus?.second == false
                     val periodicOpen = PeriodicAccessSchedule.isActive(
                         PeriodicAccessStore.Config(current.periodicWaitMinutes, current.periodicAccessMinutes),
                         current.periodicAnchorEpochMillis, current.periodicActivatedAtEpochMillis, periodicNow,
@@ -606,7 +605,9 @@ class BlockOverlayActivity : ComponentActivity() {
     }
 
     private fun refreshBoundaryDistance() {
-        val rule = LocationAutomationStore(this).read() ?: return
+        val requested = intent.getStringExtra(EXTRA_PROFILE_ID)
+        val rule = requested?.let { LocationAutomationStore(this).read(it) }
+            ?: LocationAutomationStore(this).read() ?: return
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) !=
             AndroidPackageManager.PERMISSION_GRANTED
         ) return

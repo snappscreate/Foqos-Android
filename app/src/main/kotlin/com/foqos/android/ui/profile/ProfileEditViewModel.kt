@@ -379,6 +379,7 @@ class ProfileEditViewModel @Inject constructor(
             if (sessionManager.activeSession.value != null) return@launch
             profileRepository.delete(id)
             fullScreenStore.delete(id)
+            periodicStore.delete(id)
             alarmScheduler.cancelAllForProfile(id)
             _uiState.update { it.copy(deleted = true) }
         }

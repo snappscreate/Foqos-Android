@@ -55,32 +55,37 @@ class BlockingStateHolder @Inject constructor() {
         }
     }
 
+    private fun updateCurrent(transform: (BlockingState) -> BlockingState) {
+        val current = _state.value ?: return
+        updateProfile(current.profileId, transform)
+    }
+
     fun setPeriodicActivatedAt(cycle: Long) {
-        _state.update { it?.copy(periodicActivatedAtEpochMillis = cycle, periodicAccessActive = true) }
+        updateCurrent { it.copy(periodicActivatedAtEpochMillis = cycle, periodicAccessActive = true) }
     }
 
     fun setPeriodicAccessActive(active: Boolean) {
-        _state.update { it?.copy(periodicAccessActive = active) }
+        updateCurrent { it.copy(periodicAccessActive = active) }
     }
 
     fun setPeriodicAccessAnchor(anchorEpochMillis: Long, active: Boolean) {
-        _state.update { it?.copy(periodicAnchorEpochMillis = anchorEpochMillis, periodicActivatedAtEpochMillis = 0L, periodicAccessActive = active) }
+        updateCurrent { it.copy(periodicAnchorEpochMillis = anchorEpochMillis, periodicActivatedAtEpochMillis = 0L, periodicAccessActive = active) }
     }
 
     fun setBreakActive(active: Boolean) {
-        _state.update { it?.copy(breakActive = active) }
+        updateCurrent { it.copy(breakActive = active) }
     }
 
     fun setLocationSuspended(suspended: Boolean) {
-        _state.update { it?.copy(locationSuspended = suspended) }
+        updateCurrent { it.copy(locationSuspended = suspended) }
     }
 
     fun setPauseActive(active: Boolean) {
-        _state.update { it?.copy(pauseActive = active) }
+        updateCurrent { it.copy(pauseActive = active) }
     }
 
     /** Applies [transform] to the current grants map (e.g. add a new grant, remove an expired one). */
     fun updateGrants(transform: (Map<String, Long>) -> Map<String, Long>) {
-        _state.update { current -> current?.copy(activeGrants = transform(current.activeGrants)) }
+        updateCurrent { current -> current.copy(activeGrants = transform(current.activeGrants)) }
     }
 }

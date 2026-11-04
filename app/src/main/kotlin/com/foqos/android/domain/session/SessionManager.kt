@@ -142,8 +142,8 @@ class SessionManager @Inject constructor(
 
     /** Starts only the currently available recurring break; it never bypasses NFC outside that window. */
     suspend fun activatePeriodicAccess(profileId: String): Boolean = withContext(ioDispatcher) {
-        val session = _activeSession.value ?: return@withContext false
-        if (session.profileId != profileId || session.isPauseActive()) return@withContext false
+        val session = sessionForProfile(profileId) ?: return@withContext false
+        if (session.isPauseActive()) return@withContext false
         val now = Instant.now()
         val config = periodicAccessStore.read(profileId)
         val anchor = periodicAnchor(session)
@@ -343,8 +343,7 @@ class SessionManager @Inject constructor(
                 strategy.onStartInput(profile, input, this)
             }
             is PendingStrategyAction.LocationPause -> {
-                val current = _activeSession.value ?: return
-                if (current.id != action.sessionId) return
+                val current = _activeSessions.value.firstOrNull { it.id == action.sessionId } ?: return
                 val scanned = input as? StrategyInput.Code ?: return
                 val type = when (scanned.source) {
                     StrategyInput.CodeSource.NFC -> PhysicalUnblockType.NFC
@@ -373,7 +372,12 @@ class SessionManager @Inject constructor(
      * and emits an error instead - mirrors iOS `stopSessionFromBackground`.
      */
     suspend fun stopActiveSession(fromBackground: Boolean) {
-        val session = _activeSession.value ?: run {
+        val profileId = _activeSession.value?.profileId ?: return
+        stopProfileSession(profileId, fromBackground)
+    }
+
+    suspend fun stopProfileSession(profileId: String, fromBackground: Boolean = false) {
+        val session = sessionForProfile(profileId) ?: run {
             emitError("No active session to stop")
             return
         }
@@ -405,7 +409,7 @@ class SessionManager @Inject constructor(
      *  - If nothing is active: force-start [profileId].
      */
     suspend fun toggleFromDeeplink(profileId: String, fromBackground: Boolean = true) {
-        val current = _activeSession.value
+        val current = sessionForProfile(profileId)
         if (current == null) {
             val target = profileRepository.getById(profileId) ?: run {
                 emitError("Failed to find a profile stored locally that matches the tag")
@@ -414,12 +418,9 @@ class SessionManager @Inject constructor(
             createSession(target, tag = ManualBlockingStrategy.ID, forceStarted = true)
             return
         }
-
-        val currentProfile = profileRepository.getById(current.profileId)
-        // Deeplinks, NFC dispatch and widgets must not bypass the pause-only strategy.
+        val currentProfile = profileRepository.getById(profileId)
         if (currentProfile?.strategyId ==
-            com.foqos.android.domain.strategy.NfcPauseTimerBlockingStrategy.ID
-        ) {
+            com.foqos.android.domain.strategy.NfcPauseTimerBlockingStrategy.ID) {
             emitError("NFC + Pause Timer cannot be stopped through a shortcut")
             return
         }
@@ -427,16 +428,7 @@ class SessionManager @Inject constructor(
             emitError("This profile requires the app to stop the session")
             return
         }
-
         endSession(current, Instant.now())
-
-        if (current.profileId != profileId) {
-            val target = profileRepository.getById(profileId) ?: run {
-                emitError("Failed to find a profile stored locally that matches the tag")
-                return
-            }
-            createSession(target, tag = ManualBlockingStrategy.ID, forceStarted = true)
-        }
     }
 
     /**
@@ -715,10 +707,9 @@ class SessionManager @Inject constructor(
      * effect immediately. No-ops when the edited profile isn't the active one.
      */
     suspend fun refreshActiveProfileConfig(profileId: String) = withContext(ioDispatcher) {
-        val session = _activeSession.value ?: return@withContext
-        if (session.profileId != profileId) return@withContext
+        val session = sessionForProfile(profileId) ?: return@withContext
         val profile = profileRepository.getById(profileId) ?: return@withContext
-        _activeProfile.value = profile
+        if (_activeSession.value?.profileId == profileId) _activeProfile.value = profile
 
         val now = Instant.now()
         val grants = softUnblockRepository.activeGrantsOnce(session.id, now)

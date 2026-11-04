@@ -63,6 +63,7 @@ class HomeViewModel @Inject constructor(
         val loading: Boolean = true,
         val profiles: List<BlockedProfile> = emptyList(),
         val activeSession: BlockedProfileSession? = null,
+        val activeSessions: List<BlockedProfileSession> = emptyList(),
         val activeProfile: BlockedProfile? = null,
         val chartType: ChartType = ChartType.WEEKLY,
         val heatmapDays: List<HeatmapDay> = emptyList(),
@@ -90,11 +91,12 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             combine(
                 profileRepository.observeAll(),
-                sessionManager.activeSession,
+                sessionManager.activeSessions,
                 settingsDataStore.chartType,
-            ) { profiles, activeSession, chartTypeKey ->
-                Triple(profiles, activeSession, ChartType.fromStorageKey(chartTypeKey))
-            }.collect { (profiles, activeSession, chartType) ->
+            ) { profiles, activeSessions, chartTypeKey ->
+                Triple(profiles, activeSessions, ChartType.fromStorageKey(chartTypeKey))
+            }.collect { (profiles, activeSessions, chartType) ->
+                val activeSession = activeSessions.firstOrNull()
                 val activeProfile = activeSession?.let { session -> profiles.firstOrNull { it.id == session.profileId } }
                 val now = Instant.now()
                 val sessions = sessionRepository.sessionsBetween(now.minusSeconds(INSIGHTS_WINDOW_SECONDS), now)
@@ -104,6 +106,7 @@ class HomeViewModel @Inject constructor(
                         loading = false,
                         profiles = profiles,
                         activeSession = activeSession,
+                        activeSessions = activeSessions,
                         activeProfile = activeProfile,
                         chartType = chartType,
                         heatmapDays = buildHeatmap(sessions, now),
@@ -154,15 +157,18 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { sessionManager.startProfile(profileId) }
     }
 
-    fun stopActiveSession() {
-        viewModelScope.launch { sessionManager.stopActiveSession(fromBackground = false) }
+    fun stopActiveSession(profileId: String? = null) {
+        viewModelScope.launch {
+            if (profileId == null) sessionManager.stopActiveSession(fromBackground = false)
+            else sessionManager.stopProfileSession(profileId, fromBackground = false)
+        }
     }
 
     /** Location-owned active profile is protected from duplicate/delete inside the area. */
     private fun isLocationEditProtected(profileId: String): Boolean {
         val rule = locationStore.read()
         val inside = locationStore.manualInside() ?: locationStore.lastInside()
-        val current = sessionManager.activeSession.value
+        val current = sessionManager.activeSessions.value.firstOrNull()
         return rule?.profileId == profileId && inside == true && current?.profileId == profileId
     }
 

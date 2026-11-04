@@ -3,6 +3,8 @@ package com.foqos.android.domain.session
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.foqos.android.service.location.LocationAutomationStore
+import com.foqos.android.service.session.PeriodicAccessStore
+import com.foqos.android.service.session.PeriodicAccessSchedule
 import com.foqos.android.data.model.BlockedProfile
 import com.foqos.android.data.model.PhysicalUnblockType
 import com.foqos.android.data.model.BlockedProfileSession
@@ -104,6 +106,39 @@ class SessionManager @Inject constructor(
         val store = LocationAutomationStore(appContext)
         return store.read()?.profileId == profileId &&
             (store.manualInside() ?: store.lastInside()) == false
+    }
+
+    private val periodicAccessStore by lazy { PeriodicAccessStore(appContext) }
+
+    private fun periodicAnchor(session: BlockedProfileSession): Long =
+        maxOf(session.startTime.toEpochMilli(), session.pauseEndTime?.toEpochMilli() ?: 0L)
+
+    private fun periodicAccessActive(profileId: String, session: BlockedProfileSession, now: Instant): Boolean =
+        PeriodicAccessSchedule.isAccessible(
+            periodicAccessStore.read(profileId), periodicAnchor(session), now.toEpochMilli(),
+        )
+
+    private fun schedulePeriodicAccess(
+        profileId: String, session: BlockedProfileSession, now: Instant = Instant.now(),
+    ) {
+        val config = periodicAccessStore.read(profileId)
+        val extras = mapOf("sessionId" to session.id)
+        alarmScheduler.cancel(AlarmActivityType.PERIODIC_ACCESS_BOUNDARY, profileId, extras)
+        PeriodicAccessSchedule.nextBoundary(config, periodicAnchor(session), now.toEpochMilli())?.let {
+            alarmScheduler.scheduleExactAt(
+                AlarmActivityType.PERIODIC_ACCESS_BOUNDARY, profileId,
+                Instant.ofEpochMilli(it), extras,
+            )
+        }
+    }
+
+    private suspend fun handlePeriodicAccessBoundary(
+        profileId: String, extras: Map<String, String>, at: Instant,
+    ) {
+        val session = _activeSession.value ?: return
+        if (session.profileId != profileId || session.id != extras["sessionId"]) return
+        blockingStateHolder.setPeriodicAccessActive(periodicAccessActive(profileId, session, at))
+        schedulePeriodicAccess(profileId, session, at)
     }
 
     // --- Public API ------------------------------------------------------------------------
@@ -543,6 +578,7 @@ class SessionManager @Inject constructor(
             AlarmActivityType.STRATEGY_TIMER_END -> handleStrategyTimerEnd(profileId, extras, at)
             AlarmActivityType.BREAK_END -> handleBreakEnd(profileId, extras, at)
             AlarmActivityType.PAUSE_END -> handlePauseEnd(profileId, extras, at)
+            AlarmActivityType.PERIODIC_ACCESS_BOUNDARY -> handlePeriodicAccessBoundary(profileId, extras, at)
             AlarmActivityType.GRANT_EXPIRY -> handleGrantExpiry(profileId, extras, at)
             AlarmActivityType.EMERGENCY_ALLOWANCE_RESET -> handleEmergencyAllowanceReset(at)
             AlarmActivityType.REMINDER -> Unit // The receiver posts the reminder notification itself; nothing to update here.
@@ -611,6 +647,10 @@ class SessionManager @Inject constructor(
                 blockAppInstallation = profile.enableBlockAppInstallation,
                 breakActive = session.isBreakActive(now),
                 pauseActive = session.isPauseActive(now),
+                periodicAccessActive = periodicAccessActive(profile.id, session, now),
+                periodicWaitMinutes = periodicAccessStore.read(profile.id).waitMinutes,
+                periodicAccessMinutes = periodicAccessStore.read(profile.id).accessMinutes,
+                periodicAnchorEpochMillis = periodicAnchor(session),
                 locationSuspended = locationStoreOutside(profile.id),
                 activeGrants = activeGrants,
                 disableBackgroundStops = profile.disableBackgroundStops,
@@ -626,6 +666,7 @@ class SessionManager @Inject constructor(
         // every alarm implied by the restored session/grants keeps that registry accurate so a
         // later endSession()/cancelAllForProfile() call can actually cancel them.
         rearmAlarmsAfterRestart(profile, session, now, grants)
+        schedulePeriodicAccess(profile.id, session, now)
     }
 
     /**
@@ -659,12 +700,17 @@ class SessionManager @Inject constructor(
                 blockAppInstallation = profile.enableBlockAppInstallation,
                 breakActive = session.isBreakActive(now),
                 pauseActive = session.isPauseActive(now),
+                periodicAccessActive = periodicAccessActive(profile.id, session, now),
+                periodicWaitMinutes = periodicAccessStore.read(profile.id).waitMinutes,
+                periodicAccessMinutes = periodicAccessStore.read(profile.id).accessMinutes,
+                periodicAnchorEpochMillis = periodicAnchor(session),
                 locationSuspended = locationStoreOutside(profile.id),
                 activeGrants = activeGrants,
                 disableBackgroundStops = profile.disableBackgroundStops,
                 sessionStartEpochMillis = session.startTime.toEpochMilli(),
             ),
         )
+        schedulePeriodicAccess(profile.id, session, now)
     }
 
     private fun rearmAlarmsAfterRestart(
@@ -846,6 +892,10 @@ class SessionManager @Inject constructor(
                 blockAppInstallation = profile.enableBlockAppInstallation,
                 breakActive = false,
                 pauseActive = false,
+                periodicAccessActive = periodicAccessActive(profile.id, session, Instant.now()),
+                periodicWaitMinutes = periodicAccessStore.read(profile.id).waitMinutes,
+                periodicAccessMinutes = periodicAccessStore.read(profile.id).accessMinutes,
+                periodicAnchorEpochMillis = periodicAnchor(session),
                 locationSuspended = locationStoreOutside(profile.id),
                 activeGrants = emptyMap(),
                 disableBackgroundStops = profile.disableBackgroundStops,
@@ -853,6 +903,7 @@ class SessionManager @Inject constructor(
             ),
         )
 
+        schedulePeriodicAccess(profile.id, session)
         sessionServiceController.startForegroundService(session.id)
         widgetRefresher.refresh()
     }
@@ -928,7 +979,10 @@ class SessionManager @Inject constructor(
 
         sessionRepository.endPause(current.id, at)
         blockingStateHolder.setPauseActive(false)
-        _activeSession.value = current.copy(pauseEndTime = at)
+        val resumed = current.copy(pauseEndTime = at)
+        _activeSession.value = resumed
+        blockingStateHolder.setPeriodicAccessAnchor(periodicAnchor(resumed), false)
+        schedulePeriodicAccess(profileId, resumed, at)
     }
 
     private suspend fun handleGrantExpiry(profileId: String, extras: Map<String, String>, at: Instant) {

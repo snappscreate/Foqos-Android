@@ -105,6 +105,16 @@ class SessionRepository @Inject constructor(
         dao.upsert(entity.copy(pauseEndTime = at.toEpochMilli()))
     }
 
+    fun observeActiveSessions(): Flow<List<BlockedProfileSession>> =
+        dao.observeActiveSessions().map { sessions -> sessions.map { it.toDomain() } }
+
+    suspend fun activeSessionsOnce(): List<BlockedProfileSession> = withContext(ioDispatcher) {
+        dao.activeSessionsOnce().map { it.toDomain() }
+    }
+
+    suspend fun activeSessionForProfile(profileId: String): BlockedProfileSession? =
+        withContext(ioDispatcher) { dao.activeSessionForProfile(profileId)?.toDomain() }
+
     fun observeActiveSession(): Flow<BlockedProfileSession?> =
         dao.observeActiveSession().map { it?.toDomain() }
 

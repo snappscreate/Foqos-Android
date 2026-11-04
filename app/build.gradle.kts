@@ -131,6 +131,14 @@ dependencies {
     implementation(libs.zxing.android.embedded)
     implementation(libs.zxing.core)
 
+    // Isolated activity-recognition experiment: camera frames, silent video and local poses.
+    implementation("androidx.camera:camera-core:1.6.2")
+    implementation("androidx.camera:camera-camera2:1.6.2")
+    implementation("androidx.camera:camera-lifecycle:1.6.2")
+    implementation("androidx.camera:camera-view:1.6.2")
+    implementation("androidx.camera:camera-video:1.6.2")
+    implementation("com.google.mlkit:pose-detection:18.0.0-beta5")
+
     // Geofence transitions are handled by Google Play services (no continuous GPS polling).
     implementation("com.google.android.gms:play-services-location:21.3.0")
 

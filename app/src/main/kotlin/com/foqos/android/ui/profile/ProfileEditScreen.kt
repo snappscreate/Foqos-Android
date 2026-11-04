@@ -86,6 +86,7 @@ import com.foqos.android.ui.common.formatScheduleSummary
 import com.foqos.android.ui.common.shortDayName
 import com.foqos.android.ui.common.strategyEmoji
 import com.foqos.android.ui.physicalunlock.PhysicalUnlockEditor
+import com.foqos.android.ui.settings.LocationAutomationSection
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -319,23 +320,13 @@ fun ProfileEditScreen(
                 }
             }
 
-            ScheduleSection(
-                enabled = uiState.scheduleEnabled,
-                schedule = uiState.draft.schedule,
-                onEnabledChange = viewModel::setScheduleEnabled,
-                onToggleDay = viewModel::toggleScheduleDay,
-                onStartClick = { showStartTimePicker = true },
-                onEndClick = { showEndTimePicker = true },
-            )
-
-            BreaksSection(
-                enabled = uiState.draft.enableBreaks,
-                durationMinutes = uiState.draft.breakTimeInMinutes,
-                allowMultiple = uiState.draft.allowMultipleBreaks,
-                onEnabledChange = viewModel::setEnableBreaks,
-                onDurationChange = viewModel::setBreakDurationMinutes,
-                onAllowMultipleChange = viewModel::setAllowMultipleBreaks,
-            )
+            SectionCard(title = "位置範囲による自動ブロック") {
+                LocationAutomationSection(
+                    profileId = uiState.draft.id,
+                    editingLocked = uiState.editingLocked,
+                    isPersisted = uiState.isPersisted,
+                )
+            }
 
             SectionCard(title = "定期的な使用時間") {
                 Column(
@@ -347,7 +338,7 @@ fun ProfileEditScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("一定時間ごとに自動で使用を許可", modifier = Modifier.weight(1f))
+                        Text("指定時間後に休憩ボタンを表示", modifier = Modifier.weight(1f))
                         Switch(
                             checked = uiState.periodicAccessEnabled,
                             onCheckedChange = viewModel::setPeriodicAccessEnabled,
@@ -379,17 +370,6 @@ fun ProfileEditScreen(
                     }
                 }
             }
-
-            SessionProtectionSection(
-                strictMode = uiState.draft.enableStrictMode,
-                blockAppInstallation = uiState.draft.enableBlockAppInstallation,
-                disableBackgroundStops = uiState.draft.disableBackgroundStops,
-                enableEmergencyUnblock = uiState.draft.enableEmergencyUnblock,
-                onStrictModeChange = viewModel::setEnableStrictMode,
-                onBlockAppInstallationChange = viewModel::setEnableBlockAppInstallation,
-                onDisableBackgroundStopsChange = viewModel::setDisableBackgroundStops,
-                onEnableEmergencyUnblockChange = viewModel::setEnableEmergencyUnblock,
-            )
 
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -433,10 +413,10 @@ fun ProfileEditScreen(
     if (showLockedDialog) {
         AlertDialog(
             onDismissRequest = { showLockedDialog = false },
-            title = { Text("Profile locked") },
-            text = { Text("Profile settings cannot be changed while blocking is active. End the session before editing.") },
+            title = { Text("プロファイルは稼働中") },
+            text = { Text("このプロファイルのブロックが稼働している間は編集できません。停止後に変更してください。") },
             confirmButton = {
-                TextButton(onClick = { showLockedDialog = false }) { Text("OK") }
+                TextButton(onClick = { showLockedDialog = false }) { Text("確認") }
             },
         )
     }
@@ -468,25 +448,6 @@ fun ProfileEditScreen(
             onConfirm = { value -> viewModel.addDomain(value) },
             onDismiss = { showAddDomainDialog = false; viewModel.clearDomainError() },
             dismissOnSuccess = uiState.domainError == null,
-        )
-    }
-
-    if (showStartTimePicker) {
-        val schedule = uiState.draft.schedule
-        FoqosTimePickerDialog(
-            initialHour = schedule?.startHour ?: 9,
-            initialMinute = schedule?.startMinute ?: 0,
-            onConfirm = { h, m -> viewModel.setScheduleStartTime(h, m); showStartTimePicker = false },
-            onDismiss = { showStartTimePicker = false },
-        )
-    }
-    if (showEndTimePicker) {
-        val schedule = uiState.draft.schedule
-        FoqosTimePickerDialog(
-            initialHour = schedule?.endHour ?: 17,
-            initialMinute = schedule?.endMinute ?: 0,
-            onConfirm = { h, m -> viewModel.setScheduleEndTime(h, m); showEndTimePicker = false },
-            onDismiss = { showEndTimePicker = false },
         )
     }
 
@@ -731,139 +692,6 @@ private fun AddDomainDialog(error: String?, onConfirm: (String) -> Unit, onDismi
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
-}
-
-@Composable
-private fun ScheduleSection(
-    enabled: Boolean,
-    schedule: BlockedProfileSchedule?,
-    onEnabledChange: (Boolean) -> Unit,
-    onToggleDay: (com.foqos.android.data.model.Weekday) -> Unit,
-    onStartClick: () -> Unit,
-    onEndClick: () -> Unit,
-) {
-    SectionCard(title = stringResource(R.string.profile_edit_schedule_title)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(text = stringResource(R.string.profile_edit_schedule_enable_label), modifier = Modifier.weight(1f))
-                Switch(checked = enabled, onCheckedChange = onEnabledChange)
-            }
-
-            if (enabled) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    WEEKDAY_DISPLAY_ORDER.forEach { day ->
-                        val selected = schedule?.days?.contains(day) == true
-                        FilterChip(selected = selected, onClick = { onToggleDay(day) }, label = { Text(shortDayName(day)) })
-                    }
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = onStartClick, modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.profile_edit_schedule_start, schedule?.startHour ?: 9, schedule?.startMinute ?: 0))
-                    }
-                    OutlinedButton(onClick = onEndClick, modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.profile_edit_schedule_end, schedule?.endHour ?: 17, schedule?.endMinute ?: 0))
-                    }
-                }
-
-                schedule?.takeIf { it.isConfigured }?.let {
-                    Text(
-                        text = formatScheduleSummary(it),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun BreaksSection(
-    enabled: Boolean,
-    durationMinutes: Int,
-    allowMultiple: Boolean,
-    onEnabledChange: (Boolean) -> Unit,
-    onDurationChange: (Int) -> Unit,
-    onAllowMultipleChange: (Boolean) -> Unit,
-) {
-    val options = listOf(5, 10, 15, 30)
-    SectionCard(title = stringResource(R.string.profile_edit_breaks_title)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(text = stringResource(R.string.profile_edit_breaks_enable_label), modifier = Modifier.weight(1f))
-                Switch(checked = enabled, onCheckedChange = onEnabledChange)
-            }
-            if (enabled) {
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    options.forEachIndexed { index, minutes ->
-                        SegmentedButton(
-                            selected = durationMinutes == minutes,
-                            onClick = { onDurationChange(minutes) },
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
-                        ) { Text("${minutes}m") }
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(text = stringResource(R.string.profile_edit_breaks_allow_multiple_label), modifier = Modifier.weight(1f))
-                    Switch(checked = allowMultiple, onCheckedChange = onAllowMultipleChange)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SessionProtectionSection(
-    strictMode: Boolean,
-    blockAppInstallation: Boolean,
-    disableBackgroundStops: Boolean,
-    enableEmergencyUnblock: Boolean,
-    onStrictModeChange: (Boolean) -> Unit,
-    onBlockAppInstallationChange: (Boolean) -> Unit,
-    onDisableBackgroundStopsChange: (Boolean) -> Unit,
-    onEnableEmergencyUnblockChange: (Boolean) -> Unit,
-) {
-    SectionCard(title = stringResource(R.string.profile_edit_protection_title)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            ToggleRow(
-                title = stringResource(R.string.profile_edit_strict_mode_label),
-                body = stringResource(R.string.profile_edit_strict_mode_body),
-                checked = strictMode,
-                onCheckedChange = onStrictModeChange,
-            )
-            ToggleRow(
-                title = stringResource(R.string.profile_edit_block_installs_label),
-                body = stringResource(R.string.profile_edit_block_installs_body),
-                checked = blockAppInstallation,
-                onCheckedChange = onBlockAppInstallationChange,
-            )
-            ToggleRow(
-                title = stringResource(R.string.profile_edit_require_app_stop_label),
-                body = stringResource(R.string.profile_edit_require_app_stop_body),
-                checked = disableBackgroundStops,
-                onCheckedChange = onDisableBackgroundStopsChange,
-            )
-            ToggleRow(
-                title = stringResource(R.string.profile_edit_emergency_unblock_label),
-                body = stringResource(R.string.profile_edit_emergency_unblock_body),
-                checked = enableEmergencyUnblock,
-                onCheckedChange = onEnableEmergencyUnblockChange,
-            )
-        }
-    }
 }
 
 @Composable

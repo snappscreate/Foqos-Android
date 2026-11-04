@@ -60,9 +60,10 @@ class AccessibilityBlockPolicy @Inject constructor() {
             if (state.blockAppInstallation && packageName in PACKAGE_INSTALLER_PACKAGES) {
                 return BlockDecision.RedirectAway(StrictModeReason.UNINSTALL)
             }
-            val periodicAllowed = PeriodicAccessSchedule.isAccessible(
+            val periodicAllowed = PeriodicAccessSchedule.isActive(
                         PeriodicAccessStore.Config(state.periodicWaitMinutes, state.periodicAccessMinutes),
                         state.periodicAnchorEpochMillis,
+                        state.periodicActivatedCycle,
                         nowMillis,
                     )
             if (state.pauseActive || state.breakActive || periodicAllowed) return BlockDecision.Allow
@@ -88,9 +89,10 @@ class AccessibilityBlockPolicy @Inject constructor() {
             return BlockDecision.RedirectAway(StrictModeReason.UNINSTALL)
         }
 
-        val periodicAllowed = PeriodicAccessSchedule.isAccessible(
+        val periodicAllowed = PeriodicAccessSchedule.isActive(
                     PeriodicAccessStore.Config(state.periodicWaitMinutes, state.periodicAccessMinutes),
                     state.periodicAnchorEpochMillis,
+                        state.periodicActivatedCycle,
                     nowMillis,
                 )
         if (state.breakActive || state.pauseActive || periodicAllowed) return BlockDecision.Allow
@@ -117,9 +119,9 @@ class AccessibilityBlockPolicy @Inject constructor() {
         if (state?.fullScreenMode == true && (state.pauseActive || state.breakActive))
             return BlockDecision.Allow
         if (state?.locationSuspended == true) return BlockDecision.Allow
-        if (state != null && PeriodicAccessSchedule.isAccessible(
+        if (state != null && PeriodicAccessSchedule.isActive(
                 PeriodicAccessStore.Config(state.periodicWaitMinutes, state.periodicAccessMinutes),
-                state.periodicAnchorEpochMillis, nowMillis,
+                state.periodicAnchorEpochMillis, state.periodicActivatedCycle, nowMillis,
             )) return BlockDecision.Allow
         val appDecision = decideForApp(packageName, state, nowMillis, neverBlockPackages)
         val restrictedBrowser = state?.fullScreenMode == true &&

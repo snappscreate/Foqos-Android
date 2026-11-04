@@ -54,6 +54,8 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import com.foqos.android.data.model.BlockedProfile
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -256,6 +258,18 @@ class BlockOverlayActivity : ComponentActivity() {
                 // (by this screen's own "Open for N min" button below, or another path entirely).
                 LaunchedEffect(state, targetPackage, locationStatus, periodicNow) {
                     val current = state
+                    if (!locationPauseRequest) {
+                        val blockedByAny = candidates.any { candidate ->
+                            val candidateDecision = if (targetDomain != null)
+                                blockPolicy.decideForUrl(targetPackage, "https://$targetDomain", candidate, periodicNow)
+                            else blockPolicy.decideForApp(targetPackage, candidate, periodicNow)
+                            candidateDecision != BlockDecision.Allow
+                        }
+                        if (!blockedByAny) {
+                            if (fullScreen) finishAndGoHome() else finish()
+                            return@LaunchedEffect
+                        }
+                    }
                     if (current == null) {
                         finishAndGoHome()
                         return@LaunchedEffect
@@ -303,7 +317,11 @@ class BlockOverlayActivity : ComponentActivity() {
                     targetPackage == FULL_SCREEN_HOME_TARGET -> "集中モード"
                     else -> targetDomain ?: rememberAppLabel(targetPackage)
                 }
-                val activeProfile by sessionManager.activeProfile.collectAsStateWithLifecycle()
+                val activeProfile by produceState<BlockedProfile?>(
+                    initialValue = null, key1 = state?.profileId,
+                ) {
+                    value = state?.profileId?.let { profileRepository.getById(it) }
+                }
                 val nfcReady = activeProfile?.let { profile ->
                     StrategyRegistry.byId(profile.strategyId).usesNfc ||
                         (locationPauseRequest && profile.physicalUnblockItems.any {
@@ -356,7 +374,7 @@ class BlockOverlayActivity : ComponentActivity() {
                     onSimulateNfc = if (BuildConfig.DEBUG && DeveloperUiVisibility.showDiagnosticControls && nfcReady) ({
                         lifecycleScope.launch {
                             val profile = activeProfile
-                            val session = sessionManager.activeSession.value
+                            val session = sessionManager.activeSessions.value.firstOrNull { it.profileId == profile?.id }
                             if (profile != null && session != null) {
                                 val code = profile.physicalUnblockItems.firstOrNull {
                                     it.type == PhysicalUnblockType.NFC
@@ -409,7 +427,7 @@ class BlockOverlayActivity : ComponentActivity() {
                     }) else null,
                     onOpenTemporarily = {
                         scope.launch {
-                            sessionManager.issueSoftUnblockGrant(targetPackage)
+                            sessionManager.issueSoftUnblockGrant(targetPackage, state?.profileId)
                             finish()
                         }
                     },
@@ -475,7 +493,21 @@ class BlockOverlayActivity : ComponentActivity() {
     }
 
     private suspend fun processNfcCode(code: String) {
-        val session = sessionManager.activeSession.value ?: return
+        val active = sessionManager.activeSessions.value
+        val requested = intent.getStringExtra(EXTRA_PROFILE_ID)
+        val matchingCredential = active.firstOrNull { candidate ->
+            val profile = profileRepository.getById(candidate.profileId)
+            profile?.physicalUnblockItems?.any {
+                it.type == PhysicalUnblockType.NFC && profile.canUnblock(code, PhysicalUnblockType.NFC)
+            } == true
+        }
+        val session = (requested?.let { id -> active.firstOrNull { it.profileId == id } }
+            ?: matchingCredential
+            ?: active.firstOrNull { candidate ->
+                blockingStateHolder.stateForProfile(candidate.profileId)?.let {
+                    it.profileId == candidate.profileId
+                } == true
+            }) ?: return
         val profile = profileRepository.getById(session.profileId) ?: return
         if (!StrategyRegistry.byId(profile.strategyId).usesNfc &&
             !(intent.getBooleanExtra(EXTRA_LOCATION_PAUSE_REQUEST, false) &&
@@ -520,7 +552,7 @@ class BlockOverlayActivity : ComponentActivity() {
         LocationServices.getFusedLocationProviderClient(this)
             .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
             .addOnSuccessListener { location ->
-                if (location != null && sessionManager.activeSession.value?.profileId == rule.profileId) {
+                if (location != null && sessionManager.activeSessions.value.any { it.profileId == rule.profileId }) {
                     val results = FloatArray(1)
                     Location.distanceBetween(
                         location.latitude, location.longitude,

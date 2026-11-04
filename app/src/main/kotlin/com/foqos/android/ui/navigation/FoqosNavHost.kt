@@ -21,6 +21,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.foqos.android.data.datastore.SettingsDataStore
 import com.foqos.android.domain.session.SessionManager
+import com.foqos.android.ui.activitylab.ActivityRecognitionLabScreen
 import com.foqos.android.ui.home.HomeScreen
 import com.foqos.android.ui.insights.InsightsScreen
 import com.foqos.android.ui.onboarding.OnboardingScreen
@@ -135,7 +136,12 @@ fun FoqosNavHost(
             SettingsScreen(
                 onBack = { navController.popBackStack() },
                 onOpenExport = { navController.navigate(Routes.EXPORT) },
+                onOpenActivityLab = { navController.navigate(Routes.ACTIVITY_LAB) },
             )
+        }
+
+        composable(Routes.ACTIVITY_LAB) {
+            ActivityRecognitionLabScreen(onBack = { navController.popBackStack() })
         }
 
         composable(Routes.EXPORT) {

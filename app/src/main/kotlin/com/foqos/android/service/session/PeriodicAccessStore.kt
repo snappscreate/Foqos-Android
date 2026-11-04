@@ -2,7 +2,7 @@ package com.foqos.android.service.session
 
 import android.content.Context
 
-/** Per-profile automatic access breaks. Stored outside Room to avoid a DB migration. */
+/** Per-profile scheduled break settings; independent of manual/NFC pauses. */
 class PeriodicAccessStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences(
         "periodic_access_profiles", Context.MODE_PRIVATE
@@ -27,84 +27,78 @@ class PeriodicAccessStore(context: Context) {
             .commit()
     }
 
-    fun activatedCycle(profileId: String, sessionId: String, anchor: Long): Long {
+    /** A grant belongs to one session and one block-start anchor only. */
+    fun activatedAt(profileId: String, sessionId: String, anchor: Long): Long {
         if (prefs.getString("${profileId}_activated_session", null) != sessionId ||
-            prefs.getLong("${profileId}_activated_anchor", -1L) != anchor) return -1L
-        return prefs.getLong("${profileId}_activated_cycle", -1L)
+            prefs.getLong("${profileId}_activated_anchor", -1L) != anchor) return 0L
+        return prefs.getLong("${profileId}_activated_at", 0L)
     }
 
-    fun activate(profileId: String, sessionId: String, anchor: Long, cycle: Long) {
+    fun activate(profileId: String, sessionId: String, anchor: Long, nowMillis: Long) {
         prefs.edit()
             .putString("${profileId}_activated_session", sessionId)
             .putLong("${profileId}_activated_anchor", anchor)
-            .putLong("${profileId}_activated_cycle", cycle)
+            .putLong("${profileId}_activated_at", nowMillis)
             .commit()
     }
 
     fun delete(profileId: String) {
         prefs.edit().remove("${profileId}_wait").remove("${profileId}_access")
             .remove("${profileId}_activated_session").remove("${profileId}_activated_anchor")
-            .remove("${profileId}_activated_cycle").apply()
+            .remove("${profileId}_activated_at").apply()
     }
 }
 
-/**
- * Time-based calculation avoids relying on an exact alarm arriving on time.
- * A cycle is [blocked for waitMinutes, accessible for accessMinutes], repeating.
- * The anchor is the most recent of session start or completion of a manual/NFC pause.
- */
+/** An earned break waits for a click, lasts its full duration, then starts a new wait. */
 object PeriodicAccessSchedule {
-    fun isAccessible(
-        config: PeriodicAccessStore.Config,
-        anchorEpochMillis: Long,
-        nowEpochMillis: Long = System.currentTimeMillis(),
-    ): Boolean {
-        if (!config.enabled || nowEpochMillis < anchorEpochMillis) return false
-        val wait = config.waitMinutes.toLong() * 60_000L
-        val access = config.accessMinutes.toLong() * 60_000L
-        val elapsed = (nowEpochMillis - anchorEpochMillis) % (wait + access)
-        return elapsed >= wait
-    }
+    private fun waitMs(config: PeriodicAccessStore.Config) = config.waitMinutes.toLong() * 60_000L
+    private fun accessMs(config: PeriodicAccessStore.Config) = config.accessMinutes.toLong() * 60_000L
 
-    fun cycleIndex(config: PeriodicAccessStore.Config, anchorEpochMillis: Long, nowEpochMillis: Long): Long {
-        if (!config.enabled || nowEpochMillis < anchorEpochMillis) return -1L
-        val cycle = (config.waitMinutes.toLong() + config.accessMinutes) * 60_000L
-        return (nowEpochMillis - anchorEpochMillis) / cycle
-    }
-
-    fun remainingWindowMillis(
-        config: PeriodicAccessStore.Config, anchorEpochMillis: Long, nowEpochMillis: Long,
-    ): Long {
-        if (!isAccessible(config, anchorEpochMillis, nowEpochMillis)) return 0L
-        val cycle = (config.waitMinutes.toLong() + config.accessMinutes) * 60_000L
-        val position = (nowEpochMillis - anchorEpochMillis) % cycle
-        return cycle - position
-    }
-
-    /** A window is only usable after its specific cycle has been explicitly activated. */
     fun isActive(
         config: PeriodicAccessStore.Config,
         anchorEpochMillis: Long,
-        activatedCycle: Long,
+        activatedAtMillis: Long,
         nowEpochMillis: Long = System.currentTimeMillis(),
     ): Boolean =
-        activatedCycle >= 0 &&
-            activatedCycle == cycleIndex(config, anchorEpochMillis, nowEpochMillis) &&
-            isAccessible(config, anchorEpochMillis, nowEpochMillis)
+        config.enabled && activatedAtMillis >= anchorEpochMillis && activatedAtMillis > 0L &&
+            nowEpochMillis >= activatedAtMillis &&
+            nowEpochMillis < activatedAtMillis + accessMs(config)
 
+    fun isAvailable(
+        config: PeriodicAccessStore.Config,
+        anchorEpochMillis: Long,
+        activatedAtMillis: Long,
+        nowEpochMillis: Long = System.currentTimeMillis(),
+    ): Boolean {
+        if (!config.enabled || nowEpochMillis < anchorEpochMillis ||
+            isActive(config, anchorEpochMillis, activatedAtMillis, nowEpochMillis)) return false
+        val lastEnd = if (activatedAtMillis >= anchorEpochMillis && activatedAtMillis > 0L)
+            activatedAtMillis + accessMs(config) else anchorEpochMillis
+        return nowEpochMillis >= lastEnd + waitMs(config)
+    }
+
+    fun remainingMillis(
+        config: PeriodicAccessStore.Config,
+        anchorEpochMillis: Long,
+        activatedAtMillis: Long,
+        nowEpochMillis: Long = System.currentTimeMillis(),
+    ): Long =
+        if (isActive(config, anchorEpochMillis, activatedAtMillis, nowEpochMillis))
+            (activatedAtMillis + accessMs(config) - nowEpochMillis).coerceAtLeast(0L) else 0L
+
+    /** No further alarm is required once a new break becomes available for manual activation. */
     fun nextBoundary(
         config: PeriodicAccessStore.Config,
         anchorEpochMillis: Long,
+        activatedAtMillis: Long,
         nowEpochMillis: Long = System.currentTimeMillis(),
     ): Long? {
         if (!config.enabled) return null
-        val wait = config.waitMinutes.toLong() * 60_000L
-        val access = config.accessMinutes.toLong() * 60_000L
-        val cycle = wait + access
-        val elapsed = (nowEpochMillis - anchorEpochMillis).coerceAtLeast(0L)
-        val cycles = elapsed / cycle
-        val position = elapsed % cycle
-        return anchorEpochMillis + cycles * cycle +
-            if (position < wait) wait else cycle
+        if (isActive(config, anchorEpochMillis, activatedAtMillis, nowEpochMillis))
+            return activatedAtMillis + accessMs(config)
+        val previousEnd = if (activatedAtMillis >= anchorEpochMillis && activatedAtMillis > 0L)
+            activatedAtMillis + accessMs(config) else anchorEpochMillis
+        val availableAt = previousEnd + waitMs(config)
+        return availableAt.takeIf { it > nowEpochMillis }
     }
 }

@@ -27,8 +27,24 @@ class PeriodicAccessStore(context: Context) {
             .commit()
     }
 
+    fun activatedCycle(profileId: String, sessionId: String, anchor: Long): Long {
+        if (prefs.getString("${profileId}_activated_session", null) != sessionId ||
+            prefs.getLong("${profileId}_activated_anchor", -1L) != anchor) return -1L
+        return prefs.getLong("${profileId}_activated_cycle", -1L)
+    }
+
+    fun activate(profileId: String, sessionId: String, anchor: Long, cycle: Long) {
+        prefs.edit()
+            .putString("${profileId}_activated_session", sessionId)
+            .putLong("${profileId}_activated_anchor", anchor)
+            .putLong("${profileId}_activated_cycle", cycle)
+            .commit()
+    }
+
     fun delete(profileId: String) {
-        prefs.edit().remove("${profileId}_wait").remove("${profileId}_access").apply()
+        prefs.edit().remove("${profileId}_wait").remove("${profileId}_access")
+            .remove("${profileId}_activated_session").remove("${profileId}_activated_anchor")
+            .remove("${profileId}_activated_cycle").apply()
     }
 }
 
@@ -49,6 +65,32 @@ object PeriodicAccessSchedule {
         val elapsed = (nowEpochMillis - anchorEpochMillis) % (wait + access)
         return elapsed >= wait
     }
+
+    fun cycleIndex(config: PeriodicAccessStore.Config, anchorEpochMillis: Long, nowEpochMillis: Long): Long {
+        if (!config.enabled || nowEpochMillis < anchorEpochMillis) return -1L
+        val cycle = (config.waitMinutes.toLong() + config.accessMinutes) * 60_000L
+        return (nowEpochMillis - anchorEpochMillis) / cycle
+    }
+
+    fun remainingWindowMillis(
+        config: PeriodicAccessStore.Config, anchorEpochMillis: Long, nowEpochMillis: Long,
+    ): Long {
+        if (!isAccessible(config, anchorEpochMillis, nowEpochMillis)) return 0L
+        val cycle = (config.waitMinutes.toLong() + config.accessMinutes) * 60_000L
+        val position = (nowEpochMillis - anchorEpochMillis) % cycle
+        return cycle - position
+    }
+
+    /** A window is only usable after its specific cycle has been explicitly activated. */
+    fun isActive(
+        config: PeriodicAccessStore.Config,
+        anchorEpochMillis: Long,
+        activatedCycle: Long,
+        nowEpochMillis: Long = System.currentTimeMillis(),
+    ): Boolean =
+        activatedCycle >= 0 &&
+            activatedCycle == cycleIndex(config, anchorEpochMillis, nowEpochMillis) &&
+            isAccessible(config, anchorEpochMillis, nowEpochMillis)
 
     fun nextBoundary(
         config: PeriodicAccessStore.Config,

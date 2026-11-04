@@ -149,7 +149,9 @@ class SessionManager @Inject constructor(
         val anchor = periodicAnchor(session)
         if (!PeriodicAccessSchedule.isAvailable(config, anchor, activatedPeriodicAt(profileId, session), now.toEpochMilli())) return@withContext false
         periodicAccessStore.activate(profileId, session.id, anchor, now.toEpochMilli())
-        blockingStateHolder.setPeriodicActivatedAt(now.toEpochMilli())
+        blockingStateHolder.updateProfile(profileId) {
+            it.copy(periodicActivatedAtEpochMillis = now.toEpochMilli(), periodicAccessActive = true)
+        }
         schedulePeriodicAccess(profileId, session, now)
         true
     }
@@ -171,9 +173,9 @@ class SessionManager @Inject constructor(
     private suspend fun handlePeriodicAccessBoundary(
         profileId: String, extras: Map<String, String>, at: Instant,
     ) {
-        val session = _activeSession.value ?: return
+        val session = sessionForProfile(profileId) ?: return
         if (session.profileId != profileId || session.id != extras["sessionId"]) return
-        blockingStateHolder.setPeriodicAccessActive(periodicAccessActive(profileId, session, at))
+        blockingStateHolder.updateProfile(profileId) { it.copy(periodicAccessActive = periodicAccessActive(profileId, session, at)) }
         schedulePeriodicAccess(profileId, session, at)
     }
 
@@ -184,13 +186,13 @@ class SessionManager @Inject constructor(
      * Never replace or stop a session started manually, by NFC, or by a schedule.
      */
     suspend fun onLocationTransition(profileId: String, inside: Boolean) = withContext(ioDispatcher) {
-        val current = _activeSession.value ?: sessionRepository.activeSessionOnce()
+        val current = sessionForProfile(profileId) ?: sessionRepository.activeSessionForProfile(profileId)
         if (inside) {
             if (current != null) {
                 // Restore blocking in the same location-owned session; NFC timed pauses
                 // remain independent and keep their remaining duration.
                 if (current.profileId == profileId) {
-                    blockingStateHolder.setLocationSuspended(false)
+                    blockingStateHolder.updateProfile(profileId) { it.copy(locationSuspended = false) }
                 }
                 return@withContext
             }
@@ -200,7 +202,7 @@ class SessionManager @Inject constructor(
             if (current?.profileId == profileId && current.tag == LOCATION_SESSION_TAG) {
                 // Do not end the session on EXIT. Keep history, NFC registrations and
                 // timed pause state intact, only suspend enforcement until ENTER.
-                blockingStateHolder.setLocationSuspended(true)
+                blockingStateHolder.updateProfile(profileId) { it.copy(locationSuspended = true) }
             }
         }
     }
@@ -211,7 +213,7 @@ class SessionManager @Inject constructor(
      * Outside the area the location suspension is independent of timed NFC pauses.
      */
     suspend fun pauseLocationSessionFromHome(profileId: String) = withContext(ioDispatcher) {
-        val current = _activeSession.value ?: return@withContext
+        val current = sessionForProfile(profileId) ?: return@withContext
         if (current.profileId != profileId ||
             current.isPauseActive() || !locationStoreInside(profileId)
         ) return@withContext
@@ -240,7 +242,7 @@ class SessionManager @Inject constructor(
 
     /** Request physical proof before a location-profile pause. */
     suspend fun requestLocationPauseFromHome(profileId: String) = withContext(ioDispatcher) {
-        val session = _activeSession.value ?: return@withContext
+        val session = sessionForProfile(profileId) ?: return@withContext
         if (session.profileId != profileId || session.isPauseActive()) return@withContext
         if (!locationStoreInside(profileId)) return@withContext
         val profile = profileRepository.getById(profileId) ?: return@withContext
@@ -261,7 +263,7 @@ class SessionManager @Inject constructor(
     suspend fun pauseLocationWithVerifiedCode(
         profileId: String, code: String, type: PhysicalUnblockType,
     ): Boolean = withContext(ioDispatcher) {
-        val current = _activeSession.value ?: return@withContext false
+        val current = sessionForProfile(profileId) ?: return@withContext false
         if (current.profileId != profileId || current.isPauseActive() ||
             !locationStoreInside(profileId)) return@withContext false
         val profile = profileRepository.getById(profileId) ?: return@withContext false
@@ -288,13 +290,13 @@ class SessionManager @Inject constructor(
 
     /** Explicit home Stop action for a location-configured profile while outside its area. */
     suspend fun stopLocationProfileFromHome(profileId: String) = withContext(ioDispatcher) {
-        val current = _activeSession.value ?: return@withContext
+        val current = sessionForProfile(profileId) ?: return@withContext
         if (current.profileId == profileId) endSession(current, Instant.now())
     }
 
     /** NFC profile tags pause NFC + Pause Timer sessions instead of acting as forced toggles. */
     suspend fun onProfileNfcScan(profileId: String) {
-        val current = _activeSession.value ?: sessionRepository.activeSessionOnce()
+        val current = sessionForProfile(profileId) ?: sessionRepository.activeSessionForProfile(profileId)
         if (current?.profileId == profileId) {
             val profile = profileRepository.getById(profileId) ?: return
             if (profile.strategyId ==
@@ -860,7 +862,7 @@ class SessionManager @Inject constructor(
     override suspend fun beginPause(session: BlockedProfileSession, durationMinutes: Int) {
         val now = Instant.now()
         sessionRepository.startPause(session.id, now)
-        blockingStateHolder.setPauseActive(true)
+        blockingStateHolder.updateProfile(session.profileId) { it.copy(pauseActive = true) }
         alarmScheduler.scheduleExactAt(
             AlarmActivityType.PAUSE_END,
             session.profileId,
@@ -868,9 +870,7 @@ class SessionManager @Inject constructor(
             mapOf("sessionId" to session.id),
         )
 
-        if (_activeSession.value?.id == session.id) {
-            _activeSession.value = session.copy(pauseStartTime = now, pauseEndTime = null)
-        }
+        cacheSession(session.copy(pauseStartTime = now, pauseEndTime = null))
     }
 
     override suspend fun beginSoftUnblockSession(
@@ -968,14 +968,14 @@ class SessionManager @Inject constructor(
      * only ever managing sessions it created itself).
      */
     private suspend fun handleScheduleEnd(profileId: String, at: Instant) {
-        val current = _activeSession.value
+        val current = sessionForProfile(profileId)
         if (current != null && current.profileId == profileId && current.tag == AlarmActivityType.SCHEDULE_START.key) {
             endSession(current, at)
         }
     }
 
     private suspend fun handleStrategyTimerEnd(profileId: String, extras: Map<String, String>, at: Instant) {
-        val current = _activeSession.value ?: return
+        val current = sessionForProfile(profileId) ?: return
         if (current.profileId != profileId) return
         val expectedSessionId = extras["sessionId"]
         if (expectedSessionId != null && current.id != expectedSessionId) return
@@ -983,7 +983,7 @@ class SessionManager @Inject constructor(
     }
 
     private suspend fun handleBreakEnd(profileId: String, extras: Map<String, String>, at: Instant) {
-        val current = _activeSession.value ?: return
+        val current = sessionForProfile(profileId) ?: return
         if (current.profileId != profileId) return
         // A stale alarm from an earlier, already-ended session on the same profile must not end
         // the break of whatever session is active *now*.
@@ -999,7 +999,7 @@ class SessionManager @Inject constructor(
      * records `pauseEndTime` - it does **not** end the session, symmetric with [handleBreakEnd].
      */
     private suspend fun handlePauseEnd(profileId: String, extras: Map<String, String>, at: Instant) {
-        val current = _activeSession.value ?: return
+        val current = sessionForProfile(profileId) ?: return
         if (current.profileId != profileId) return
         // Same staleness guard as handleBreakEnd: only ever act on the alarm's own session.
         val expectedSessionId = extras["sessionId"]
@@ -1007,10 +1007,12 @@ class SessionManager @Inject constructor(
         if (!current.isPauseActive(at)) return
 
         sessionRepository.endPause(current.id, at)
-        blockingStateHolder.setPauseActive(false)
         val resumed = current.copy(pauseEndTime = at)
-        _activeSession.value = resumed
-        blockingStateHolder.setPeriodicAccessAnchor(periodicAnchor(resumed), false)
+        cacheSession(resumed)
+        blockingStateHolder.updateProfile(profileId) {
+            it.copy(pauseActive = false, periodicAnchorEpochMillis = periodicAnchor(resumed),
+                periodicActivatedAtEpochMillis = 0L, periodicAccessActive = false)
+        }
         schedulePeriodicAccess(profileId, resumed, at)
     }
 
@@ -1020,11 +1022,11 @@ class SessionManager @Inject constructor(
         // Re-derive the grants map from the repository (source of truth) rather than blindly
         // stripping `packageName` - a stale expiry alarm for an old grant must not evict a *newer*
         // still-valid grant for the same package in the profile's current session.
-        val current = _activeSession.value
+        val current = sessionForProfile(profileId)
         if (current != null && current.profileId == profileId) {
             val refreshed = softUnblockRepository.activeGrantsOnce(current.id, at)
                 .associate { it.packageName to it.expiresAt.toEpochMilli() }
-            blockingStateHolder.updateGrants { refreshed }
+            blockingStateHolder.updateProfile(profileId) { it.copy(activeGrants = refreshed) }
         }
     }
 

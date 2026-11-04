@@ -40,6 +40,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
+import com.foqos.android.service.session.GlobalSessionProtectionStore
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -205,7 +207,7 @@ fun ActiveSessionScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
                         ) { Text(stringResource(R.string.active_session_stop_action)) }
                     }
-                    if (currentProfile.enableEmergencyUnblock) {
+                    if (GlobalSessionProtectionStore(LocalContext.current).readFor(currentProfile).enableEmergencyUnblock) {
                         TextButton(
                             onClick = { showEmergencySheet = true },
                             modifier = Modifier.fillMaxWidth(),

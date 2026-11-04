@@ -87,8 +87,12 @@ class ProfileEditViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            sessionManager.activeSession.collect { session ->
-                _uiState.update { it.copy(editingLocked = session != null) }
+            sessionManager.activeSessions.collect { sessions ->
+                // Only a running instance of this editor's own profile locks its fields.
+                // New profiles remain editable while any other session is active.
+                val locked = existingProfileId != null &&
+                    sessions.any { it.profileId == existingProfileId }
+                _uiState.update { it.copy(editingLocked = locked) }
             }
         }
         viewModelScope.launch {
@@ -119,7 +123,12 @@ class ProfileEditViewModel @Inject constructor(
         }
     }
 
-    /** Reject profile mutations during any active blocking session. */
+    /** An unrelated active profile never locks this editor or its save/delete actions. */
+    private fun isEditingProfileRunning(): Boolean =
+        existingProfileId != null &&
+            sessionManager.activeSessions.value.any { it.profileId == existingProfileId }
+
+    /** Reject changes only for the profile currently being edited when it is running. */
     private fun guardedUpdate(update: (UiState) -> UiState) {
         if (_uiState.value.editingLocked) return
         _uiState.update(update)
@@ -320,7 +329,7 @@ class ProfileEditViewModel @Inject constructor(
     // --- Save / delete ------------------------------------------------------------------------
 
     fun save() {
-        if (sessionManager.activeSession.value != null) return
+        if (isEditingProfileRunning()) return
         val trimmedName = _uiState.value.draft.name.trim()
         if (trimmedName.isBlank()) {
             _uiState.update { it.copy(nameError = "Name is required") }
@@ -329,7 +338,7 @@ class ProfileEditViewModel @Inject constructor(
 
         viewModelScope.launch {
             val current = _uiState.value
-            if (sessionManager.activeSession.value != null) return@launch
+            if (isEditingProfileRunning()) return@launch
             val schedule = current.draft.schedule?.takeIf { current.scheduleEnabled && it.isConfigured }
             // Physical unlock items are edited in a separate repository-backed component.
             // Never overwrite newer NFC/QR registrations with this screen's stale draft.
@@ -373,10 +382,10 @@ class ProfileEditViewModel @Inject constructor(
     }
 
     fun delete() {
-        if (sessionManager.activeSession.value != null) return
+        if (isEditingProfileRunning()) return
         val id = _uiState.value.draft.id
         viewModelScope.launch {
-            if (sessionManager.activeSession.value != null) return@launch
+            if (isEditingProfileRunning()) return@launch
             profileRepository.delete(id)
             fullScreenStore.delete(id)
             periodicStore.delete(id)

@@ -85,6 +85,8 @@ import com.foqos.android.ui.common.WEEKDAY_DISPLAY_ORDER
 import com.foqos.android.ui.common.formatScheduleSummary
 import com.foqos.android.ui.common.shortDayName
 import com.foqos.android.ui.common.strategyEmoji
+import com.foqos.android.ui.common.strategyDisplayName
+import com.foqos.android.ui.common.strategyOneLiner
 import com.foqos.android.ui.physicalunlock.PhysicalUnlockEditor
 import com.foqos.android.ui.settings.LocationAutomationSection
 import kotlinx.coroutines.flow.first
@@ -114,8 +116,6 @@ fun ProfileEditScreen(
     var showWriteNfcSheet by remember { mutableStateOf(false) }
     var showQrDialog by remember { mutableStateOf(false) }
     var overflowExpanded by remember { mutableStateOf(false) }
-    var showStartTimePicker by remember { mutableStateOf(false) }
-    var showEndTimePicker by remember { mutableStateOf(false) }
     var showLockedDialog by remember { mutableStateOf(false) }
     var showFullScreenAllowedPicker by remember { mutableStateOf(false) }
     var newAllowedUrl by remember { mutableStateOf("") }
@@ -512,8 +512,8 @@ private fun StrategySection(
             ) {
                 Text(text = strategyEmoji(strategy), style = MaterialTheme.typography.headlineSmall)
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = strategy.name, style = MaterialTheme.typography.titleSmall)
-                    Text(text = strategy.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(text = strategyDisplayName(strategy), style = MaterialTheme.typography.titleSmall)
+                    Text(text = strategyOneLiner(strategy), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

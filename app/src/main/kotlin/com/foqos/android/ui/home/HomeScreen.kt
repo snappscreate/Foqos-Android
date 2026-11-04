@@ -221,8 +221,8 @@ fun HomeScreen(
                         profile = profile,
                         isActive = session != null,
                         activeSession = session,
-                        isLocationProfile = uiState.locationRule?.profileId == profile.id,
-                        locationInside = uiState.locationInside,
+                        isLocationProfile = profile.id in uiState.locationStates,
+                        locationInside = uiState.locationStates[profile.id]?.second,
                         fullScreenMode = fullScreenStore.enabled(profile.id),
                         periodicEligible = recurringEligible,
                         periodicActive = recurringActive,
@@ -235,9 +235,9 @@ fun HomeScreen(
                             if (session != null) {
                                 if (recurringEligible) {
                                     viewModel.activatePeriodicAccess(profile.id)
-                                } else if (uiState.locationRule?.profileId == profile.id) {
+                                } else if (profile.id in uiState.locationStates) {
                                     val strategy = StrategyRegistry.byId(profile.strategyId)
-                                    val inside = uiState.locationInside == true
+                                    val inside = uiState.locationStates[profile.id]?.second == true
                                     val requiresNfc = strategy.usesNfc ||
                                         profile.physicalUnblockItems.any { it.type == PhysicalUnblockType.NFC }
                                     if (inside && requiresNfc) {

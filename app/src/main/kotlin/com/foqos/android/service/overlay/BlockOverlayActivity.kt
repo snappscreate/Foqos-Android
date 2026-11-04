@@ -139,15 +139,33 @@ class BlockOverlayActivity : ComponentActivity() {
             FoqosTheme {
                 val allStates by blockingStateHolder.states.collectAsStateWithLifecycle()
                 val fullScreenStore = remember { FullScreenModeStore(this@BlockOverlayActivity) }
+                val scope = rememberCoroutineScope()
+                val locationStore = remember { LocationAutomationStore(this@BlockOverlayActivity) }
+                val locationStatus by remember { locationStore.observeState() }
+                    .collectAsStateWithLifecycle(
+                        initialValue = locationStore.read() to
+                            (locationStore.manualInside() ?: locationStore.lastInside()),
+                    )
                 val requestedProfileId = intent.getStringExtra(EXTRA_PROFILE_ID)
                 val candidates = allStates.values.map { entry ->
-                    if (fullScreenStore.enabled(entry.profileId)) {
+                    val browser = fullScreenStore.launchedBrowserPackage(entry.profileId)
+                        ?: DefaultBrowserResolver.packageName(this@BlockOverlayActivity)
+                    val configured = if (fullScreenStore.enabled(entry.profileId)) {
                         entry.copy(
                             fullScreenMode = true,
                             fullScreenAllowedPackages = fullScreenStore.allowedPackages(entry.profileId),
                             fullScreenAllowedUrls = fullScreenStore.allowedUrls(entry.profileId),
+                            fullScreenBrowserPackage = browser,
+                            fullScreenBrowserStartupUntil = browser?.let {
+                                fullScreenStore.browserStartupUntil(entry.profileId, it)
+                            } ?: 0L,
                         )
                     } else entry
+                    configured.copy(
+                        locationSuspended = configured.locationSuspended ||
+                            (locationStatus.first?.profileId == configured.profileId &&
+                                locationStatus.second == false),
+                    )
                 }
                 val state = candidates.firstOrNull { requestedProfileId == it.profileId }
                     ?: candidates.firstOrNull { entry ->
@@ -156,17 +174,20 @@ class BlockOverlayActivity : ComponentActivity() {
                         } else blockPolicy.decideForApp(targetPackage, entry)
                         decision != BlockDecision.Allow
                     } ?: candidates.firstOrNull()
-                val scope = rememberCoroutineScope()
-                val locationStore = remember { LocationAutomationStore(this@BlockOverlayActivity) }
-                val locationStatus by remember { locationStore.observeState() }
-                    .collectAsStateWithLifecycle(
-                        initialValue = locationStore.read() to
-                            (locationStore.manualInside() ?: locationStore.lastInside()),
-                    )
-
-                val fullScreen = state?.profileId?.let(fullScreenStore::enabled) == true
-                val allowedPackages = state?.profileId?.let(fullScreenStore::allowedPackages).orEmpty()
-                val allowedUrls = state?.profileId?.let(fullScreenStore::allowedUrls).orEmpty()
+                val fullScreen = state?.fullScreenMode == true
+                val allowedPackages = state?.profileId
+                    ?.let(fullScreenStore::allowedPackages).orEmpty()
+                    .filter { pkg ->
+                        blockPolicy.decideForAppAcrossProfiles(pkg, candidates) == BlockDecision.Allow
+                    }.toSet()
+                val defaultBrowser = DefaultBrowserResolver.packageName(this@BlockOverlayActivity)
+                val allowedUrls = state?.profileId
+                    ?.let(fullScreenStore::allowedUrls).orEmpty()
+                    .filter { url ->
+                        defaultBrowser != null && blockPolicy.decideForUrlAcrossProfiles(
+                            defaultBrowser, url, candidates,
+                        ) == BlockDecision.Allow
+                    }.toSet()
                 var showAllowedApps by remember { mutableStateOf(false) }
                 var showFeaturedPicker by remember { mutableStateOf(false) }
                 var featuredShortcuts by remember(state?.profileId, allowedPackages, allowedUrls) {

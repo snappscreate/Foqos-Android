@@ -15,6 +15,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.verticalScroll
@@ -53,7 +59,11 @@ fun FullScreenShortcutGrid(
     onUrl: (String) -> Unit,
     featuredPackages: Set<String> = emptySet(),
     autoOpenSeconds: Int? = null,
+    editingFeatured: Boolean = false,
     onEditFeatured: (() -> Unit)? = null,
+    onFeaturedChange: ((Set<String>) -> Unit)? = null,
+    allowedAppsExpanded: Boolean = false,
+    onToggleAllowedApps: (() -> Unit)? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (featuredPackages.isNotEmpty() || onEditFeatured != null) {
@@ -71,11 +81,13 @@ fun FullScreenShortcutGrid(
                     Text("おすすめアプリ", color = Color.White, style = MaterialTheme.typography.titleMedium)
                     if (onEditFeatured != null) {
                         TextButton(onClick = onEditFeatured) {
-                            Text("編集", color = Color.White)
+                            Text(if (editingFeatured) "完了" else "編集", color = Color.White)
                         }
                     }
                 }
-                if (featuredPackages.isEmpty()) {
+                if (editingFeatured) {
+                    Text("長押ししてグループ間で移動", color = Color.White, style = MaterialTheme.typography.bodySmall)
+                } else if (featuredPackages.isEmpty()) {
                     Text("編集から、許可アプリの中で自動起動する候補を選べるよ",
                         color = Color.White, style = MaterialTheme.typography.bodySmall)
                 } else {
@@ -93,18 +105,44 @@ fun FullScreenShortcutGrid(
                 }
             }
         }
-        Text("その他の許可アプリ", color = Color.White)
-        val regular = (packages - featuredPackages).sorted()
-        if (regular.isNotEmpty()) {
-            Column(
-                modifier = Modifier.fillMaxWidth().heightIn(max = 210.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+        if (editingFeatured && onFeaturedChange != null) {
+            FeaturedAppsEditor(
+                allowed = packages,
+                featured = featuredPackages,
+                labelFor = appLabel,
+                onFeaturedChange = onFeaturedChange,
+            )
+        } else {
+            OutlinedButton(
+                onClick = { onToggleAllowedApps?.invoke() },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = onToggleAllowedApps != null,
             ) {
-                regular.chunked(2).forEach { pair ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        pair.forEach { pkg ->
-                            ShortcutAppIcon(pkg, appLabel, onApp, featured = false)
+                Text(if (allowedAppsExpanded) "許可されたアプリを閉じる" else "許可されたアプリ")
+            }
+            if (allowedAppsExpanded) {
+                val regular = (packages - featuredPackages).sorted()
+                if (regular.isEmpty()) {
+                    Text("その他の許可アプリはありません", color = Color.White)
+                } else {
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                            .heightIn(max = 226.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        regular.chunked(5).forEach { group ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                group.forEach { pkg ->
+                                    ShortcutAppIcon(
+                                        pkg, appLabel, onApp, featured = false,
+                                        compact = true,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -182,9 +220,10 @@ private fun ShortcutAppIcon(
     appLabel: (String) -> String,
     onApp: (String) -> Unit,
     featured: Boolean,
+    compact: Boolean = false,
 ) {
     Column(
-        modifier = Modifier.size(width = if (featured) 84.dp else 72.dp, height = if (featured) 104.dp else 92.dp)
+        modifier = Modifier.size(width = if (compact) 56.dp else if (featured) 84.dp else 72.dp, height = if (compact) 70.dp else if (featured) 104.dp else 92.dp)
             .clickable { onApp(packageName) },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(5.dp),
@@ -197,7 +236,7 @@ private fun ShortcutAppIcon(
                     }.getOrNull())
                 }
             },
-            modifier = Modifier.size(if (featured) 60.dp else 48.dp),
+            modifier = Modifier.size(if (compact) 36.dp else if (featured) 60.dp else 48.dp),
         )
         Text(
             appLabel(packageName),

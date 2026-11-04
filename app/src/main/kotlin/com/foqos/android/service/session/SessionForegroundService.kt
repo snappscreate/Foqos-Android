@@ -45,8 +45,8 @@ class SessionForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        blockingStateHolder.state
-            .onEach { state -> onStateChanged(state) }
+        blockingStateHolder.states
+            .onEach { states -> onStatesChanged(states.values.toList()) }
             .launchIn(serviceScope)
     }
 
@@ -56,23 +56,23 @@ class SessionForegroundService : Service() {
     // positive for this exact, AndroidX-recommended pattern.
     @Suppress("InlinedApi")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val state = blockingStateHolder.state.value
+        val states = blockingStateHolder.states.value.values.toList()
         ServiceCompat.startForeground(
             this,
             SessionNotificationManager.SESSION_NOTIFICATION_ID,
-            buildNotification(state),
+            buildNotification(states),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
         )
         return START_STICKY
     }
 
-    private fun onStateChanged(state: BlockingState?) {
-        if (state == null) {
+    private fun onStatesChanged(states: List<BlockingState>) {
+        if (states.isEmpty()) {
             usageStatsPoller.stop()
             return
         }
 
-        notificationManager.notify(SessionNotificationManager.SESSION_NOTIFICATION_ID, buildNotification(state))
+        notificationManager.notify(SessionNotificationManager.SESSION_NOTIFICATION_ID, buildNotification(states))
 
         val accessibilityEnabled = PermissionChecks.isAccessibilityEnabled(this, ForegroundAppAccessibilityService::class.java)
         if (SessionForegroundServiceLogic.shouldRunPoller(accessibilityEnabled)) {
@@ -82,11 +82,15 @@ class SessionForegroundService : Service() {
         }
     }
 
-    private fun buildNotification(state: BlockingState?) = notificationManager.buildSessionNotification(
-        profileName = state?.profileName ?: "Focus session",
-        startedAtEpochMillis = state?.sessionStartEpochMillis ?: System.currentTimeMillis(),
-        breakActive = state?.breakActive ?: false,
-        pauseActive = state?.pauseActive ?: false,
+    private fun buildNotification(states: List<BlockingState>) = notificationManager.buildSessionNotification(
+        profileName = states.firstOrNull()?.let { first ->
+            if (states.size == 1) first.profileName
+            else "${first.profileName} ほか${states.size - 1}件"
+        } ?: "Focus session",
+        startedAtEpochMillis = states.minOfOrNull { it.sessionStartEpochMillis }
+            ?: System.currentTimeMillis(),
+        breakActive = states.isNotEmpty() && states.all { it.breakActive },
+        pauseActive = states.isNotEmpty() && states.all { it.pauseActive },
     )
 
     override fun onBind(intent: Intent?): IBinder? = null

@@ -49,6 +49,7 @@ fun FullScreenShortcutGrid(
     onPhone: () -> Unit,
     onUrl: (String) -> Unit,
     featuredPackages: Set<String> = emptySet(),
+    autoOpenSeconds: Int? = null,
     onEditFeatured: (() -> Unit)? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -75,7 +76,7 @@ fun FullScreenShortcutGrid(
                     Text("編集から、許可アプリの中で自動起動する候補を選べるよ",
                         color = Color.White, style = MaterialTheme.typography.bodySmall)
                 } else {
-                    Text("10秒後に候補からランダムに1つ起動",
+                    Text(if (autoOpenSeconds != null) "${autoOpenSeconds}秒後に候補からランダムに1つ起動" else "候補からランダムに自動起動",
                         color = Color.White, style = MaterialTheme.typography.labelSmall)
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),

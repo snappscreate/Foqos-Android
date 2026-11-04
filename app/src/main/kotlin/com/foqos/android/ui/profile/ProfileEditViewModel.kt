@@ -19,6 +19,8 @@ import com.foqos.android.domain.strategy.ManualBlockingStrategy
 import com.foqos.android.domain.strategy.StrategyRegistry
 import com.foqos.android.service.alarm.AlarmActivityType
 import com.foqos.android.service.alarm.FoqosAlarmScheduler
+import com.foqos.android.service.location.LocationAutomationStore
+import com.foqos.android.service.location.GeofenceManager
 import com.foqos.android.service.nfc.NfcForegroundDispatchManager
 import com.foqos.android.service.session.FullScreenModeStore
 import com.foqos.android.service.session.PeriodicAccessStore
@@ -332,14 +334,14 @@ class ProfileEditViewModel @Inject constructor(
         if (isEditingProfileRunning()) return
         val trimmedName = _uiState.value.draft.name.trim()
         if (trimmedName.isBlank()) {
-            _uiState.update { it.copy(nameError = "Name is required") }
+            _uiState.update { it.copy(nameError = "プロファイル名を入力してください") }
             return
         }
 
         viewModelScope.launch {
             val current = _uiState.value
             if (isEditingProfileRunning()) return@launch
-            val schedule = current.draft.schedule?.takeIf { current.scheduleEnabled && it.isConfigured }
+            // The legacy Schedule and Breaks controls were removed from the editor.
             // Physical unlock items are edited in a separate repository-backed component.
             // Never overwrite newer NFC/QR registrations with this screen's stale draft.
             val latestPersisted = if (current.isPersisted) profileRepository.getById(current.draft.id) else null
@@ -348,7 +350,9 @@ class ProfileEditViewModel @Inject constructor(
             }.distinct()
             val toSave = current.draft.copy(
                 name = trimmedName,
-                schedule = schedule,
+                schedule = null,
+                enableBreaks = false,
+                allowMultipleBreaks = false,
                 allowModeEnabled = false,
                 // The shared website whitelist also drives app-block-mode URL policy.
                 domains = sharedWebsiteHosts,
@@ -365,12 +369,8 @@ class ProfileEditViewModel @Inject constructor(
                 PeriodicAccessStore.Config(current.periodicWaitMinutes, current.periodicAccessMinutes)
             } else PeriodicAccessStore.Config())
 
-            if (saved.schedule?.isConfigured == true) {
-                alarmScheduler.scheduleWeeklySchedule(saved)
-            } else {
-                alarmScheduler.cancel(AlarmActivityType.SCHEDULE_START, saved.id)
-                alarmScheduler.cancel(AlarmActivityType.SCHEDULE_END, saved.id)
-            }
+            alarmScheduler.cancel(AlarmActivityType.SCHEDULE_START, saved.id)
+            alarmScheduler.cancel(AlarmActivityType.SCHEDULE_END, saved.id)
 
             // If this profile owns the currently running session, re-apply its config so edits
             // (e.g. turning off website allow-mode) take effect immediately instead of only after
@@ -387,6 +387,11 @@ class ProfileEditViewModel @Inject constructor(
         viewModelScope.launch {
             if (isEditingProfileRunning()) return@launch
             profileRepository.delete(id)
+            val location = LocationAutomationStore(context)
+            if (location.read(id) != null) {
+                GeofenceManager(context).unregister(id)
+                location.clear(id)
+            }
             fullScreenStore.delete(id)
             periodicStore.delete(id)
             alarmScheduler.cancelAllForProfile(id)

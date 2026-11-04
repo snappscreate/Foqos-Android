@@ -60,6 +60,7 @@ import java.util.Date
 fun SettingsScreen(
     onBack: () -> Unit,
     onOpenExport: () -> Unit,
+    onOpenActivityLab: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
@@ -136,6 +137,17 @@ fun SettingsScreen(
                         "共通の緊急解除回数を使用してセッションを終了できる",
                         uiState.protection.enableEmergencyUnblock,
                     ) { enabled -> viewModel.updateProtection { it.copy(enableEmergencyUnblock = enabled) } }
+                }
+            }
+
+            SettingsSection(title = "活動認識の実験") {
+                Column(modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("カメラで活動を記録し、Geminiまたは端末内の姿勢推定で判定を比較する。ブロック解除には影響しない。",
+                        style = MaterialTheme.typography.bodySmall)
+                    Card(onClick = onOpenActivityLab, modifier = Modifier.fillMaxWidth()) {
+                        Text("AI活動認識テストを開く", modifier = Modifier.padding(16.dp))
+                    }
                 }
             }
 

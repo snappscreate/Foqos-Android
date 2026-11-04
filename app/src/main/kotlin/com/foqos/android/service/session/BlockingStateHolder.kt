@@ -26,6 +26,14 @@ class BlockingStateHolder @Inject constructor() {
         _state.value = null
     }
 
+    fun setPeriodicAccessActive(active: Boolean) {
+        _state.update { it?.copy(periodicAccessActive = active) }
+    }
+
+    fun setPeriodicAccessAnchor(anchorEpochMillis: Long, active: Boolean) {
+        _state.update { it?.copy(periodicAnchorEpochMillis = anchorEpochMillis, periodicAccessActive = active) }
+    }
+
     fun setBreakActive(active: Boolean) {
         _state.update { it?.copy(breakActive = active) }
     }

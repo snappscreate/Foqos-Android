@@ -34,7 +34,7 @@ class ActivityCamera(private val context: Context) {
     private var provider: ProcessCameraProvider? = null
     private var activeRecording: Recording? = null
 
-    suspend fun bind(owner: LifecycleOwner, front: Boolean) {
+    suspend fun bind(owner: LifecycleOwner, front: Boolean, videoMode: Boolean) {
         val cameraProvider = suspendCancellableCoroutine<ProcessCameraProvider> { continuation ->
             val future = ProcessCameraProvider.getInstance(context)
             future.addListener({
@@ -50,7 +50,8 @@ class ActivityCamera(private val context: Context) {
         }
         val selector = if (front) CameraSelector.DEFAULT_FRONT_CAMERA
             else CameraSelector.DEFAULT_BACK_CAMERA
-        cameraProvider.bindToLifecycle(owner, selector, previewUseCase, imageCapture, videoCapture)
+        if (videoMode) cameraProvider.bindToLifecycle(owner, selector, previewUseCase, videoCapture)
+        else cameraProvider.bindToLifecycle(owner, selector, previewUseCase, imageCapture)
     }
 
     suspend fun captureFile(): File = suspendCancellableCoroutine { continuation ->

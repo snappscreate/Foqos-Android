@@ -9,6 +9,7 @@ object Routes {
     const val INSIGHTS_PATTERN = "insights/{profileId}"
     const val ACTIVE_SESSION = "activeSession"
     const val SETTINGS = "settings"
+    const val ACTIVITY_LAB = "activityLab"
     const val EXPORT = "export"
 
     const val ARG_PROFILE_ID = "profileId"

@@ -137,6 +137,10 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun activatePeriodicAccess(profileId: String) {
+        viewModelScope.launch { sessionManager.activatePeriodicAccess(profileId) }
+    }
+
     fun onLocationProfileAction(profileId: String) {
         viewModelScope.launch {
             // Read authoritative state at click execution time, not an old composed row.

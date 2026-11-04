@@ -134,7 +134,7 @@ fun HomeScreen(
                 val profile = uiState.activeProfile
                 if (session != null && profile != null) {
                     ActiveSessionBar(
-                        profileName = profile.name,
+                        profileName = if (uiState.activeSessions.size > 1) "${profile.name} ほか${uiState.activeSessions.size - 1}件" else profile.name,
                         startTime = session.startTime,
 
                     )
@@ -204,7 +204,7 @@ fun HomeScreen(
                 item { EmptyProfilesState(onCreateProfile = onCreateProfile) }
             } else {
                 items(uiState.profiles, key = { it.id }) { profile ->
-                    val session = uiState.activeSession?.takeIf { it.profileId == profile.id }
+                    val session = uiState.activeSessions.firstOrNull { it.profileId == profile.id }
                     val recurringConfig = periodicStore.read(profile.id)
                     val anchor = session?.let {
                         maxOf(it.startTime.toEpochMilli(),
@@ -219,8 +219,8 @@ fun HomeScreen(
                         PeriodicAccessSchedule.isAvailable(recurringConfig, anchor, activatedAt, periodicNow)
                     ProfileCard(
                         profile = profile,
-                        isActive = uiState.activeSession?.profileId == profile.id,
-                        activeSession = uiState.activeSession?.takeIf { it.profileId == profile.id },
+                        isActive = session != null,
+                        activeSession = session,
                         isLocationProfile = uiState.locationRule?.profileId == profile.id,
                         locationInside = uiState.locationInside,
                         fullScreenMode = fullScreenStore.enabled(profile.id),
@@ -232,7 +232,7 @@ fun HomeScreen(
                             ) / 1000L else 0L,
                         onCardClick = { onEditProfile(profile.id) },
                         onPlayStop = {
-                            if (uiState.activeSession?.profileId == profile.id) {
+                            if (session != null) {
                                 if (recurringEligible) {
                                     viewModel.activatePeriodicAccess(profile.id)
                                 } else if (uiState.locationRule?.profileId == profile.id) {
@@ -249,11 +249,12 @@ fun HomeScreen(
                                                 BlockOverlayActivity.FULL_SCREEN_HOME_TARGET,
                                             )
                                             putExtra(BlockOverlayActivity.EXTRA_LOCATION_PAUSE_REQUEST, true)
+                                            putExtra(BlockOverlayActivity.EXTRA_PROFILE_ID, profile.id)
                                         })
                                     } else {
                                         viewModel.onLocationProfileAction(profile.id)
                                     }
-                                } else viewModel.stopActiveSession()
+                                } else viewModel.stopActiveSession(profile.id)
                             } else {
                                 viewModel.startProfile(profile.id)
                             }

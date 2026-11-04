@@ -4,6 +4,16 @@ import android.provider.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.runtime.mutableIntStateOf
+import kotlin.random.Random
 import com.foqos.android.service.session.FullScreenModeStore
 import com.foqos.android.service.session.DefaultBrowserResolver
 import android.content.Intent
@@ -93,6 +103,7 @@ class BlockOverlayActivity : ComponentActivity() {
 
     private var nfcScanMessage by mutableStateOf<String?>(null)
     private var boundaryDistance by mutableStateOf<String?>(null)
+    private var shieldResumed by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -135,6 +146,48 @@ class BlockOverlayActivity : ComponentActivity() {
                 val allowedPackages = state?.profileId?.let(fullScreenStore::allowedPackages).orEmpty()
                 val allowedUrls = state?.profileId?.let(fullScreenStore::allowedUrls).orEmpty()
                 var showAllowedApps by remember { mutableStateOf(false) }
+                var showFeaturedPicker by remember { mutableStateOf(false) }
+                var featuredPackages by remember(state?.profileId, allowedPackages) {
+                    mutableStateOf(
+                        state?.profileId?.let(fullScreenStore::featuredPackages).orEmpty()
+                            .intersect(allowedPackages)
+                    )
+                }
+                // Only installed, launchable, already-allowlisted apps may auto-open.
+                val launchableFeatured = featuredPackages.intersect(allowedPackages).filter { pkg ->
+                    packageManager.getLaunchIntentForPackage(pkg) != null
+                }
+                var autoOpenCountdown by remember(state?.sessionId, targetPackage) {
+                    mutableIntStateOf(10)
+                }
+                LaunchedEffect(
+                    state?.sessionId, targetPackage, shieldResumed,
+                    showFeaturedPicker, showAllowedApps, launchableFeatured,
+                ) {
+                    autoOpenCountdown = 10
+                    if (!fullScreen || !shieldResumed || locationPauseRequest ||
+                        showFeaturedPicker || showAllowedApps || launchableFeatured.isEmpty()) {
+                        return@LaunchedEffect
+                    }
+                    while (autoOpenCountdown > 0) {
+                        delay(1_000L)
+                        autoOpenCountdown -= 1
+                    }
+                    val selection = launchableFeatured.randomOrNull() ?: return@LaunchedEffect
+                    // Recheck the whitelist right before launching in case its config changed.
+                    val profileId = state?.profileId ?: return@LaunchedEffect
+                    if (selection !in fullScreenStore.allowedPackages(profileId)) return@LaunchedEffect
+                    val launch = packageManager.getLaunchIntentForPackage(selection)
+                    if (launch != null) {
+                        runCatching {
+                            startActivity(launch)
+                            finish()
+                        }.onFailure {
+                            nfcScanMessage = "おすすめアプリを起動できませんでした"
+                        }
+                    }
+                }
+
                 var periodicNow by remember { mutableStateOf(System.currentTimeMillis()) }
                 LaunchedEffect(state?.sessionId, state?.periodicWaitMinutes) {
                     while (true) {
@@ -236,6 +289,8 @@ class BlockOverlayActivity : ComponentActivity() {
                         FullScreenShortcutGrid(
                             packages = allowedPackages,
                             urls = allowedUrls,
+                            featuredPackages = featuredPackages,
+                            onEditFeatured = { showFeaturedPicker = true },
                             appLabel = { pkg ->
                                 runCatching {
                                     val info = packageManager.getApplicationInfo(pkg, 0)
@@ -293,6 +348,50 @@ class BlockOverlayActivity : ComponentActivity() {
                     },
                 )
 
+                if (showFeaturedPicker && state?.profileId != null && fullScreen) {
+                    val profileId = state.profileId
+                    AlertDialog(
+                        onDismissRequest = { showFeaturedPicker = false },
+                        title = { Text("おすすめアプリを選択") },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    "ホワイトリストの中から選択。10秒後にランダム起動するよ。",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                                LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+                                    items(allowedPackages.sorted()) { pkg ->
+                                        val appLabel = rememberAppLabel(pkg)
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Checkbox(
+                                                checked = pkg in featuredPackages,
+                                                onCheckedChange = { checked ->
+                                                    val next = if (checked) featuredPackages + pkg
+                                                        else featuredPackages - pkg
+                                                    fullScreenStore.saveFeaturedPackages(profileId, next)
+                                                    featuredPackages = fullScreenStore.featuredPackages(profileId)
+                                                },
+                                            )
+                                            TextButton(onClick = {
+                                                val next = if (pkg in featuredPackages) featuredPackages - pkg
+                                                    else featuredPackages + pkg
+                                                fullScreenStore.saveFeaturedPackages(profileId, next)
+                                                featuredPackages = fullScreenStore.featuredPackages(profileId)
+                                            }) { Text(appLabel) }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showFeaturedPicker = false }) { Text("完了") }
+                        },
+                    )
+                }
+
                 if (showAllowedApps) {
                     AlertDialog(
                         onDismissRequest = { showAllowedApps = false },
@@ -332,6 +431,7 @@ class BlockOverlayActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        shieldResumed = true
         // Reader mode delivers a Tag directly to this visible shield. Foreground
         // dispatch alone can be bypassed by NDEF intent routing on Pixel devices.
         val adapter = NfcAdapter.getDefaultAdapter(this)
@@ -378,6 +478,7 @@ class BlockOverlayActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        shieldResumed = false
         runCatching { NfcAdapter.getDefaultAdapter(this)?.disableReaderMode(this) }
         super.onPause()
     }

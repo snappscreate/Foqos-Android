@@ -45,6 +45,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.content.Intent
+import com.foqos.android.service.overlay.BlockOverlayActivity
+import com.foqos.android.data.model.PhysicalUnblockType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -203,7 +206,23 @@ fun HomeScreen(
                         onPlayStop = {
                             if (uiState.activeSession?.profileId == profile.id) {
                                 if (uiState.locationRule?.profileId == profile.id) {
-                                    viewModel.onLocationProfileAction(profile.id)
+                                    val strategy = StrategyRegistry.byId(profile.strategyId)
+                                    val inside = uiState.locationInside == true
+                                    val requiresNfc = strategy.usesNfc ||
+                                        profile.physicalUnblockItems.any { it.type == PhysicalUnblockType.NFC }
+                                    if (inside && requiresNfc) {
+                                        // Display the existing NFC-capable shield; a tap alone
+                                        // must not pause the session.
+                                        context.startActivity(Intent(context, BlockOverlayActivity::class.java).apply {
+                                            putExtra(
+                                                BlockOverlayActivity.EXTRA_PACKAGE_NAME,
+                                                BlockOverlayActivity.FULL_SCREEN_HOME_TARGET,
+                                            )
+                                            putExtra(BlockOverlayActivity.EXTRA_LOCATION_PAUSE_REQUEST, true)
+                                        })
+                                    } else {
+                                        viewModel.onLocationProfileAction(profile.id)
+                                    }
                                 } else viewModel.stopActiveSession()
                             } else {
                                 viewModel.startProfile(profile.id)

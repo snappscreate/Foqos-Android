@@ -61,6 +61,8 @@ import com.foqos.android.BuildConfig
 import com.foqos.android.data.model.StrategyPauseTimerData
 import com.foqos.android.data.model.PhysicalUnblockType
 import com.foqos.android.service.session.FullScreenModeStore
+import com.foqos.android.service.session.PeriodicAccessStore
+import com.foqos.android.service.session.PeriodicAccessSchedule
 import com.foqos.android.data.model.BlockedProfile
 import com.foqos.android.domain.strategy.StrategyRegistry
 import com.foqos.android.ui.common.formatScheduleSummary
@@ -99,6 +101,14 @@ fun HomeScreen(
 
     val context = LocalContext.current
     val fullScreenStore = remember(context) { FullScreenModeStore(context) }
+    val periodicStore = remember(context) { PeriodicAccessStore(context) }
+    var periodicNow by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            periodicNow = System.currentTimeMillis()
+            delay(1_000L)
+        }
+    }
     var deleteCandidate by remember { mutableStateOf<BlockedProfile?>(null) }
 
     Scaffold(
@@ -194,6 +204,19 @@ fun HomeScreen(
                 item { EmptyProfilesState(onCreateProfile = onCreateProfile) }
             } else {
                 items(uiState.profiles, key = { it.id }) { profile ->
+                    val session = uiState.activeSession?.takeIf { it.profileId == profile.id }
+                    val recurringConfig = periodicStore.read(profile.id)
+                    val anchor = session?.let {
+                        maxOf(it.startTime.toEpochMilli(),
+                            it.pauseEndTime?.toEpochMilli() ?: 0L,
+                            it.breakEndTime?.toEpochMilli() ?: 0L)
+                    } ?: 0L
+                    val activatedCycle = session?.let { periodicStore.activatedCycle(profile.id, it.id, anchor) } ?: -1L
+                    val recurringActive = session != null && PeriodicAccessSchedule.isActive(
+                        recurringConfig, anchor, activatedCycle, periodicNow)
+                    val recurringEligible = session != null && !session.isPauseActive() &&
+                        !session.isBreakActive() && !recurringActive &&
+                        PeriodicAccessSchedule.isAccessible(recurringConfig, anchor, periodicNow)
                     ProfileCard(
                         profile = profile,
                         isActive = uiState.activeSession?.profileId == profile.id,
@@ -201,10 +224,17 @@ fun HomeScreen(
                         isLocationProfile = uiState.locationRule?.profileId == profile.id,
                         locationInside = uiState.locationInside,
                         fullScreenMode = fullScreenStore.enabled(profile.id),
+                        periodicEligible = recurringEligible,
+                        periodicActive = recurringActive,
+                        periodicRemainingSeconds = if (session != null) (
+                            PeriodicAccessSchedule.remainingWindowMillis(recurringConfig, anchor, periodicNow) + 999L
+                        ) / 1000L else 0L,
                         onCardClick = { onEditProfile(profile.id) },
                         onPlayStop = {
                             if (uiState.activeSession?.profileId == profile.id) {
-                                if (uiState.locationRule?.profileId == profile.id) {
+                                if (recurringEligible) {
+                                    viewModel.activatePeriodicAccess(profile.id)
+                                } else if (uiState.locationRule?.profileId == profile.id) {
                                     val strategy = StrategyRegistry.byId(profile.strategyId)
                                     val inside = uiState.locationInside == true
                                     val requiresNfc = strategy.usesNfc ||
@@ -354,6 +384,9 @@ private fun ProfileCard(
     isLocationProfile: Boolean = false,
     locationInside: Boolean? = null,
     fullScreenMode: Boolean = false,
+    periodicEligible: Boolean = false,
+    periodicActive: Boolean = false,
+    periodicRemainingSeconds: Long = 0L,
     onCardClick: () -> Unit,
     onPlayStop: () -> Unit,
     onEdit: () -> Unit,
@@ -368,7 +401,7 @@ private fun ProfileCard(
     val isPaused = activeSession?.isPauseActive() == true
     // While paused and inside: no further pause action. Paused and outside:
     // explicitly offer full Stop, because location status has priority.
-    val showControl = !isActive || !isPaused || (isLocationProfile && locationInside == false)
+    val showControl = !isActive || (!isPaused && !periodicActive) || (isLocationProfile && locationInside == false)
 
 
     Card(
@@ -425,6 +458,16 @@ private fun ProfileCard(
                 if (isActive && isLocationProfile && locationInside == false) {
                     Text("範囲外：自動一時停止中", style = MaterialTheme.typography.bodySmall)
                 }
+                if (isActive && (periodicEligible || periodicActive)) {
+                    Text(
+                        if (periodicActive) "周期休憩中：残り %d:%02d".format(
+                            periodicRemainingSeconds / 60, periodicRemainingSeconds % 60)
+                        else "周期休憩が使用可能：残り %d:%02d".format(
+                            periodicRemainingSeconds / 60, periodicRemainingSeconds % 60),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
                 if (activeSession?.isPauseActive() == true) {
                     var nowMillis by remember(activeSession.id) { mutableStateOf(System.currentTimeMillis()) }
                     LaunchedEffect(activeSession.id, activeSession.pauseStartTime) {
@@ -455,11 +498,13 @@ private fun ProfileCard(
                 IconButton(onClick = onPlayStop) {
                     Icon(
                         imageVector = when {
+                            periodicEligible -> Icons.Filled.Pause
                             isActive && isLocationProfile && locationInside == true -> Icons.Filled.Pause
                             isActive -> Icons.Filled.Stop
                             else -> Icons.Filled.PlayArrow
                         },
                         contentDescription = when {
+                            periodicEligible -> "周期休憩を開始"
                             isActive && isLocationProfile && locationInside == true -> "一時停止"
                             isActive -> stringResource(R.string.home_stop_action)
                             else -> stringResource(R.string.home_start_action)

@@ -88,6 +88,9 @@ fun BlockScreenContent(
     onOpenAllowedApps: (() -> Unit)? = null,
     onOpenAndroidSettings: (() -> Unit)? = null,
     onOpenTemporarily: () -> Unit,
+    periodicPauseAvailable: Boolean = false,
+    periodicPauseRemainingSeconds: Long = 0L,
+    onActivatePeriodicPause: () -> Unit = {},
     fullScreenMode: Boolean = false,
     fullScreenShortcuts: (@Composable () -> Unit)? = null,
     blockedIcon: (@Composable () -> Unit)? = null,
@@ -181,6 +184,20 @@ fun BlockScreenContent(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(text = "戻る")
+            }
+
+            if (periodicPauseAvailable) {
+                Button(
+                    onClick = onActivatePeriodicPause,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White, contentColor = Color.Black,
+                    ),
+                ) {
+                    val minutes = periodicPauseRemainingSeconds / 60
+                    val seconds = periodicPauseRemainingSeconds % 60
+                    Text("周期休憩を開始（残り %d:%02d）".format(minutes, seconds))
+                }
             }
 
             if (fullScreenShortcuts != null) fullScreenShortcuts()

@@ -542,6 +542,11 @@ class BlockOverlayActivity : ComponentActivity() {
                 it.type == PhysicalUnblockType.NFC && profile.canUnblock(code, PhysicalUnblockType.NFC)
             } == true
         }
+        if (active.size > 1 && requested == null && matchingCredential == null) {
+            // Never guess which running profile an unrecognized NFC tag should release.
+            nfcScanMessage = "登録されていないNFCです"
+            return
+        }
         val session = (requested?.let { id -> active.firstOrNull { it.profileId == id } }
             ?: matchingCredential
             ?: active.firstOrNull { candidate ->

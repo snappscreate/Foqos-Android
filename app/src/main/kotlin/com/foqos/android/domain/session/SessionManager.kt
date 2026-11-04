@@ -120,9 +120,11 @@ class SessionManager @Inject constructor(
             // (or, in tests, the backing store being torn down before this fire-and-forget job runs)
             // can't surface as an uncaught exception in this SupervisorJob scope.
             runCatching {
-                _activeSessions.value = sessionRepository.activeSessionsOnce()
-                _activeSession.value = _activeSessions.value.firstOrNull()
-                _activeProfile.value = _activeSession.value?.let { profileRepository.getById(it.profileId) }
+                sessionMutex.withLock {
+                    _activeSessions.value = sessionRepository.activeSessionsOnce()
+                    _activeSession.value = _activeSessions.value.firstOrNull()
+                    _activeProfile.value = _activeSession.value?.let { profileRepository.getById(it.profileId) }
+                }
             }
         }
     }
@@ -640,6 +642,7 @@ class SessionManager @Inject constructor(
      * slate.
      */
     suspend fun resetAllState() {
+        sessionMutex.withLock {
         val sessions = sessionRepository.activeSessionsOnce()
         sessions.forEach { session ->
             sessionRepository.endSession(session.id, Instant.now())
@@ -656,6 +659,7 @@ class SessionManager @Inject constructor(
         allProfiles.forEach { profile -> alarmScheduler.cancelAllForProfile(profile.id) }
         alarmScheduler.cancel(AlarmActivityType.EMERGENCY_ALLOWANCE_RESET, EMERGENCY_ALLOWANCE_KEY)
         widgetRefresher.refresh()
+        }
     }
 
     /**

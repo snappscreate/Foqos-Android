@@ -75,6 +75,80 @@ object ActivityGeminiRelay {
         }
     }
 
+    /**
+     * Developer-only direct Gemini test: key is entered at runtime and never persisted.
+     * Not suitable for distributed APKs. Prefer the authenticated relay for normal use.
+     */
+    suspend fun judgeDirect(
+        apiKey: String,
+        activity: String,
+        photos: List<File>,
+        video: File?,
+        intervalMillis: Long,
+    ): ActivityVerdict = withContext(Dispatchers.IO) {
+        require(apiKey.isNotBlank()) { "Gemini APIキーを入力してね" }
+        val parts = JSONArray().put(JSONObject().put("text",
+            "時系列の撮影データを見て「${activity.take(160)}」を本当に行ったか判定。" +
+                "姿勢だけで断定せず、明確な動きや継続の証拠が不足する場合は判断不能。"))
+        if (video != null) {
+            require(video.length() <= 14_000_000) { "動画が14MBを超えたため送信を中止したよ" }
+            parts.put(JSONObject().put("inlineData", JSONObject()
+                .put("mimeType", "video/mp4")
+                .put("data", Base64.encodeToString(video.readBytes(), Base64.NO_WRAP))))
+        } else {
+            photos.forEachIndexed { index, frame ->
+                parts.put(JSONObject().put("text", "撮影時刻：${index * intervalMillis}ms"))
+                parts.put(JSONObject().put("inlineData", JSONObject()
+                    .put("mimeType", "image/jpeg")
+                    .put("data", compressForUpload(frame))))
+            }
+        }
+        val schema = JSONObject()
+            .put("type", "OBJECT")
+            .put("properties", JSONObject()
+                .put("status", JSONObject().put("type", "STRING")
+                    .put("enum", JSONArray(listOf("一致", "不一致", "判断不能"))))
+                .put("reason", JSONObject().put("type", "STRING"))
+                .put("evidence", JSONObject().put("type", "STRING")))
+            .put("required", JSONArray(listOf("status", "reason", "evidence")))
+        val body = JSONObject()
+            .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", parts)))
+            .put("generationConfig", JSONObject().put("temperature", 0.1)
+                .put("responseMimeType", "application/json").put("responseSchema", schema))
+            .toString().toByteArray(Charsets.UTF_8)
+        require(body.size < 18_000_000) { "撮影データが大きすぎるよ。枚数を減らしてね" }
+        val url = URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent")
+        val connection = url.openConnection() as HttpURLConnection
+        try {
+            connection.requestMethod = "POST"
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 120_000
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("x-goog-api-key", apiKey)
+            connection.outputStream.use { it.write(body) }
+            val statusCode = connection.responseCode
+            val raw = (if (statusCode in 200..299) connection.inputStream else connection.errorStream)
+                ?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (statusCode !in 200..299) error("Gemini HTTP $statusCode: ${raw.take(180)}")
+            val response = JSONObject(raw)
+            val candidate = response.getJSONArray("candidates").getJSONObject(0)
+            val text = candidate.getJSONObject("content").getJSONArray("parts")
+                .getJSONObject(0).getString("text")
+            val answer = JSONObject(text)
+            val usage = response.optJSONObject("usageMetadata") ?: JSONObject()
+            ActivityVerdict(
+                status = answer.optString("status", "判断不能"),
+                reason = answer.optString("reason", "理由を取得できなかった"),
+                evidence = answer.optString("evidence", ""),
+                inputTokens = usage.optInt("promptTokenCount"),
+                outputTokens = usage.optInt("candidatesTokenCount") + usage.optInt("thoughtsTokenCount"),
+            )
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     private fun compressForUpload(file: File): String {
         val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.absolutePath, opts)

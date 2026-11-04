@@ -152,7 +152,7 @@ fun PhysicalUnlockEditorContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(text = "Physical unblock items", style = MaterialTheme.typography.titleMedium)
+        Text(text = "NFC・QRコードの登録一覧", style = MaterialTheme.typography.titleMedium)
         Text(
             text = "Only these tags/codes will unblock this profile once at least one is added.",
             style = MaterialTheme.typography.bodySmall,
@@ -296,8 +296,8 @@ private fun PhysicalUnlockEditorContentPreview() {
         Box(modifier = Modifier.fillMaxSize()) {
             PhysicalUnlockEditorContent(
                 items = listOf(
-                    PhysicalUnblockItem(name = "Desk tag", type = PhysicalUnblockType.NFC, codeValue = "foqos://profile/abc"),
-                    PhysicalUnblockItem(name = "Fridge code", type = PhysicalUnblockType.QR_CODE, codeValue = "foqos://profile/xyz"),
+                    PhysicalUnblockItem(name = "机のタグ", type = PhysicalUnblockType.NFC, codeValue = "foqos://profile/abc"),
+                    PhysicalUnblockItem(name = "冷蔵庫のコード", type = PhysicalUnblockType.QR_CODE, codeValue = "foqos://profile/xyz"),
                 ),
                 onAddNfc = {},
                 onAddQr = {},

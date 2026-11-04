@@ -3,6 +3,7 @@ package com.foqos.android.domain.session
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.foqos.android.service.location.LocationAutomationStore
+import com.foqos.android.service.session.FullScreenModeStore
 import com.foqos.android.service.session.GlobalSessionProtectionStore
 import com.foqos.android.service.session.PeriodicAccessStore
 import com.foqos.android.service.session.PeriodicAccessSchedule

@@ -16,6 +16,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
@@ -90,7 +93,24 @@ fun FullScreenShortcutGrid(
                 }
             }
         }
-        Text("使用できるアプリ・サイト", color = Color.White)
+        Text("その他の許可アプリ", color = Color.White)
+        val regular = (packages - featuredPackages).sorted()
+        if (regular.isNotEmpty()) {
+            Column(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 210.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                regular.chunked(2).forEach { pair ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        pair.forEach { pkg ->
+                            ShortcutAppIcon(pkg, appLabel, onApp, featured = false)
+                        }
+                    }
+                }
+            }
+        }
+        Text("電話・許可サイト", color = Color.White)
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -105,18 +125,10 @@ fun FullScreenShortcutGrid(
                 Icon(
                     imageVector = Icons.Filled.Call,
                     contentDescription = "電話を開く",
-                    tint = androidx.compose.ui.graphics.Color.White,
+                    tint = Color.White,
                     modifier = Modifier.size(48.dp),
                 )
-                Text(
-                    "電話",
-                    color = androidx.compose.ui.graphics.Color.White,
-                    style = MaterialTheme.typography.labelSmall,
-                    textAlign = TextAlign.Center,
-                )
-            }
-            (packages - featuredPackages).sorted().forEach { pkg ->
-                ShortcutAppIcon(pkg, appLabel, onApp, featured = false)
+                Text("電話", color = Color.White, style = MaterialTheme.typography.labelSmall)
             }
             urls.sorted().forEach { address ->
                 Column(

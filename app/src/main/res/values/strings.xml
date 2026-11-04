@@ -112,11 +112,11 @@
     </string-array>
 
     <!-- App picker -->
-    <string name="app_picker_title">Choose apps</string>
-    <string name="app_picker_allow_mode_title">Allow mode</string>
-    <string name="app_picker_allow_mode_on_body">Only the selected apps stay open - everything else is blocked.</string>
-    <string name="app_picker_allow_mode_off_body">The selected apps are blocked - everything else stays open.</string>
-    <string name="app_picker_search_label">Search apps</string>
+    <string name="app_picker_title">アプリを選択</string>
+    <string name="app_picker_allow_mode_title">許可リスト方式</string>
+    <string name="app_picker_allow_mode_on_body">選んだアプリだけ使用できます。ほかのアプリはブロックされます。</string>
+    <string name="app_picker_allow_mode_off_body">選んだアプリをブロックします。ほかのアプリは使用できます。</string>
+    <string name="app_picker_search_label">アプリを検索</string>
 
     <!-- Profile editor -->
     <string name="action_continue_anyway">Continue anyway</string>

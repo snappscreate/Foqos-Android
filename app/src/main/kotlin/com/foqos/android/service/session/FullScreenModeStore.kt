@@ -43,7 +43,7 @@ class FullScreenModeStore(context: Context) {
         val urls = allowedUrls(profileId)
         val accepted = ids.filter { FocusShortcut.valid(it, packages, urls) }.sorted()
         prefs.edit().putString("${profileId}_featured",
-            JSONArray().apply { accepted.forEach(::put) }.toString()).commit()
+            JSONArray().apply { accepted.forEach { put(it) } }.toString()).commit()
     }
 
     fun saveFeaturedPackages(profileId: String, packages: Set<String>) =

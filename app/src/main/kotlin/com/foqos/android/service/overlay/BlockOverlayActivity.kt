@@ -100,6 +100,7 @@ class BlockOverlayActivity : ComponentActivity() {
             return
         }
         val targetDomain = intent.getStringExtra(EXTRA_DOMAIN)
+        val locationPauseRequest = intent.getBooleanExtra(EXTRA_LOCATION_PAUSE_REQUEST, false)
 
         lifecycleScope.launch {
             nfcDispatchManager.tagScans.collect { content ->
@@ -208,7 +209,7 @@ class BlockOverlayActivity : ComponentActivity() {
                     }) else null,
                     onGoBack = { finishAndGoHome() },
                     onOpenFoqosHome = { openFoqosHome() },
-                    fullScreenMode = fullScreen,
+                    fullScreenMode = fullScreen || locationPauseRequest,
                     fullScreenShortcuts = if (fullScreen) ({
                         FullScreenShortcutGrid(
                             packages = allowedPackages,
@@ -372,6 +373,15 @@ class BlockOverlayActivity : ComponentActivity() {
             nfcScanMessage = "このNFCは登録されていません"
             return
         }
+        // Home-initiated location pause must never invoke the strategy's stop action,
+        // because some strategies would terminate the entire session.
+        if (locationPauseRequest) {
+            val allowed = sessionManager.pauseLocationWithVerifiedCode(
+                profile.id, code, PhysicalUnblockType.NFC,
+            )
+            nfcScanMessage = if (allowed) "一時停止を開始したよ" else "このNFCでは一時停止できません"
+            return
+        }
         // Existing strategy performs the final NFC permission and pause-only checks.
         when (val outcome = StrategyRegistry.byId(profile.strategyId).onStopInput(
             profile, session, StrategyInput.Code(code, StrategyInput.CodeSource.NFC), sessionManager
@@ -457,6 +467,7 @@ class BlockOverlayActivity : ComponentActivity() {
         const val FULL_SCREEN_HOME_TARGET = "com.foqos.android.fullscreen.home"
         const val EXTRA_PACKAGE_NAME = "com.foqos.android.extra.BLOCKED_PACKAGE_NAME"
         const val EXTRA_DOMAIN = "com.foqos.android.extra.BLOCKED_DOMAIN"
+        const val EXTRA_LOCATION_PAUSE_REQUEST = "com.foqos.android.extra.LOCATION_PAUSE_REQUEST"
 
         private val SOFT_UNBLOCK_STRATEGY_IDS = setOf(
             NfcSoftUnblockBlockingStrategy.ID,

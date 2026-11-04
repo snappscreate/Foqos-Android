@@ -91,12 +91,17 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var files by remember { mutableStateOf<List<File>>(emptyList()) }
     var verdict by remember { mutableStateOf<ActivityVerdict?>(null) }
+    var verdictMode by remember { mutableStateOf(ActivityMode.PHOTOS) }
     var cameraReady by remember { mutableStateOf(false) }
     var captureJob by remember { mutableStateOf<Job?>(null) }
     val latestFiles by rememberUpdatedState(files)
     val latestJob by rememberUpdatedState(captureJob)
 
     DisposableEffect(camera) {
+        // Remove temporary camera media left by an earlier force-close/crash.
+        context.cacheDir.listFiles()?.filter {
+            it.name.startsWith("activity_frame_") || it.name.startsWith("activity_video_")
+        }?.forEach(File::delete)
         onDispose {
             latestJob?.cancel()
             camera.close()
@@ -169,7 +174,8 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
             )
             val photoCount = (duration * 1000L / interval).toInt().coerceIn(1, 40)
             if (mode != ActivityMode.VIDEO) {
-                Text("取得予定：${photoCount}枚（最大40枚）",
+                val effectiveInterval = (duration * 1000L / photoCount).coerceAtLeast(interval)
+                Text("取得予定：${photoCount}枚（最大40枚）、実際の間隔：約${effectiveInterval / 1000.0}秒",
                     style = MaterialTheme.typography.bodySmall)
             }
             if (mode != ActivityMode.POSE) {
@@ -227,7 +233,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                             previous.forEach(File::delete)
                             verdict = null
                             busy = true
-                            val started = SystemClock.elapsedRealtime()
+                            var analysisStarted = SystemClock.elapsedRealtime()
                             val captures = mutableListOf<File>()
                             try {
                                 val result = if (mode == ActivityMode.VIDEO) {
@@ -236,6 +242,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                                     captures.add(video)
                                     files = captures.toList()
                                     status = "Geminiに動画を送信して判定中..."
+                                    analysisStarted = SystemClock.elapsedRealtime()
                                     if (useRelay) ActivityGeminiRelay.judge(
                                         endpoint.trim(), token.trim(), activity, "video",
                                         emptyList(), video, interval)
@@ -252,6 +259,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                                         if (i < total - 1) delay(actualInterval)
                                     }
                                     status = "画像を分析中..."
+                                    analysisStarted = SystemClock.elapsedRealtime()
                                     if (mode == ActivityMode.POSE) {
                                         PoseActivityJudge.judge(context, activity, captures)
                                     } else {
@@ -262,7 +270,8 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                                             apiKey.trim(), activity, captures, null, actualInterval)
                                     }
                                 }
-                                verdict = result.copy(elapsedMs = SystemClock.elapsedRealtime() - started)
+                                verdictMode = mode
+                                verdict = result.copy(elapsedMs = SystemClock.elapsedRealtime() - analysisStarted)
                                 status = "判定完了"
                             } catch (cancel: CancellationException) {
                                 status = "キャンセルしたよ"
@@ -283,8 +292,8 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                 Text("判定：${result.status}", style = MaterialTheme.typography.titleLarge)
                 Text(result.reason)
                 if (result.evidence.isNotBlank()) Text(result.evidence)
-                Text("処理時間：${result.elapsedMs / 1000.0}秒")
-                if (result.inputTokens > 0 || result.outputTokens > 0) {
+                Text("判定処理時間：${result.elapsedMs / 1000.0}秒")
+                if (verdictMode != ActivityMode.POSE) {
                     Text("入力：${result.inputTokens} tokens / 出力：${result.outputTokens} tokens")
                     result.estimatedYen?.let { Text("API推定費用：%.3f円".format(it)) }
                 } else Text("端末内判定：API料金0円")

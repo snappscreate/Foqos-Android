@@ -112,7 +112,7 @@ class HomeViewModel @Inject constructor(
                         heatmapDays = buildHeatmap(sessions, now),
                         weeklyAggregation = buildWeekly(sessions, now),
                         monthlyAggregation = buildMonthly(sessions, now),
-                        scheduleOutOfSync = computeScheduleOutOfSync(profiles, activeSession),
+                        scheduleOutOfSync = computeScheduleOutOfSync(profiles, activeSessions),
                     )
                 }
             }
@@ -168,8 +168,8 @@ class HomeViewModel @Inject constructor(
     private fun isLocationEditProtected(profileId: String): Boolean {
         val rule = locationStore.read()
         val inside = locationStore.manualInside() ?: locationStore.lastInside()
-        val current = sessionManager.activeSessions.value.firstOrNull()
-        return rule?.profileId == profileId && inside == true && current?.profileId == profileId
+        val active = sessionManager.activeSessions.value.any { it.profileId == profileId }
+        return rule?.profileId == profileId && inside == true && active
     }
 
     fun duplicateProfile(profileId: String) {
@@ -193,9 +193,10 @@ class HomeViewModel @Inject constructor(
     }
 
     fun deleteProfile(profileId: String) {
+        if (sessionManager.activeSessions.value.any { it.profileId == profileId }) return
         if (isLocationEditProtected(profileId)) return
         viewModelScope.launch {
-            if (!isLocationEditProtected(profileId)) {
+            if (!isLocationEditProtected(profileId) && sessionManager.activeSessions.value.none { it.profileId == profileId }) {
                 profileRepository.delete(profileId)
                 FullScreenModeStore(context).delete(profileId)
                 PeriodicAccessStore(context).delete(profileId)
@@ -214,11 +215,11 @@ class HomeViewModel @Inject constructor(
         _uiState.update { it.copy(permissionsMissing = !hasAccessibility && !hasUsageAccess) }
     }
 
-    private fun computeScheduleOutOfSync(profiles: List<BlockedProfile>, activeSession: BlockedProfileSession?): Boolean {
+    private fun computeScheduleOutOfSync(profiles: List<BlockedProfile>, activeSessions: List<BlockedProfileSession>): Boolean {
         val now = LocalDateTime.now()
         return profiles.any { profile ->
             val schedule = profile.schedule
-            schedule != null && schedule.isConfigured && schedule.isActiveAt(now) && activeSession?.profileId != profile.id
+            schedule != null && schedule.isConfigured && schedule.isActiveAt(now) && activeSessions.none { it.profileId == profile.id }
         }
     }
 

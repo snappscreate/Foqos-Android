@@ -4,6 +4,7 @@ import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.foqos.android.service.location.LocationAutomationStore
 import com.foqos.android.data.model.BlockedProfile
+import com.foqos.android.data.model.PhysicalUnblockType
 import com.foqos.android.data.model.BlockedProfileSession
 import com.foqos.android.data.model.SoftUnblockGrant
 import com.foqos.android.data.model.SoftUnblockSessionState
@@ -45,6 +46,7 @@ import kotlinx.coroutines.launch
 sealed interface PendingStrategyAction {
     data class Start(val profileId: String) : PendingStrategyAction
     data class Stop(val sessionId: String) : PendingStrategyAction
+    data class LocationPause(val sessionId: String) : PendingStrategyAction
 }
 
 /**
@@ -143,6 +145,18 @@ class SessionManager @Inject constructor(
             current.isPauseActive()
         ) return@withContext
         val profile = profileRepository.getById(profileId) ?: return@withContext
+        val strategy = StrategyRegistry.byId(profile.strategyId)
+        if (strategy.usesNfc || strategy.usesQr || profile.physicalUnblockItems.isNotEmpty()) {
+            emitError("一時停止には登録されたNFCまたはQRの認証が必要です")
+            return@withContext
+        }
+        pauseLocationAfterAuthorization(current, profile)
+    }
+
+    private suspend fun pauseLocationAfterAuthorization(
+        current: BlockedProfileSession,
+        profile: BlockedProfile,
+    ) {
         val minutes = if (profile.strategyId ==
             com.foqos.android.domain.strategy.NfcPauseTimerBlockingStrategy.ID
         ) {
@@ -151,6 +165,54 @@ class SessionManager @Inject constructor(
             profile.breakTimeInMinutes.coerceAtLeast(1)
         }
         beginPause(current, minutes)
+    }
+
+    /** Request physical proof before a location-profile pause. */
+    suspend fun requestLocationPauseFromHome(profileId: String) = withContext(ioDispatcher) {
+        val session = _activeSession.value ?: return@withContext
+        if (session.profileId != profileId || session.isPauseActive()) return@withContext
+        if (!locationStoreInside(profileId)) return@withContext
+        val profile = profileRepository.getById(profileId) ?: return@withContext
+        val strategy = StrategyRegistry.byId(profile.strategyId)
+        val physical = profile.physicalUnblockItems
+        when {
+            strategy.usesNfc || physical.any { it.type == PhysicalUnblockType.NFC } ->
+                _uiRequests.emit(StrategyUiRequest.ScanNfc(StrategyUiRequest.Purpose.STOP) to
+                    PendingStrategyAction.LocationPause(session.id))
+            strategy.usesQr || physical.any { it.type == PhysicalUnblockType.QR } ->
+                _uiRequests.emit(StrategyUiRequest.ScanQr(StrategyUiRequest.Purpose.STOP) to
+                    PendingStrategyAction.LocationPause(session.id))
+            else -> pauseLocationAfterAuthorization(session, profile)
+        }
+    }
+
+    /** Verify scanned credentials without invoking a strategy's stop/end-session action. */
+    suspend fun pauseLocationWithVerifiedCode(
+        profileId: String, code: String, type: PhysicalUnblockType,
+    ): Boolean = withContext(ioDispatcher) {
+        val current = _activeSession.value ?: return@withContext false
+        if (current.profileId != profileId || current.isPauseActive() ||
+            !locationStoreInside(profileId)) return@withContext false
+        val profile = profileRepository.getById(profileId) ?: return@withContext false
+        val strategy = StrategyRegistry.byId(profile.strategyId)
+        if (type == PhysicalUnblockType.NFC && !strategy.usesNfc &&
+            profile.physicalUnblockItems.none { it.type == type }) return@withContext false
+        if (type == PhysicalUnblockType.QR && !strategy.usesQr &&
+            profile.physicalUnblockItems.none { it.type == type }) return@withContext false
+        val registered = profile.physicalUnblockItems.filter { it.type == type }
+        val valid = registered.isNotEmpty() && profile.canUnblock(code, type)
+        if (!valid) {
+            emitError("登録されていないNFC・QRコードです")
+            return@withContext false
+        }
+        pauseLocationAfterAuthorization(current, profile)
+        true
+    }
+
+    private fun locationStoreInside(profileId: String): Boolean {
+        val store = LocationAutomationStore(appContext)
+        return store.read()?.profileId == profileId &&
+            (store.manualInside() ?: store.lastInside()) == true
     }
 
     /** Explicit home Stop action for a location-configured profile while outside its area. */
@@ -206,6 +268,16 @@ class SessionManager @Inject constructor(
                 }
                 val strategy = StrategyRegistry.byId(profile.strategyId)
                 strategy.onStartInput(profile, input, this)
+            }
+            is PendingStrategyAction.LocationPause -> {
+                val current = _activeSession.value ?: return
+                if (current.id != action.sessionId) return
+                val scanned = input as? StrategyInput.Code ?: return
+                val type = when (scanned.source) {
+                    StrategyInput.CodeSource.NFC -> PhysicalUnblockType.NFC
+                    StrategyInput.CodeSource.QR -> PhysicalUnblockType.QR
+                }
+                pauseLocationWithVerifiedCode(current.profileId, scanned.value, type)
             }
             is PendingStrategyAction.Stop -> {
                 val session = sessionRepository.getById(action.sessionId) ?: run {

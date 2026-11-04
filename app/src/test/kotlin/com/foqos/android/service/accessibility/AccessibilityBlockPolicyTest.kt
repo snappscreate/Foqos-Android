@@ -169,22 +169,23 @@ class AccessibilityBlockPolicyTest {
             .isEqualTo(BlockDecision.BlockApp("com.example.blocked"))
     }
 
-    @Test fun `periodic access opens and recloses fullscreen focus at boundaries`() {
-        val s = state().copy(
+    @Test fun `periodic break must be manually activated before bypassing fullscreen focus`() {
+        val anchor = 10_000L
+        val activated = anchor + 60 * 60_000L
+        val base = state().copy(
             fullScreenMode = true,
             periodicWaitMinutes = 60,
             periodicAccessMinutes = 5,
-            periodicAnchorEpochMillis = 10_000L,
+            periodicAnchorEpochMillis = anchor,
         )
         val app = "com.example.blocked"
-        assertThat(policy.decideForApp(app, s, nowMillis = 10_000L + 59 * 60_000L))
+        assertThat(policy.decideForApp(app, base, nowMillis = activated + 1_000L))
             .isEqualTo(BlockDecision.BlockApp(app))
-        assertThat(policy.decideForApp(app, s, nowMillis = 10_000L + 60 * 60_000L))
+        val granted = base.copy(periodicActivatedAtEpochMillis = activated)
+        assertThat(policy.decideForApp(app, granted, nowMillis = activated + 1_000L))
             .isEqualTo(BlockDecision.Allow)
-        assertThat(policy.decideForApp(app, s, nowMillis = 10_000L + 65 * 60_000L))
+        assertThat(policy.decideForApp(app, granted, nowMillis = activated + 5 * 60_000L))
             .isEqualTo(BlockDecision.BlockApp(app))
-        assertThat(policy.decideForApp(app, s, nowMillis = 10_000L + 125 * 60_000L))
-            .isEqualTo(BlockDecision.Allow)
     }
 
     // --- Block-list / allow-list -------------------------------------------------------------

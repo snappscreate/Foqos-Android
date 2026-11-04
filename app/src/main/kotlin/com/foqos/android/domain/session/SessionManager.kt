@@ -113,10 +113,29 @@ class SessionManager @Inject constructor(
     private fun periodicAnchor(session: BlockedProfileSession): Long =
         maxOf(session.startTime.toEpochMilli(), session.pauseEndTime?.toEpochMilli() ?: 0L, session.breakEndTime?.toEpochMilli() ?: 0L)
 
+    private fun activatedPeriodicCycle(profileId: String, session: BlockedProfileSession): Long =
+        periodicAccessStore.activatedCycle(profileId, session.id, periodicAnchor(session))
+
     private fun periodicAccessActive(profileId: String, session: BlockedProfileSession, now: Instant): Boolean =
-        PeriodicAccessSchedule.isAccessible(
-            periodicAccessStore.read(profileId), periodicAnchor(session), now.toEpochMilli(),
+        PeriodicAccessSchedule.isActive(
+            periodicAccessStore.read(profileId), periodicAnchor(session),
+            activatedPeriodicCycle(profileId, session), now.toEpochMilli(),
         )
+
+    /** Starts only the currently available recurring break; it never bypasses NFC outside that window. */
+    suspend fun activatePeriodicAccess(profileId: String): Boolean = withContext(ioDispatcher) {
+        val session = _activeSession.value ?: return@withContext false
+        if (session.profileId != profileId || session.isPauseActive()) return@withContext false
+        val now = Instant.now()
+        val config = periodicAccessStore.read(profileId)
+        val anchor = periodicAnchor(session)
+        if (!PeriodicAccessSchedule.isAccessible(config, anchor, now.toEpochMilli())) return@withContext false
+        val cycle = PeriodicAccessSchedule.cycleIndex(config, anchor, now.toEpochMilli())
+        periodicAccessStore.activate(profileId, session.id, anchor, cycle)
+        blockingStateHolder.setPeriodicActivatedCycle(cycle)
+        schedulePeriodicAccess(profileId, session, now)
+        true
+    }
 
     private fun schedulePeriodicAccess(
         profileId: String, session: BlockedProfileSession, now: Instant = Instant.now(),
@@ -653,6 +672,7 @@ class SessionManager @Inject constructor(
                 breakActive = session.isBreakActive(now),
                 pauseActive = session.isPauseActive(now),
                 periodicAccessActive = periodicAccessActive(profile.id, session, now),
+                periodicActivatedCycle = activatedPeriodicCycle(profile.id, session),
                 periodicWaitMinutes = periodicAccessStore.read(profile.id).waitMinutes,
                 periodicAccessMinutes = periodicAccessStore.read(profile.id).accessMinutes,
                 periodicAnchorEpochMillis = periodicAnchor(session),
@@ -706,6 +726,7 @@ class SessionManager @Inject constructor(
                 breakActive = session.isBreakActive(now),
                 pauseActive = session.isPauseActive(now),
                 periodicAccessActive = periodicAccessActive(profile.id, session, now),
+                periodicActivatedCycle = activatedPeriodicCycle(profile.id, session),
                 periodicWaitMinutes = periodicAccessStore.read(profile.id).waitMinutes,
                 periodicAccessMinutes = periodicAccessStore.read(profile.id).accessMinutes,
                 periodicAnchorEpochMillis = periodicAnchor(session),
@@ -898,6 +919,7 @@ class SessionManager @Inject constructor(
                 breakActive = false,
                 pauseActive = false,
                 periodicAccessActive = periodicAccessActive(profile.id, session, Instant.now()),
+                periodicActivatedCycle = activatedPeriodicCycle(profile.id, session),
                 periodicWaitMinutes = periodicAccessStore.read(profile.id).waitMinutes,
                 periodicAccessMinutes = periodicAccessStore.read(profile.id).accessMinutes,
                 periodicAnchorEpochMillis = periodicAnchor(session),

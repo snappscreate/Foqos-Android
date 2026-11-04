@@ -66,36 +66,32 @@ class UsageStatsPoller @Inject constructor(
 
     private fun pollOnce() {
         val packageName = mostRecentForegroundPackage() ?: return
-        val snapshot = blockingStateHolder.state.value
-        val state = snapshot?.let { current ->
-            val store = FullScreenModeStore(context)
-            if (store.enabled(current.profileId)) {
-                val browser = store.launchedBrowserPackage(current.profileId)
-                    ?: DefaultBrowserResolver.packageName(context)
-                current.copy(
-                    fullScreenMode = true,
-                    fullScreenAllowedPackages = store.allowedPackages(current.profileId),
-                    fullScreenAllowedUrls = store.allowedUrls(current.profileId),
-                    fullScreenBrowserPackage = browser,
-                    fullScreenBrowserStartupUntil = browser?.let {
-                        store.browserStartupUntil(current.profileId, it)
-                    } ?: 0L,
-                )
-            } else current
-        }
-        // Location status is the authority. Persisted session snapshots can lag behind
-        // a geofence transition, especially after process restoration.
+        val store = FullScreenModeStore(context)
         val location = LocationAutomationStore(context)
         val rule = location.read()
-        val effectiveState = state?.copy(
-            locationSuspended = state.locationSuspended ||
-                (rule?.profileId == state.profileId &&
-                    (location.manualInside() ?: location.lastInside()) == false),
-        )
+        val effectiveStates = blockingStateHolder.states.value.values.map { current ->
+            val browser = store.launchedBrowserPackage(current.profileId)
+                ?: DefaultBrowserResolver.packageName(context)
+            val configured = if (store.enabled(current.profileId)) current.copy(
+                fullScreenMode = true,
+                fullScreenAllowedPackages = store.allowedPackages(current.profileId),
+                fullScreenAllowedUrls = store.allowedUrls(current.profileId),
+                fullScreenBrowserPackage = browser,
+                fullScreenBrowserStartupUntil = browser?.let {
+                    store.browserStartupUntil(current.profileId, it)
+                } ?: 0L,
+            ) else current
+            configured.copy(
+                locationSuspended = configured.locationSuspended ||
+                    (rule?.profileId == configured.profileId &&
+                        (location.manualInside() ?: location.lastInside()) == false),
+            )
+        }
         val neverBlock = AccessibilityBlockPolicy.neverBlockWithLauncher(currentLauncherPackageName())
-
-        // No URL detection in fallback mode - always decide at the app level, even for browsers.
-        val decision = blockPolicy.decideForApp(packageName, effectiveState, neverBlockPackages = neverBlock)
+        // The fallback has no URL bar access; it still merges every app-level restriction.
+        val decision = blockPolicy.decideForAppAcrossProfiles(
+            packageName, effectiveStates, neverBlockPackages = neverBlock,
+        )
         when (decision) {
             BlockDecision.Allow -> Unit
             is BlockDecision.BlockApp -> maybeLaunchOverlay(decision.packageName, domain = null)

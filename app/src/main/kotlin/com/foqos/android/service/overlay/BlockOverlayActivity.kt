@@ -363,7 +363,9 @@ class BlockOverlayActivity : ComponentActivity() {
     private suspend fun processNfcCode(code: String) {
         val session = sessionManager.activeSession.value ?: return
         val profile = profileRepository.getById(session.profileId) ?: return
-        if (!StrategyRegistry.byId(profile.strategyId).usesNfc) return
+        if (!StrategyRegistry.byId(profile.strategyId).usesNfc &&
+            !(intent.getBooleanExtra(EXTRA_LOCATION_PAUSE_REQUEST, false) &&
+                profile.physicalUnblockItems.any { it.type == PhysicalUnblockType.NFC })) return
         // Never silently accept unknown NFC codes, even on location-started sessions.
         val registered = profile.physicalUnblockItems.filter { it.type == PhysicalUnblockType.NFC }
         val requiresRegistration = session.tag == SessionManager.LOCATION_SESSION_TAG ||

@@ -164,7 +164,7 @@ class BlockOverlayActivity : ComponentActivity() {
                     state?.sessionId, targetPackage, shieldResumed,
                     showFeaturedPicker, showAllowedApps, launchableFeatured,
                 ) {
-                    autoOpenCountdown = 10
+                    // Preserve remaining seconds while panels are open; resume on close.
                     if (!fullScreen || !shieldResumed || locationPauseRequest ||
                         showFeaturedPicker || showAllowedApps || launchableFeatured.isEmpty()) {
                         return@LaunchedEffect
@@ -309,7 +309,23 @@ class BlockOverlayActivity : ComponentActivity() {
                             urls = allowedUrls,
                             featuredPackages = featuredPackages,
                             autoOpenSeconds = if (shieldResumed && !showFeaturedPicker && launchableFeatured.isNotEmpty()) autoOpenCountdown else null,
-                            onEditFeatured = { showFeaturedPicker = true },
+                            editingFeatured = showFeaturedPicker,
+                            onEditFeatured = {
+                                showFeaturedPicker = !showFeaturedPicker
+                                if (showFeaturedPicker) showAllowedApps = false
+                            },
+                            onFeaturedChange = { selected ->
+                                val profileId = state?.profileId
+                                if (profileId != null) {
+                                    fullScreenStore.saveFeaturedPackages(profileId, selected)
+                                    featuredPackages = fullScreenStore.featuredPackages(profileId)
+                                }
+                            },
+                            allowedAppsExpanded = showAllowedApps,
+                            onToggleAllowedApps = {
+                                showAllowedApps = !showAllowedApps
+                                if (showAllowedApps) showFeaturedPicker = false
+                            },
                             appLabel = { pkg ->
                                 runCatching {
                                     val info = packageManager.getApplicationInfo(pkg, 0)
@@ -366,65 +382,6 @@ class BlockOverlayActivity : ComponentActivity() {
                         }
                     },
                 )
-
-                if (showFeaturedPicker && state?.profileId != null && fullScreen) {
-                    val profileId = state?.profileId ?: ""
-                    AlertDialog(
-                        onDismissRequest = { showFeaturedPicker = false },
-                        title = { Text("おすすめアプリを選択") },
-                        text = {
-                            FeaturedAppsEditor(
-                                allowed = allowedPackages,
-                                featured = featuredPackages,
-                                labelFor = { pkg ->
-                                    runCatching {
-                                        val info = packageManager.getApplicationInfo(pkg, 0)
-                                        packageManager.getApplicationLabel(info).toString()
-                                    }.getOrDefault(pkg)
-                                },
-                                onFeaturedChange = { selected ->
-                                    fullScreenStore.saveFeaturedPackages(profileId, selected)
-                                    featuredPackages = fullScreenStore.featuredPackages(profileId)
-                                },
-                            )
-                        },
-                        confirmButton = {
-                            TextButton(onClick = { showFeaturedPicker = false }) { Text("完了") }
-                        },
-                    )
-                }
-
-                if (showAllowedApps) {
-                    AlertDialog(
-                        onDismissRequest = { showAllowedApps = false },
-                        title = { Text("許可したアプリ") },
-                        text = {
-                            androidx.compose.foundation.lazy.LazyColumn(
-                                modifier = Modifier.heightIn(max = 360.dp),
-                            ) {
-                                items(allowedPackages.toList().sorted()) { pkg ->
-                                    val label = rememberAppLabel(pkg)
-                                    TextButton(onClick = {
-                                        showAllowedApps = false
-                                        val launch = packageManager.getLaunchIntentForPackage(pkg)
-                                        if (launch != null) {
-                                            startActivity(launch)
-                                            finish()
-                                        } else {
-                                            nfcScanMessage = "アプリを起動できませんでした：$pkg"
-                                        }
-                                    }) { Text(label) }
-                                }
-                                if (allowedPackages.isEmpty()) {
-                                    item { Text("許可アプリが登録されていません") }
-                                }
-                            }
-                        },
-                        confirmButton = {
-                            TextButton(onClick = { showAllowedApps = false }) { Text("閉じる") }
-                        },
-                    )
-                }
 
                 BackHandler { if (!fullScreen) finishAndGoHome() }
             }

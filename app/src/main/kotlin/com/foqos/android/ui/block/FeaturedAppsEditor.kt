@@ -94,8 +94,8 @@ private fun DragAppRows(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        packages.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+        packages.chunked(5).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 row.forEach { pkg ->
                     DragAppIcon(pkg, labelFor(pkg)) { position -> onDrop(pkg, position) }
                 }
@@ -116,7 +116,7 @@ private fun DragAppIcon(
     var dragging by remember(packageName) { mutableStateOf(false) }
     Column(
         modifier = Modifier
-            .size(width = 112.dp, height = 84.dp)
+            .size(width = 56.dp, height = 76.dp)
             .zIndex(if (dragging) 5f else 0f)
             .offset { IntOffset(translation.x.roundToInt(), translation.y.roundToInt()) }
             .onGloballyPositioned {
@@ -157,8 +157,8 @@ private fun DragAppIcon(
                     }.getOrNull())
                 }
             },
-            modifier = Modifier.size(48.dp),
+            modifier = Modifier.size(36.dp),
         )
-        Text(label, maxLines = 1, style = MaterialTheme.typography.labelSmall)
+        Text(label, maxLines = 2, style = MaterialTheme.typography.labelSmall)
     }
 }

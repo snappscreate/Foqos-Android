@@ -32,15 +32,18 @@ class GeofenceTransitionReceiver : BroadcastReceiver() {
             else -> return
         }
         val store = LocationAutomationStore(context)
-        val rule = store.read() ?: return
-        if (event.triggeringGeofences.orEmpty().none { it.requestId == rule.profileId }) return
+        val profileIds = event.triggeringGeofences.orEmpty().map { it.requestId }
+            .filter { store.read(it) != null }.distinct()
+        if (profileIds.isEmpty()) return
         val pending = goAsync()
         scope.launch {
             try {
-                // A real transition supersedes the developer override, not a GPS poll.
-                store.clearManualInside()
-                store.setLastInside(inside)
-                sessionManager.onLocationTransition(rule.profileId, inside)
+                profileIds.forEach { profileId ->
+                    // Each geofence transition changes only its owning profile.
+                    store.clearManualInside(profileId)
+                    store.setLastInside(profileId, inside)
+                    sessionManager.onLocationTransition(profileId, inside)
+                }
             } catch (error: Exception) {
                 Log.e(TAG, "Location transition failed", error)
             } finally {

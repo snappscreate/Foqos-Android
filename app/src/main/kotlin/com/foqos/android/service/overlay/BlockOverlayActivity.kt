@@ -375,7 +375,7 @@ class BlockOverlayActivity : ComponentActivity() {
         }
         // Home-initiated location pause must never invoke the strategy's stop action,
         // because some strategies would terminate the entire session.
-        if (locationPauseRequest) {
+        if (intent.getBooleanExtra(EXTRA_LOCATION_PAUSE_REQUEST, false)) {
             val allowed = sessionManager.pauseLocationWithVerifiedCode(
                 profile.id, code, PhysicalUnblockType.NFC,
             )

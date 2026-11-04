@@ -1,6 +1,8 @@
 package com.foqos.android.service.accessibility
 
 import com.foqos.android.service.session.BlockingState
+import com.foqos.android.service.session.PeriodicAccessSchedule
+import com.foqos.android.service.session.PeriodicAccessStore
 import java.net.URI
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -58,7 +60,12 @@ class AccessibilityBlockPolicy @Inject constructor() {
             if (state.blockAppInstallation && packageName in PACKAGE_INSTALLER_PACKAGES) {
                 return BlockDecision.RedirectAway(StrictModeReason.UNINSTALL)
             }
-            if (state.pauseActive || state.breakActive) return BlockDecision.Allow
+            val periodicAllowed = PeriodicAccessSchedule.isAccessible(
+                        PeriodicAccessStore.Config(state.periodicWaitMinutes, state.periodicAccessMinutes),
+                        state.periodicAnchorEpochMillis,
+                        nowMillis,
+                    )
+            if (state.pauseActive || state.breakActive || periodicAllowed) return BlockDecision.Allow
             if (packageName in state.fullScreenAllowedPackages) return BlockDecision.Allow
             // A default browser may only open approved URLs. Initial navigation briefly
             // lacks an address-bar host, so permit only its startup grace window.
@@ -81,7 +88,12 @@ class AccessibilityBlockPolicy @Inject constructor() {
             return BlockDecision.RedirectAway(StrictModeReason.UNINSTALL)
         }
 
-        if (state.breakActive || state.pauseActive) return BlockDecision.Allow
+        val periodicAllowed = PeriodicAccessSchedule.isAccessible(
+                    PeriodicAccessStore.Config(state.periodicWaitMinutes, state.periodicAccessMinutes),
+                    state.periodicAnchorEpochMillis,
+                    nowMillis,
+                )
+        if (state.breakActive || state.pauseActive || periodicAllowed) return BlockDecision.Allow
 
         val grantExpiry = state.activeGrants[packageName]
         if (grantExpiry != null && grantExpiry > nowMillis) return BlockDecision.Allow
@@ -105,6 +117,10 @@ class AccessibilityBlockPolicy @Inject constructor() {
         if (state?.fullScreenMode == true && (state.pauseActive || state.breakActive))
             return BlockDecision.Allow
         if (state?.locationSuspended == true) return BlockDecision.Allow
+        if (state != null && PeriodicAccessSchedule.isAccessible(
+                PeriodicAccessStore.Config(state.periodicWaitMinutes, state.periodicAccessMinutes),
+                state.periodicAnchorEpochMillis, nowMillis,
+            )) return BlockDecision.Allow
         val appDecision = decideForApp(packageName, state, nowMillis, neverBlockPackages)
         val restrictedBrowser = state?.fullScreenMode == true &&
             packageName == state.fullScreenBrowserPackage &&

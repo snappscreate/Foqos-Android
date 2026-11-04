@@ -36,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
@@ -88,12 +89,14 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
     var verdict by remember { mutableStateOf<ActivityVerdict?>(null) }
     var cameraReady by remember { mutableStateOf(false) }
     var captureJob by remember { mutableStateOf<Job?>(null) }
+    val latestFiles by rememberUpdatedState(files)
+    val latestJob by rememberUpdatedState(captureJob)
 
     DisposableEffect(camera) {
         onDispose {
-            captureJob?.cancel()
+            latestJob?.cancel()
             camera.close()
-            files.forEach { it.delete() }
+            latestFiles.forEach { it.delete() }
         }
     }
     LaunchedEffect(granted, front, owner) {
@@ -186,9 +189,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
             if (busy) {
                 OutlinedButton(onClick = {
                     captureJob?.cancel()
-                    camera.close()
-                    cameraReady = false
-                    status = "中止したよ。画面を開き直して再開してね。"
+                    status = "中止したよ。再度撮影できる。"
                     busy = false
                 }) { Text("撮影・判定を中止") }
             } else {
@@ -216,12 +217,13 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                                         emptyList(), video, interval)
                                 } else {
                                     val total = photoCount
+                                    val actualInterval = (duration * 1000L / total).coerceAtLeast(interval)
                                     for (i in 0 until total) {
                                         status = "撮影中：${i + 1}/${total}枚"
                                         val frame = camera.captureFile()
                                         captures.add(frame)
                                         files = captures.toList()
-                                        if (i < total - 1) delay(interval)
+                                        if (i < total - 1) delay(actualInterval)
                                     }
                                     status = "画像を分析中..."
                                     if (mode == ActivityMode.POSE) {
@@ -229,7 +231,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                                     } else {
                                         ActivityGeminiRelay.judge(
                                             endpoint.trim(), token.trim(), activity, "photos",
-                                            captures, null, interval)
+                                            captures, null, actualInterval)
                                     }
                                 }
                                 verdict = result.copy(elapsedMs = SystemClock.elapsedRealtime() - started)
@@ -254,7 +256,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                 Text(result.reason)
                 if (result.evidence.isNotBlank()) Text(result.evidence)
                 Text("処理時間：${result.elapsedMs / 1000.0}秒")
-                if (mode != ActivityMode.POSE) {
+                if (result.inputTokens > 0 || result.outputTokens > 0) {
                     Text("入力：${result.inputTokens} tokens / 出力：${result.outputTokens} tokens")
                     result.estimatedYen?.let { Text("API推定費用：%.3f円".format(it)) }
                 } else Text("端末内判定：API料金0円")

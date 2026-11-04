@@ -65,6 +65,8 @@ import com.foqos.android.domain.session.SessionManager
 import com.foqos.android.domain.strategy.NfcSoftUnblockBlockingStrategy
 import com.foqos.android.domain.strategy.QrSoftUnblockBlockingStrategy
 import com.foqos.android.service.session.BlockingStateHolder
+import com.foqos.android.service.accessibility.AccessibilityBlockPolicy
+import com.foqos.android.service.accessibility.BlockDecision
 import com.foqos.android.service.session.PeriodicAccessSchedule
 import com.foqos.android.service.session.PeriodicAccessStore
 import com.foqos.android.ui.common.DeveloperUiVisibility
@@ -93,6 +95,7 @@ import kotlinx.coroutines.delay
 class BlockOverlayActivity : ComponentActivity() {
 
     @Inject lateinit var blockingStateHolder: BlockingStateHolder
+    @Inject lateinit var blockPolicy: AccessibilityBlockPolicy
 
     @Inject lateinit var profileRepository: ProfileRepository
 
@@ -132,9 +135,26 @@ class BlockOverlayActivity : ComponentActivity() {
 
         setContent {
             FoqosTheme {
-                val state by blockingStateHolder.state.collectAsStateWithLifecycle()
-                val scope = rememberCoroutineScope()
+                val allStates by blockingStateHolder.states.collectAsStateWithLifecycle()
                 val fullScreenStore = remember { FullScreenModeStore(this@BlockOverlayActivity) }
+                val requestedProfileId = intent.getStringExtra(EXTRA_PROFILE_ID)
+                val candidates = allStates.values.map { entry ->
+                    if (fullScreenStore.enabled(entry.profileId)) {
+                        entry.copy(
+                            fullScreenMode = true,
+                            fullScreenAllowedPackages = fullScreenStore.allowedPackages(entry.profileId),
+                            fullScreenAllowedUrls = fullScreenStore.allowedUrls(entry.profileId),
+                        )
+                    } else entry
+                }
+                val state = candidates.firstOrNull { requestedProfileId == it.profileId }
+                    ?: candidates.firstOrNull { entry ->
+                        val decision = if (targetDomain != null) {
+                            blockPolicy.decideForUrl(targetPackage, "https://$targetDomain", entry)
+                        } else blockPolicy.decideForApp(targetPackage, entry)
+                        decision != BlockDecision.Allow
+                    } ?: candidates.firstOrNull()
+                val scope = rememberCoroutineScope()
                 val locationStore = remember { LocationAutomationStore(this@BlockOverlayActivity) }
                 val locationStatus by remember { locationStore.observeState() }
                     .collectAsStateWithLifecycle(
@@ -249,7 +269,17 @@ class BlockOverlayActivity : ComponentActivity() {
                         current.periodicAnchorEpochMillis, current.periodicActivatedAtEpochMillis, periodicNow,
                     )
                     if (current.pauseActive || current.breakActive || periodicOpen || current.locationSuspended || outside) {
-                        if (fullScreen) finishAndGoHome() else finish()
+                        // Another profile may still block this target. Re-select it instead
+                        // of dismissing the entire shield after this profile pauses.
+                        val stillBlocked = candidates.any { candidate ->
+                            val candidateDecision = if (targetDomain != null)
+                                blockPolicy.decideForUrl(targetPackage, "https://$targetDomain", candidate, periodicNow)
+                            else blockPolicy.decideForApp(targetPackage, candidate, periodicNow)
+                            candidateDecision != BlockDecision.Allow
+                        }
+                        if (!stillBlocked) {
+                            if (fullScreen) finishAndGoHome() else finish()
+                        }
                         return@LaunchedEffect
                     }
                     val grantExpiry = current.activeGrants[targetPackage]
@@ -554,6 +584,7 @@ class BlockOverlayActivity : ComponentActivity() {
         const val EXTRA_PACKAGE_NAME = "com.foqos.android.extra.BLOCKED_PACKAGE_NAME"
         const val EXTRA_DOMAIN = "com.foqos.android.extra.BLOCKED_DOMAIN"
         const val EXTRA_LOCATION_PAUSE_REQUEST = "com.foqos.android.extra.LOCATION_PAUSE_REQUEST"
+        const val EXTRA_PROFILE_ID = "com.foqos.android.extra.PROFILE_ID"
 
         private val SOFT_UNBLOCK_STRATEGY_IDS = setOf(
             NfcSoftUnblockBlockingStrategy.ID,

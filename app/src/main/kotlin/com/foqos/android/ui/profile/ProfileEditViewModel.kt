@@ -21,6 +21,7 @@ import com.foqos.android.service.alarm.AlarmActivityType
 import com.foqos.android.service.alarm.FoqosAlarmScheduler
 import com.foqos.android.service.nfc.NfcForegroundDispatchManager
 import com.foqos.android.service.session.FullScreenModeStore
+import com.foqos.android.service.session.PeriodicAccessStore
 import com.foqos.android.ui.navigation.Routes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -73,9 +74,13 @@ class ProfileEditViewModel @Inject constructor(
         val fullScreenEnabled: Boolean = false,
         val fullScreenAllowedPackages: Set<String> = emptySet(),
         val fullScreenAllowedUrls: Set<String> = emptySet(),
+        val periodicAccessEnabled: Boolean = false,
+        val periodicWaitMinutes: Int = 60,
+        val periodicAccessMinutes: Int = 5,
     )
 
     private val fullScreenStore = FullScreenModeStore(context)
+    private val periodicStore = PeriodicAccessStore(context)
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -93,6 +98,9 @@ class ProfileEditViewModel @Inject constructor(
                     it.copy(
                         loading = false, draft = existing, isPersisted = true,
                         scheduleEnabled = existing.schedule?.isConfigured == true,
+                        periodicAccessEnabled = periodicStore.read(existing.id).enabled,
+                        periodicWaitMinutes = periodicStore.read(existing.id).waitMinutes.takeIf { it > 0 } ?: 60,
+                        periodicAccessMinutes = periodicStore.read(existing.id).accessMinutes.takeIf { it > 0 } ?: 5,
                         fullScreenEnabled = fullScreenStore.enabled(existing.id),
                         fullScreenAllowedPackages = fullScreenStore.allowedPackages(existing.id),
                         // One shared website whitelist across both modes. Prefer the persisted
@@ -297,6 +305,18 @@ class ProfileEditViewModel @Inject constructor(
         guardedUpdate { it.copy(draft = it.draft.copy(enableEmergencyUnblock = enabled)) }
     }
 
+    fun setPeriodicAccessEnabled(enabled: Boolean) {
+        guardedUpdate { it.copy(periodicAccessEnabled = enabled) }
+    }
+
+    fun setPeriodicWaitMinutes(minutes: Int) {
+        guardedUpdate { it.copy(periodicWaitMinutes = minutes.coerceIn(1, 1440)) }
+    }
+
+    fun setPeriodicAccessMinutes(minutes: Int) {
+        guardedUpdate { it.copy(periodicAccessMinutes = minutes.coerceIn(1, 1440)) }
+    }
+
     // --- Save / delete ------------------------------------------------------------------------
 
     fun save() {
@@ -332,6 +352,9 @@ class ProfileEditViewModel @Inject constructor(
             val saved = if (!current.isPersisted) profileRepository.create(toSave) else profileRepository.saveEditorDraft(toSave)
             fullScreenStore.save(saved.id, current.fullScreenEnabled, current.fullScreenAllowedPackages)
             fullScreenStore.saveUrls(saved.id, current.fullScreenAllowedUrls)
+            periodicStore.save(saved.id, if (current.periodicAccessEnabled) {
+                PeriodicAccessStore.Config(current.periodicWaitMinutes, current.periodicAccessMinutes)
+            } else PeriodicAccessStore.Config())
 
             if (saved.schedule?.isConfigured == true) {
                 alarmScheduler.scheduleWeeklySchedule(saved)

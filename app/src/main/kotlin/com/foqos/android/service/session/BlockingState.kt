@@ -27,6 +27,7 @@ data class BlockingState(
     val breakActive: Boolean = false,
     val pauseActive: Boolean = false,
     val periodicAccessActive: Boolean = false,
+    val periodicActivatedCycle: Long = -1L,
     val periodicWaitMinutes: Int = 0,
     val periodicAccessMinutes: Int = 0,
     val periodicAnchorEpochMillis: Long = 0L,

@@ -123,7 +123,7 @@ private val STRATEGY_ONE_LINERS: Map<String, String> = mapOf(
     ManualBlockingStrategy.ID to
         "アプリの開始・停止ボタンで操作。読み取り不要。",
     TimerManualBlockingStrategy.ID to
-        "Tap Start and pick a duration - the session ends automatically when time's up, or tap Stop to end it early.",
+        "開始時に時間を指定。設定時間で自動停止し、途中停止も可能。",
     NfcBlockingStrategy.ID to
         "NFCタグで開始。登録されたタグを読み取ると停止。",
     NfcManualBlockingStrategy.ID to

@@ -69,7 +69,7 @@ import com.foqos.android.service.session.PeriodicAccessSchedule
 import com.foqos.android.service.session.PeriodicAccessStore
 import com.foqos.android.ui.common.DeveloperUiVisibility
 import com.foqos.android.ui.block.BlockScreenContent
-import com.foqos.android.ui.block.FeaturedAppsEditor
+import com.foqos.android.ui.block.FocusShortcut
 import com.foqos.android.ui.block.FullScreenShortcutGrid
 import com.foqos.android.ui.block.SoftUnblockInfo
 import com.foqos.android.ui.theme.FoqosTheme
@@ -147,15 +147,56 @@ class BlockOverlayActivity : ComponentActivity() {
                 val allowedUrls = state?.profileId?.let(fullScreenStore::allowedUrls).orEmpty()
                 var showAllowedApps by remember { mutableStateOf(false) }
                 var showFeaturedPicker by remember { mutableStateOf(false) }
-                var featuredPackages by remember(state?.profileId, allowedPackages) {
-                    mutableStateOf(
-                        state?.profileId?.let(fullScreenStore::featuredPackages).orEmpty()
-                            .intersect(allowedPackages)
-                    )
+                var featuredShortcuts by remember(state?.profileId, allowedPackages, allowedUrls) {
+                    mutableStateOf(state?.profileId?.let(fullScreenStore::featuredShortcuts).orEmpty())
                 }
-                // Only installed, launchable, already-allowlisted apps may auto-open.
-                val launchableFeatured = featuredPackages.intersect(allowedPackages).filter { pkg ->
-                    packageManager.getLaunchIntentForPackage(pkg) != null
+                // A featured URL must still be allowed, and phone is always safe to launch.
+                val availableShortcuts = FocusShortcut.all(allowedPackages, allowedUrls)
+                val launchableFeatured = featuredShortcuts.intersect(availableShortcuts).filter { id ->
+                    when {
+                        id == FocusShortcut.PHONE -> true
+                        id.startsWith(FocusShortcut.URL_PREFIX) ->
+                            DefaultBrowserResolver.packageName(this@BlockOverlayActivity) != null
+                        id.startsWith(FocusShortcut.APP_PREFIX) ->
+                            packageManager.getLaunchIntentForPackage(
+                                id.removePrefix(FocusShortcut.APP_PREFIX)
+                            ) != null
+                        else -> false
+                    }
+                }
+                fun openApprovedUrl(url: String) {
+                    val profileId = state?.profileId
+                    val resolved = DefaultBrowserResolver.packageName(this@BlockOverlayActivity)
+                    if (profileId == null || resolved == null || url !in allowedUrls) {
+                        nfcScanMessage = "許可されたURLを開けませんでした"
+                        return
+                    }
+                    val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        .addCategory(Intent.CATEGORY_BROWSABLE)
+                        .setPackage(resolved)
+                    fullScreenStore.grantBrowserStartup(profileId, resolved)
+                    runCatching { startActivity(browserIntent); finish() }
+                        .onFailure { nfcScanMessage = "ブラウザを起動できませんでした" }
+                }
+                fun openShortcut(id: String) {
+                    when {
+                        id == FocusShortcut.PHONE -> {
+                            runCatching {
+                                startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:")))
+                                finish()
+                            }.onFailure { nfcScanMessage = "電話を起動できませんでした" }
+                        }
+                        id.startsWith(FocusShortcut.URL_PREFIX) ->
+                            openApprovedUrl(id.removePrefix(FocusShortcut.URL_PREFIX))
+                        id.startsWith(FocusShortcut.APP_PREFIX) -> {
+                            val pkg = id.removePrefix(FocusShortcut.APP_PREFIX)
+                            if (pkg !in allowedPackages) return
+                            val launch = packageManager.getLaunchIntentForPackage(pkg)
+                            if (launch != null) runCatching {
+                                startActivity(launch); finish()
+                            }.onFailure { nfcScanMessage = "アプリを起動できませんでした" }
+                        }
+                    }
                 }
                 var autoOpenCountdown by remember(state?.sessionId, targetPackage) {
                     mutableIntStateOf(10)
@@ -174,18 +215,12 @@ class BlockOverlayActivity : ComponentActivity() {
                         autoOpenCountdown -= 1
                     }
                     val selection = launchableFeatured.randomOrNull() ?: return@LaunchedEffect
-                    // Recheck the whitelist right before launching in case its config changed.
                     val profileId = state?.profileId ?: return@LaunchedEffect
-                    if (selection !in fullScreenStore.allowedPackages(profileId)) return@LaunchedEffect
-                    val launch = packageManager.getLaunchIntentForPackage(selection)
-                    if (launch != null) {
-                        runCatching {
-                            startActivity(launch)
-                            finish()
-                        }.onFailure {
-                            nfcScanMessage = "おすすめアプリを起動できませんでした"
-                        }
-                    }
+                    if (selection !in fullScreenStore.featuredShortcuts(profileId)) return@LaunchedEffect
+                    if (!FocusShortcut.valid(selection,
+                            fullScreenStore.allowedPackages(profileId),
+                            fullScreenStore.allowedUrls(profileId))) return@LaunchedEffect
+                    openShortcut(selection)
                 }
 
                 var periodicNow by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -307,7 +342,7 @@ class BlockOverlayActivity : ComponentActivity() {
                         FullScreenShortcutGrid(
                             packages = allowedPackages,
                             urls = allowedUrls,
-                            featuredPackages = featuredPackages,
+                            featuredShortcuts = featuredShortcuts,
                             autoOpenSeconds = if (shieldResumed && !showFeaturedPicker && launchableFeatured.isNotEmpty()) autoOpenCountdown else null,
                             editingFeatured = showFeaturedPicker,
                             onEditFeatured = {
@@ -317,8 +352,8 @@ class BlockOverlayActivity : ComponentActivity() {
                             onFeaturedChange = { selected ->
                                 val profileId = state?.profileId
                                 if (profileId != null) {
-                                    fullScreenStore.saveFeaturedPackages(profileId, selected)
-                                    featuredPackages = fullScreenStore.featuredPackages(profileId)
+                                    fullScreenStore.saveFeaturedShortcuts(profileId, selected)
+                                    featuredShortcuts = fullScreenStore.featuredShortcuts(profileId)
                                 }
                             },
                             allowedAppsExpanded = showAllowedApps,
@@ -332,42 +367,9 @@ class BlockOverlayActivity : ComponentActivity() {
                                     packageManager.getApplicationLabel(info).toString()
                                 }.getOrDefault(pkg)
                             },
-                            onPhone = {
-                                val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:"))
-                                runCatching {
-                                    startActivity(dialIntent)
-                                    finish()
-                                }.onFailure {
-                                    nfcScanMessage = "電話アプリを起動できませんでした"
-                                }
-                            },
-                            onApp = { pkg ->
-                                val launch = packageManager.getLaunchIntentForPackage(pkg)
-                                if (launch != null) {
-                                    startActivity(launch)
-                                    finish()
-                                } else nfcScanMessage = "アプリを起動できませんでした"
-                            },
-                            onUrl = { url ->
-                                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                    .addCategory(Intent.CATEGORY_BROWSABLE)
-                                val resolvedPackage = DefaultBrowserResolver.packageName(this@BlockOverlayActivity)
-                                val profileId = state?.profileId
-                                if (profileId == null || resolvedPackage == null) {
-                                    nfcScanMessage = "ブラウザを特定できません。Android設定で標準ブラウザを選択してください"
-                                } else {
-                                    browserIntent.setPackage(resolvedPackage)
-                                    // Register the concrete browser package *before* launching.
-                                    // This is what the accessibility policy checks while loading.
-                                    fullScreenStore.grantBrowserStartup(profileId, resolvedPackage)
-                                    runCatching {
-                                        startActivity(browserIntent)
-                                        finish()
-                                    }.onFailure {
-                                        nfcScanMessage = "ブラウザを起動できませんでした"
-                                    }
-                                }
-                            },
+                            onPhone = { openShortcut(FocusShortcut.PHONE) },
+                            onApp = { pkg -> openShortcut(FocusShortcut.app(pkg)) },
+                            onUrl = { url -> openShortcut(FocusShortcut.url(url)) },
                         )
                     }) else null,
                     onOpenAllowedApps = null,

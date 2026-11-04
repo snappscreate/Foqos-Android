@@ -17,6 +17,12 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 
 /**
  * Accessibility services are instantiated by the system, not Hilt, so they can't use
@@ -49,6 +55,8 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
     private lateinit var blockPolicy: AccessibilityBlockPolicy
     private lateinit var sessionManager: SessionManager
     private var connected = false
+    private val observerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var lastPeriodicAccessActive: Boolean? = null
     private var lastLoggedSettingsClass: String? = null
     private var lastLoggedSettingsProbe: String? = null
 
@@ -62,6 +70,26 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
         blockPolicy = entryPoint.blockPolicy()
         sessionManager = entryPoint.sessionManager()
         connected = true
+        // Timed access may end without any new foreground app event.
+        observerScope.launch {
+            blockingStateHolder.state.collect { current ->
+                val shouldRecheck = lastPeriodicAccessActive == true &&
+                    current != null && !current.periodicAccessActive
+                lastPeriodicAccessActive = current?.periodicAccessActive
+                if (shouldRecheck) {
+                    val packageName = rootInActiveWindow?.packageName?.toString()
+                    if (!packageName.isNullOrBlank()) {
+                        val event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED)
+                        try {
+                            event.packageName = packageName
+                            onAccessibilityEvent(event)
+                        } finally {
+                            event.recycle()
+                        }
+                    }
+                }
+            }
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -285,6 +313,12 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
     private fun currentLauncherPackageName(): String? {
         val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
         return packageManager.resolveActivity(homeIntent, 0)?.activityInfo?.packageName
+    }
+
+    override fun onDestroy() {
+        observerScope.cancel()
+        connected = false
+        super.onDestroy()
     }
 
     override fun onInterrupt() = Unit

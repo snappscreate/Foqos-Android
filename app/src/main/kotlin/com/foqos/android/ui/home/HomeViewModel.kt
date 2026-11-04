@@ -20,6 +20,7 @@ import com.foqos.android.domain.insights.WeeklySessionInterval
 import com.foqos.android.domain.session.SessionManager
 import com.foqos.android.BuildConfig
 import com.foqos.android.service.location.LocationAutomationStore
+import com.foqos.android.service.location.GeofenceManager
 import com.foqos.android.service.location.LocationRule
 import com.foqos.android.service.session.FullScreenModeStore
 import com.foqos.android.service.session.PeriodicAccessStore
@@ -209,6 +210,10 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             if (!isLocationEditProtected(profileId) && sessionManager.activeSessions.value.none { it.profileId == profileId }) {
                 profileRepository.delete(profileId)
+                if (locationStore.read(profileId) != null) {
+                    GeofenceManager(context).unregister(profileId)
+                    locationStore.clear(profileId)
+                }
                 FullScreenModeStore(context).delete(profileId)
                 PeriodicAccessStore(context).delete(profileId)
             }

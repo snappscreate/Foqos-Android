@@ -342,6 +342,57 @@ class SessionManagerTest {
         assertThat(blockingStateHolder.stateForProfile(profileB.id)?.pauseActive).isFalse()
     }
 
+    @Test
+    fun `pause-end alarm for B does not resume or end A`() = runTest {
+        val a = createProfile(id = "profile-a", strategyId = ManualBlockingStrategy.ID)
+        val b = createProfile(id = "profile-b", strategyId = ManualBlockingStrategy.ID)
+        sessionManager.startProfile(a.id)
+        sessionManager.startProfile(b.id)
+        val originalA = sessionManager.activeSessions.value.first { it.profileId == a.id }
+        val originalB = sessionManager.activeSessions.value.first { it.profileId == b.id }
+        sessionManager.beginPause(originalB, 5)
+
+        sessionManager.onAlarm(
+            AlarmActivityType.PAUSE_END, b.id,
+            mapOf("sessionId" to originalB.id), Instant.now().plusSeconds(301),
+        )
+
+        assertThat(sessionManager.activeSessions.value.map { it.profileId })
+            .containsExactly(a.id, b.id)
+        assertThat(blockingStateHolder.stateForProfile(a.id)?.pauseActive).isFalse()
+        assertThat(blockingStateHolder.stateForProfile(b.id)?.pauseActive).isFalse()
+        assertThat(sessionRepository.getById(originalA.id)?.endTime).isNull()
+    }
+
+    @Test
+    fun `process restoration reinstates both independently active profiles`() = runTest {
+        val a = createProfile(id = "profile-a", strategyId = ManualBlockingStrategy.ID)
+        val b = createProfile(id = "profile-b", strategyId = ManualBlockingStrategy.ID)
+        sessionManager.startProfile(a.id)
+        sessionManager.startProfile(b.id)
+        blockingStateHolder.clear()
+
+        sessionManager.rebuildStateAfterProcessRestart()
+
+        assertThat(sessionManager.activeSessions.value.map { it.profileId })
+            .containsExactly(a.id, b.id)
+        assertThat(blockingStateHolder.states.value.keys).containsExactly(a.id, b.id)
+    }
+
+    @Test
+    fun `reset blocking state closes every running profile`() = runTest {
+        val a = createProfile(id = "profile-a", strategyId = ManualBlockingStrategy.ID)
+        val b = createProfile(id = "profile-b", strategyId = ManualBlockingStrategy.ID)
+        sessionManager.startProfile(a.id)
+        sessionManager.startProfile(b.id)
+
+        sessionManager.resetAllState()
+
+        assertThat(sessionManager.activeSessions.value).isEmpty()
+        assertThat(sessionRepository.activeSessionsOnce()).isEmpty()
+        assertThat(blockingStateHolder.states.value).isEmpty()
+    }
+
     // --- Breaks --------------------------------------------------------------------------------
 
     @Test

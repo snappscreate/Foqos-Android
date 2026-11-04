@@ -49,7 +49,7 @@ class BootReceiver : BroadcastReceiver() {
                     }
                 }
                 sessionManager.rebuildStateAfterProcessRestart()
-                LocationAutomationStore(context).read()?.let { rule ->
+                LocationAutomationStore(context).readAll().forEach { rule ->
                     val manager = GeofenceManager(context)
                     if (manager.hasRequiredPermissions()) {
                         manager.register(rule).addOnFailureListener { error ->

@@ -131,8 +131,8 @@ class SessionManager @Inject constructor(
 
     private fun locationStoreOutside(profileId: String): Boolean {
         val store = LocationAutomationStore(appContext)
-        return store.read()?.profileId == profileId &&
-            (store.manualInside() ?: store.lastInside()) == false
+        return store.read(profileId) != null &&
+            (store.manualInside(profileId) ?: store.lastInside(profileId)) == false
     }
 
     private val periodicAccessStore by lazy { PeriodicAccessStore(appContext) }
@@ -293,8 +293,8 @@ class SessionManager @Inject constructor(
 
     private fun locationStoreInside(profileId: String): Boolean {
         val store = LocationAutomationStore(appContext)
-        return store.read()?.profileId == profileId &&
-            (store.manualInside() ?: store.lastInside()) == true
+        return store.read(profileId) != null &&
+            (store.manualInside(profileId) ?: store.lastInside(profileId)) == true
     }
 
     /** Explicit home Stop action for a location-configured profile while outside its area. */

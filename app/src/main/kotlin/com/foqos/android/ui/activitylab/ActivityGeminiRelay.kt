@@ -1,7 +1,9 @@
 package com.foqos.android.ui.activitylab
 
-import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Bitmap
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.util.Base64
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -137,12 +139,16 @@ object ActivityGeminiRelay {
                 .getJSONObject(0).getString("text")
             val answer = JSONObject(text)
             val usage = response.optJSONObject("usageMetadata") ?: JSONObject()
+            val inputs = usage.optInt("promptTokenCount")
+            val outputs = usage.optInt("candidatesTokenCount") + usage.optInt("thoughtsTokenCount")
             ActivityVerdict(
                 status = answer.optString("status", "判断不能"),
                 reason = answer.optString("reason", "理由を取得できなかった"),
                 evidence = answer.optString("evidence", ""),
-                inputTokens = usage.optInt("promptTokenCount"),
-                outputTokens = usage.optInt("candidatesTokenCount") + usage.optInt("thoughtsTokenCount"),
+                inputTokens = inputs,
+                outputTokens = outputs,
+                // Gemini 2.5 Flash-Lite standard paid tariff, 160 JPY/USD.
+                estimatedYen = (inputs * 0.10 + outputs * 0.40) * 160.0 / 1_000_000.0,
             )
         } finally {
             connection.disconnect()
@@ -157,8 +163,22 @@ object ActivityGeminiRelay {
         val bitmap = BitmapFactory.decodeFile(file.absolutePath, BitmapFactory.Options().apply {
             inSampleSize = sample
         }) ?: error("画像を読み込めなかった")
+        val orientation = runCatching {
+            ExifInterface(file.absolutePath).getAttributeInt(
+                ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+        }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+        val degrees = when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+            else -> 0f
+        }
+        val corrected = if (degrees == 0f) bitmap else Bitmap.createBitmap(
+            bitmap, 0, 0, bitmap.width, bitmap.height,
+            Matrix().apply { postRotate(degrees) }, true)
         val output = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 68, output)
+        corrected.compress(Bitmap.CompressFormat.JPEG, 68, output)
+        if (corrected !== bitmap) corrected.recycle()
         bitmap.recycle()
         return Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
     }

@@ -22,6 +22,7 @@ import com.foqos.android.BuildConfig
 import com.foqos.android.service.location.LocationAutomationStore
 import com.foqos.android.service.location.LocationRule
 import com.foqos.android.service.session.FullScreenModeStore
+import com.foqos.android.service.session.PeriodicAccessStore
 import com.foqos.android.service.accessibility.ForegroundAppAccessibilityService
 import com.foqos.android.service.session.PermissionChecks
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -174,6 +175,8 @@ class HomeViewModel @Inject constructor(
                         store.allowedPackages(profileId),
                     )
                     store.saveUrls(duplicate.id, store.allowedUrls(profileId))
+                    val periodic = PeriodicAccessStore(context)
+                    periodic.save(duplicate.id, periodic.read(profileId))
                 }
             }
         }
@@ -185,6 +188,7 @@ class HomeViewModel @Inject constructor(
             if (!isLocationEditProtected(profileId)) {
                 profileRepository.delete(profileId)
                 FullScreenModeStore(context).delete(profileId)
+                PeriodicAccessStore(context).delete(profileId)
             }
         }
     }

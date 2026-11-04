@@ -123,7 +123,7 @@ fun PhysicalUnlockEditor(
 }
 
 private fun newItem(existing: List<PhysicalUnblockItem>, type: PhysicalUnblockType, codeValue: String): PhysicalUnblockItem {
-    val label = if (type == PhysicalUnblockType.NFC) "NFC tag" else "QR code"
+    val label = if (type == PhysicalUnblockType.NFC) "NFCタグ" else "QRコード"
     val count = existing.count { it.type == type } + 1
     return PhysicalUnblockItem(name = "$label $count", type = type, codeValue = codeValue)
 }
@@ -161,7 +161,7 @@ fun PhysicalUnlockEditorContent(
 
         if (items.isEmpty()) {
             Text(
-                text = "No physical unblock items yet.",
+                text = "NFCタグ・QRコードはまだ登録されていません",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -183,8 +183,8 @@ fun PhysicalUnlockEditorContent(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = onAddNfc) { Text("🏷️ Add NFC tag") }
-            OutlinedButton(onClick = onAddQr) { Text("🔳 Add QR code") }
+            OutlinedButton(onClick = onAddNfc) { Text("🏷️ NFCタグを追加") }
+            OutlinedButton(onClick = onAddQr) { Text("🔳 QRコードを追加") }
         }
     }
 }
@@ -204,14 +204,14 @@ private fun PhysicalUnblockItemRow(item: PhysicalUnblockItem, onRename: () -> Un
                 Column {
                     Text(text = item.name, style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        text = if (item.type == PhysicalUnblockType.NFC) "NFC tag" else "QR code",
+                        text = if (item.type == PhysicalUnblockType.NFC) "NFCタグ" else "QRコード",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
             Row {
-                TextButton(onClick = onRename) { Text("Rename") }
+                TextButton(onClick = onRename) { Text("名前変更") }
                 IconButton(onClick = onDelete) { Text("✕") }
             }
         }
@@ -223,15 +223,15 @@ private fun RenameDialog(item: PhysicalUnblockItem, onConfirm: (String) -> Unit,
     var name by remember(item) { mutableStateOf(item.name) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Rename") },
+        title = { Text("名前変更") },
         text = {
             OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true)
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(name.ifBlank { item.name }) }) { Text("Save") }
+            TextButton(onClick = { onConfirm(name.ifBlank { item.name }) }) { Text("保存") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text("キャンセル") }
         },
     )
 }
@@ -259,9 +259,9 @@ private fun NfcAddSheet(nfcDispatchManager: NfcForegroundDispatchManager, onScan
             ) {
                 Text(text = "📡", style = MaterialTheme.typography.displayMedium)
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(text = "Hold your phone near the NFC tag", style = MaterialTheme.typography.titleMedium)
+                Text(text = "NFCタグをスマホにかざしてね", style = MaterialTheme.typography.titleMedium)
                 Spacer(modifier = Modifier.height(24.dp))
-                OutlinedButton(onClick = onCancel) { Text("Cancel") }
+                OutlinedButton(onClick = onCancel) { Text("キャンセル") }
             }
         }
     }
@@ -275,15 +275,15 @@ private fun QrAddSheet(onScanned: (String) -> Unit, onCancel: () -> Unit) {
                 QrScannerScreen(
                     onCode = onScanned,
                     modifier = Modifier.weight(1f),
-                    title = "Scan to add",
-                    subtitle = "Point your camera at a QR code or barcode to add it as a physical unblock item.",
+                    title = "コードを読み取って追加",
+                    subtitle = "登録するQRコード・バーコードをカメラで読み取ってね",
                 )
                 OutlinedButton(
                     onClick = onCancel,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                ) { Text("Cancel") }
+                ) { Text("キャンセル") }
             }
         }
     }

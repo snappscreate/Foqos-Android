@@ -13,7 +13,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.mutableIntStateOf
-import kotlin.random.Random
 import com.foqos.android.service.session.FullScreenModeStore
 import com.foqos.android.service.session.DefaultBrowserResolver
 import android.content.Intent
@@ -290,6 +289,7 @@ class BlockOverlayActivity : ComponentActivity() {
                             packages = allowedPackages,
                             urls = allowedUrls,
                             featuredPackages = featuredPackages,
+                            autoOpenSeconds = if (shieldResumed && !showFeaturedPicker && launchableFeatured.isNotEmpty()) autoOpenCountdown else null,
                             onEditFeatured = { showFeaturedPicker = true },
                             appLabel = { pkg ->
                                 runCatching {
@@ -349,7 +349,7 @@ class BlockOverlayActivity : ComponentActivity() {
                 )
 
                 if (showFeaturedPicker && state?.profileId != null && fullScreen) {
-                    val profileId = state.profileId
+                    val profileId = state?.profileId ?: ""
                     AlertDialog(
                         onDismissRequest = { showFeaturedPicker = false },
                         title = { Text("おすすめアプリを選択") },

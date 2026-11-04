@@ -82,6 +82,22 @@ class SessionManager @Inject constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
     private val sessionMutex = Mutex()
+    private class FullScreenSessionConflict(val runningProfileId: String) : IllegalStateException()
+
+    private val fullScreenModeStore by lazy { FullScreenModeStore(appContext) }
+
+    private suspend fun conflictingFullScreenProfile(profileId: String): BlockedProfile? {
+        if (!fullScreenModeStore.enabled(profileId)) return null
+        val runningId = _activeSessions.value
+            .firstOrNull { it.profileId != profileId && fullScreenModeStore.enabled(it.profileId) }
+            ?.profileId ?: return null
+        return profileRepository.getById(runningId)
+    }
+
+    private fun reportFullScreenConflict(runningName: String) {
+        emitError("全画面集中モード「$runningName」がすでに稼働中です。停止してから別の全画面集中モードを開始してください。")
+    }
+
 
     private val _activeSession = MutableStateFlow<BlockedProfileSession?>(null)
     val activeSession: StateFlow<BlockedProfileSession?> = _activeSession.asStateFlow()
@@ -213,7 +229,14 @@ class SessionManager @Inject constructor(
                 return@withContext
             }
             val profile = profileRepository.getById(profileId) ?: return@withContext
-            createSession(profile, tag = LOCATION_SESSION_TAG, forceStarted = false)
+            val conflict = conflictingFullScreenProfile(profileId)
+            if (conflict == null) {
+                try {
+                    createSession(profile, tag = LOCATION_SESSION_TAG, forceStarted = false)
+                } catch (collision: FullScreenSessionConflict) {
+                    reportFullScreenConflict(profileRepository.getById(collision.runningProfileId)?.name ?: "別のプロファイル")
+                }
+            } else reportFullScreenConflict(conflict.name)
         } else {
             if (current?.profileId == profileId && current.tag == LOCATION_SESSION_TAG) {
                 // Do not end the session on EXIT. Keep history, NFC registrations and
@@ -338,10 +361,18 @@ class SessionManager @Inject constructor(
             emitError("Failed to find a profile stored locally that matches the tag")
             return
         }
+        conflictingFullScreenProfile(profileId)?.let {
+            reportFullScreenConflict(it.name)
+            return
+        }
         val strategy = StrategyRegistry.byId(profile.strategyId)
         val uiRequest = strategy.startRequest(profile)
         if (uiRequest == StrategyUiRequest.None) {
-            strategy.onStartInput(profile, StrategyInput.NoInput, this)
+            try {
+                strategy.onStartInput(profile, StrategyInput.NoInput, this)
+            } catch (conflict: FullScreenSessionConflict) {
+                reportFullScreenConflict(profileRepository.getById(conflict.runningProfileId)?.name ?: "別のプロファイル")
+            }
         } else {
             _uiRequests.tryEmit(uiRequest to PendingStrategyAction.Start(profileId))
         }
@@ -355,8 +386,16 @@ class SessionManager @Inject constructor(
                     emitError("Failed to find a profile stored locally that matches the tag")
                     return
                 }
+                conflictingFullScreenProfile(profile.id)?.let {
+                    reportFullScreenConflict(it.name)
+                    return
+                }
                 val strategy = StrategyRegistry.byId(profile.strategyId)
-                strategy.onStartInput(profile, input, this)
+                try {
+                    strategy.onStartInput(profile, input, this)
+                } catch (conflict: FullScreenSessionConflict) {
+                    reportFullScreenConflict(profileRepository.getById(conflict.runningProfileId)?.name ?: "別のプロファイル")
+                }
             }
             is PendingStrategyAction.LocationPause -> {
                 val current = _activeSessions.value.firstOrNull { it.id == action.sessionId } ?: return
@@ -431,7 +470,15 @@ class SessionManager @Inject constructor(
                 emitError("Failed to find a profile stored locally that matches the tag")
                 return
             }
-            createSession(target, tag = ManualBlockingStrategy.ID, forceStarted = true)
+            conflictingFullScreenProfile(profileId)?.let {
+                reportFullScreenConflict(it.name)
+                return
+            }
+            try {
+                createSession(target, tag = ManualBlockingStrategy.ID, forceStarted = true)
+            } catch (conflict: FullScreenSessionConflict) {
+                reportFullScreenConflict(profileRepository.getById(conflict.runningProfileId)?.name ?: "別のプロファイル")
+            }
             return
         }
         val currentProfile = profileRepository.getById(profileId)
@@ -848,6 +895,13 @@ class SessionManager @Inject constructor(
             return@withLock existing
         }
 
+        if (fullScreenModeStore.enabled(profile.id)) {
+            val runningId = _activeSessions.value.firstOrNull {
+                it.profileId != profile.id && fullScreenModeStore.enabled(it.profileId)
+            }?.profileId
+            if (runningId != null) throw FullScreenSessionConflict(runningId)
+        }
+
         val session = sessionRepository.startSession(profile, tag = tag, forceStarted = forceStarted)
         onSessionStarted(profile, session)
         session
@@ -981,7 +1035,14 @@ class SessionManager @Inject constructor(
         val profile = profileRepository.getById(profileId) ?: return
         if (profile.schedule?.isConfigured == true) {
             if (sessionForProfile(profileId) == null) {
-                createSession(profile, tag = AlarmActivityType.SCHEDULE_START.key, forceStarted = false)
+                val conflict = conflictingFullScreenProfile(profileId)
+                if (conflict == null) {
+                    try {
+                        createSession(profile, tag = AlarmActivityType.SCHEDULE_START.key, forceStarted = false)
+                    } catch (collision: FullScreenSessionConflict) {
+                        reportFullScreenConflict(profileRepository.getById(collision.runningProfileId)?.name ?: "別のプロファイル")
+                    }
+                } else reportFullScreenConflict(conflict.name)
             }
             alarmScheduler.rearmScheduleStart(profile)
         }

@@ -16,14 +16,43 @@ import kotlinx.coroutines.flow.update
 class BlockingStateHolder @Inject constructor() {
 
     private val _state = MutableStateFlow<BlockingState?>(null)
+    private val _states = MutableStateFlow<Map<String, BlockingState>>(emptyMap())
+    val states: StateFlow<Map<String, BlockingState>> = _states.asStateFlow()
     val state: StateFlow<BlockingState?> = _state.asStateFlow()
 
     fun setState(state: BlockingState) {
         _state.value = state
+        _states.update { it + (state.profileId to state) }
     }
 
+    /** One profile stopping must not clear other active profiles. */
+    fun clearProfile(profileId: String) {
+        _states.update { it - profileId }
+        if (_state.value?.profileId == profileId) {
+            _state.value = _states.value.values.firstOrNull()
+        }
+    }
+
+    fun replaceStates(states: Collection<BlockingState>) {
+        _states.value = states.associateBy { it.profileId }
+        _state.value = states.firstOrNull()
+    }
+
+    fun stateForProfile(profileId: String): BlockingState? = _states.value[profileId]
+
     fun clear() {
+        _states.value = emptyMap()
         _state.value = null
+    }
+
+    /** Update one profile only; a pause in profile A must not unlock profile B. */
+    fun updateProfile(profileId: String, transform: (BlockingState) -> BlockingState) {
+        _states.update { states ->
+            states[profileId]?.let { states + (profileId to transform(it)) } ?: states
+        }
+        if (_state.value?.profileId == profileId) {
+            _state.value = _states.value[profileId]
+        }
     }
 
     fun setPeriodicActivatedAt(cycle: Long) {

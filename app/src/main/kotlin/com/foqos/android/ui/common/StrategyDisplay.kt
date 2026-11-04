@@ -20,6 +20,23 @@ import com.foqos.android.domain.strategy.QrSoftUnblockBlockingStrategy
 import com.foqos.android.domain.strategy.QrTimerBlockingStrategy
 import com.foqos.android.domain.strategy.TimerManualBlockingStrategy
 
+/** Localized names for the strategy picker and profile editor. */
+fun strategyDisplayName(strategy: BlockingStrategy): String = when (strategy.id) {
+    ManualBlockingStrategy.ID -> "手動で開始・停止"
+    TimerManualBlockingStrategy.ID -> "タイマー・手動"
+    NfcBlockingStrategy.ID -> "NFCタグで開始・停止"
+    NfcManualBlockingStrategy.ID -> "NFC開始・手動停止"
+    NfcTimerBlockingStrategy.ID -> "NFC・タイマー"
+    NfcPauseTimerBlockingStrategy.ID -> "NFCで一時停止"
+    NfcSoftUnblockBlockingStrategy.ID -> "NFC・短時間利用"
+    QrCodeBlockingStrategy.ID -> "QRコードで開始・停止"
+    QrManualBlockingStrategy.ID -> "QR開始・手動停止"
+    QrTimerBlockingStrategy.ID -> "QR・タイマー"
+    QrPauseTimerBlockingStrategy.ID -> "QRで一時停止"
+    QrSoftUnblockBlockingStrategy.ID -> "QR・短時間利用"
+    else -> strategy.name
+}
+
 /** Small emoji glyph representing [strategy]'s primary trigger, used across profile/strategy rows. */
 fun strategyEmoji(strategy: BlockingStrategy): String = when {
     strategy.usesNfc -> "🏷️" // 🏷️
@@ -34,8 +51,8 @@ fun strategyEmoji(strategy: BlockingStrategy): String = when {
 fun strategyBadges(strategy: BlockingStrategy): List<String> = buildList {
     if (strategy.usesNfc) add("NFC")
     if (strategy.usesQr) add("QR")
-    if (strategy.hasTimer) add("Timer")
-    if (strategy.isBeta) add("Beta")
+    if (strategy.hasTimer) add("タイマー")
+    if (strategy.isBeta) add("試験運用")
 }
 
 /**
@@ -46,16 +63,16 @@ fun strategyBadges(strategy: BlockingStrategy): List<String> = buildList {
  */
 enum class StrategyPickerGroup(val title: String, val subtitle: String) {
     APP(
-        title = "Start & stop in the app",
-        subtitle = "No scanning required - start and stop with in-app buttons.",
+        title = "アプリで開始・停止",
+        subtitle = "スマホのボタンで開始・停止。タグの読み取りは不要。",
     ),
     NFC(
-        title = "NFC tag",
-        subtitle = "Scan a physical NFC tag to start and/or stop a focus session.",
+        title = "NFCタグ",
+        subtitle = "NFCタグを読み取って開始・停止。",
     ),
     QR(
-        title = "QR code",
-        subtitle = "Scan a QR code or barcode to start and/or stop a focus session.",
+        title = "QRコード",
+        subtitle = "QRコードやバーコードで開始・停止。",
     ),
 }
 
@@ -88,10 +105,10 @@ fun isRecommendedStrategy(strategy: BlockingStrategy): Boolean =
 
 /** Capability badges shown on a strategy row, distinct from the mechanism already conveyed by the icon/group. */
 fun strategyCapabilityBadges(strategy: BlockingStrategy): List<String> = buildList {
-    if (strategy.hasTimer) add("Timer")
-    if (strategy.hasPauseMode) add("Pause")
-    if (!strategy.allowsTimedBreaks) add("Temporary access")
-    if (strategy.isBeta) add("Beta")
+    if (strategy.hasTimer) add("タイマー")
+    if (strategy.hasPauseMode) add("一時停止")
+    if (!strategy.allowsTimedBreaks) add("一時利用")
+    if (strategy.isBeta) add("試験運用")
 }
 
 /**
@@ -104,27 +121,27 @@ fun strategyOneLiner(strategy: BlockingStrategy): String = STRATEGY_ONE_LINERS[s
 
 private val STRATEGY_ONE_LINERS: Map<String, String> = mapOf(
     ManualBlockingStrategy.ID to
-        "Tap Start in the app to begin, and tap Stop in the app to end. No scanning either way.",
+        "アプリの開始・停止ボタンで操作。読み取り不要。",
     TimerManualBlockingStrategy.ID to
         "Tap Start and pick a duration - the session ends automatically when time's up, or tap Stop to end it early.",
     NfcBlockingStrategy.ID to
-        "Start by scanning any NFC tag - only the same tag stops the session.",
+        "NFCタグで開始。登録されたタグを読み取ると停止。",
     NfcManualBlockingStrategy.ID to
-        "Start by scanning any NFC tag. Stop anytime from the app - no second scan needed.",
+        "NFCタグで開始。アプリ内の停止ボタンで終了。",
     NfcTimerBlockingStrategy.ID to
-        "Start by scanning any NFC tag and pick a duration. Stop early by scanning any NFC tag, or let the timer end it.",
+        "NFCタグで開始し時間を指定。タグまたは時間切れで終了。",
     NfcPauseTimerBlockingStrategy.ID to
-        "Pick a pause length and tap Start in the app. Scan any NFC tag once to pause; scan again during the pause to fully stop.",
+        "アプリから開始。登録済みNFCタグで指定時間だけ一時停止。停止中の再読み取りでは終了しない。",
     NfcSoftUnblockBlockingStrategy.ID to
-        "Start in the app, with a few short opens allowed while blocking is active. Scan any NFC tag to stop the session.",
+        "アプリで開始。一定回数の短時間利用が可能。NFCタグで終了。",
     QrCodeBlockingStrategy.ID to
-        "Start by scanning any QR code or barcode - only the same code stops the session.",
+        "QRコードで開始。同じコードを読み取って停止。",
     QrManualBlockingStrategy.ID to
-        "Start by scanning any QR code or barcode. Stop anytime from the app - no second scan needed.",
+        "QRコードで開始。停止はアプリ内から操作。",
     QrTimerBlockingStrategy.ID to
-        "Start by scanning any QR code or barcode and pick a duration. Stop early by scanning any code, or let the timer end it.",
+        "QRコードで開始し時間を指定。QRコードまたは時間切れで終了。",
     QrPauseTimerBlockingStrategy.ID to
-        "Pick a pause length and tap Start in the app. Scan any QR code or barcode once to pause; scan again during the pause to fully stop.",
+        "アプリから開始。QRコードで指定時間だけ一時停止。",
     QrSoftUnblockBlockingStrategy.ID to
-        "Start in the app, with a few short opens allowed while blocking is active. Scan any QR code or barcode to stop the session.",
+        "アプリで開始。短時間の一時利用が可能。QRコードで停止。",
 )

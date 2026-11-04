@@ -137,7 +137,7 @@ fun FullScreenShortcutGrid(
             modifier = Modifier.fillMaxWidth(),
             enabled = onToggleAllowedApps != null && !editingFeatured,
         ) {
-            Text(if (allowedAppsExpanded || editingFeatured) "許可されたアプリを閉じる" else "許可されたアプリ")
+            Text(if (editingFeatured) "許可されたアプリ（編集中）" else if (allowedAppsExpanded) "許可されたアプリを閉じる" else "許可されたアプリ")
         }
 
         if (allowedAppsExpanded || editingFeatured) {
@@ -264,7 +264,7 @@ private fun ShortcutTile(
                                 .openConnection() as HttpURLConnection
                             connection.connectTimeout = 1800
                             connection.readTimeout = 1800
-                            try { connection.inputStream.use(BitmapFactory::decodeStream) }
+                            try { connection.inputStream.use { BitmapFactory.decodeStream(it) } }
                             finally { connection.disconnect() }
                         }.getOrNull()
                     }

@@ -179,7 +179,7 @@ class SessionManager @Inject constructor(
             strategy.usesNfc || physical.any { it.type == PhysicalUnblockType.NFC } ->
                 _uiRequests.emit(StrategyUiRequest.ScanNfc(StrategyUiRequest.Purpose.STOP) to
                     PendingStrategyAction.LocationPause(session.id))
-            strategy.usesQr || physical.any { it.type == PhysicalUnblockType.QR } ->
+            strategy.usesQr || physical.any { it.type == PhysicalUnblockType.QR_CODE } ->
                 _uiRequests.emit(StrategyUiRequest.ScanQr(StrategyUiRequest.Purpose.STOP) to
                     PendingStrategyAction.LocationPause(session.id))
             else -> pauseLocationAfterAuthorization(session, profile)
@@ -197,7 +197,7 @@ class SessionManager @Inject constructor(
         val strategy = StrategyRegistry.byId(profile.strategyId)
         if (type == PhysicalUnblockType.NFC && !strategy.usesNfc &&
             profile.physicalUnblockItems.none { it.type == type }) return@withContext false
-        if (type == PhysicalUnblockType.QR && !strategy.usesQr &&
+        if (type == PhysicalUnblockType.QR_CODE && !strategy.usesQr &&
             profile.physicalUnblockItems.none { it.type == type }) return@withContext false
         val registered = profile.physicalUnblockItems.filter { it.type == type }
         val valid = registered.isNotEmpty() && profile.canUnblock(code, type)
@@ -275,7 +275,7 @@ class SessionManager @Inject constructor(
                 val scanned = input as? StrategyInput.Code ?: return
                 val type = when (scanned.source) {
                     StrategyInput.CodeSource.NFC -> PhysicalUnblockType.NFC
-                    StrategyInput.CodeSource.QR -> PhysicalUnblockType.QR
+                    StrategyInput.CodeSource.QR -> PhysicalUnblockType.QR_CODE
                 }
                 pauseLocationWithVerifiedCode(current.profileId, scanned.value, type)
             }

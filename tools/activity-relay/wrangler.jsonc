@@ -1,0 +1,9 @@
+{
+  "name": "foqos-activity-lab",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "vars": {
+    "GEMINI_MODEL": "gemini-2.5-flash-lite"
+  }
+}

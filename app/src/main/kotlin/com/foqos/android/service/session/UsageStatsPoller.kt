@@ -68,8 +68,7 @@ class UsageStatsPoller @Inject constructor(
         val packageName = mostRecentForegroundPackage() ?: return
         val store = FullScreenModeStore(context)
         val location = LocationAutomationStore(context)
-        val rule = location.read()
-        val effectiveStates = blockingStateHolder.states.value.values.map { current ->
+                val effectiveStates = blockingStateHolder.states.value.values.map { current ->
             val browser = store.launchedBrowserPackage(current.profileId)
                 ?: DefaultBrowserResolver.packageName(context)
             val configured = if (store.enabled(current.profileId)) current.copy(
@@ -83,8 +82,8 @@ class UsageStatsPoller @Inject constructor(
             ) else current
             configured.copy(
                 locationSuspended = configured.locationSuspended ||
-                    (rule?.profileId == configured.profileId &&
-                        (location.manualInside() ?: location.lastInside()) == false),
+                    (location.read(configured.profileId) != null &&
+                        (location.manualInside(configured.profileId) ?: location.lastInside(configured.profileId)) == false),
             )
         }
         val neverBlock = AccessibilityBlockPolicy.neverBlockWithLauncher(currentLauncherPackageName())

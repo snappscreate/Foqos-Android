@@ -337,6 +337,49 @@ fun ProfileEditScreen(
                 onAllowMultipleChange = viewModel::setAllowMultipleBreaks,
             )
 
+            SectionCard(title = "定期的な使用時間") {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("一定時間ごとに自動で使用を許可", modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = uiState.periodicAccessEnabled,
+                            onCheckedChange = viewModel::setPeriodicAccessEnabled,
+                            enabled = !uiState.editingLocked,
+                        )
+                    }
+                    if (uiState.periodicAccessEnabled) {
+                        Text("ブロック継続時間：${uiState.periodicWaitMinutes}分")
+                        Slider(
+                            value = uiState.periodicWaitMinutes.toFloat(),
+                            onValueChange = { viewModel.setPeriodicWaitMinutes(it.toInt()) },
+                            valueRange = 5f..240f,
+                            steps = 46,
+                            enabled = !uiState.editingLocked,
+                        )
+                        Text("使用できる時間：${uiState.periodicAccessMinutes}分")
+                        Slider(
+                            value = uiState.periodicAccessMinutes.toFloat(),
+                            onValueChange = { viewModel.setPeriodicAccessMinutes(it.toInt()) },
+                            valueRange = 1f..30f,
+                            steps = 28,
+                            enabled = !uiState.editingLocked,
+                        )
+                        Text(
+                            "開始後またはNFCなどの一時停止終了後から数えて、指定時間ブロックし、" +
+                                "指定時間だけ使用可能にする。この周期を繰り返す。",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+
             SessionProtectionSection(
                 strictMode = uiState.draft.enableStrictMode,
                 blockAppInstallation = uiState.draft.enableBlockAppInstallation,

@@ -25,6 +25,7 @@ import com.foqos.android.receiver.AlarmReceiver
 import com.foqos.android.service.alarm.AlarmActivityType
 import com.foqos.android.service.alarm.FoqosAlarmScheduler
 import com.foqos.android.service.session.BlockingStateHolder
+import com.foqos.android.service.session.FullScreenModeStore
 import com.foqos.android.service.location.LocationAutomationStore
 import com.foqos.android.service.location.LocationRule
 import com.google.common.truth.Truth.assertThat
@@ -311,6 +312,72 @@ class SessionManagerTest {
         assertThat(sessionManager.activeSessions.value.map { it.profileId })
             .containsExactly(profileA.id, profileB.id)
         assertThat(blockingStateHolder.states.value.keys).containsExactly(profileA.id, profileB.id)
+    }
+
+    @Test
+    fun `only one fullscreen profile can start at a time`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val store = FullScreenModeStore(context)
+        val a = createProfile(id = "fullscreen-a", strategyId = ManualBlockingStrategy.ID)
+        val b = createProfile(id = "fullscreen-b", strategyId = ManualBlockingStrategy.ID)
+        try {
+            store.save(a.id, true, emptySet())
+            store.save(b.id, true, emptySet())
+            sessionManager.startProfile(a.id)
+            sessionManager.startProfile(b.id)
+
+            assertThat(sessionManager.activeSessions.value.map { it.profileId }).containsExactly(a.id)
+            assertThat(sessionRepository.activeSessionForProfile(b.id)).isNull()
+
+            sessionManager.stopProfileSession(a.id)
+            sessionManager.startProfile(b.id)
+            assertThat(sessionManager.activeSessions.value.map { it.profileId }).containsExactly(b.id)
+        } finally {
+            store.delete(a.id)
+            store.delete(b.id)
+        }
+    }
+
+    @Test
+    fun `fullscreen and multiple standard blocking profiles can run together`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val store = FullScreenModeStore(context)
+        val focus = createProfile(id = "fullscreen-focus", strategyId = ManualBlockingStrategy.ID)
+        val blockA = createProfile(id = "regular-a", strategyId = ManualBlockingStrategy.ID)
+        val blockB = createProfile(id = "regular-b", strategyId = ManualBlockingStrategy.ID)
+        try {
+            store.save(focus.id, true, emptySet())
+            store.save(blockA.id, false, emptySet())
+            store.save(blockB.id, false, emptySet())
+            sessionManager.startProfile(focus.id)
+            sessionManager.startProfile(blockA.id)
+            sessionManager.startProfile(blockB.id)
+
+            assertThat(sessionManager.activeSessions.value.map { it.profileId })
+                .containsExactly(focus.id, blockA.id, blockB.id)
+        } finally {
+            store.delete(focus.id)
+            store.delete(blockA.id)
+            store.delete(blockB.id)
+        }
+    }
+
+    @Test
+    fun `fullscreen conflict applies to a forced shortcut start`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val store = FullScreenModeStore(context)
+        val a = createProfile(id = "shortcut-fullscreen-a", strategyId = ManualBlockingStrategy.ID)
+        val b = createProfile(id = "shortcut-fullscreen-b", strategyId = ManualBlockingStrategy.ID)
+        try {
+            store.save(a.id, true, emptySet())
+            store.save(b.id, true, emptySet())
+            sessionManager.toggleFromDeeplink(a.id)
+            sessionManager.toggleFromDeeplink(b.id)
+            assertThat(sessionManager.activeSessions.value.map { it.profileId }).containsExactly(a.id)
+        } finally {
+            store.delete(a.id)
+            store.delete(b.id)
+        }
     }
 
     @Test

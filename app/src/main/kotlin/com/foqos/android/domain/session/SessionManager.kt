@@ -88,8 +88,10 @@ class SessionManager @Inject constructor(
         _activeSessions.value.firstOrNull { it.profileId == profileId }
 
     private fun cacheSession(session: BlockedProfileSession) {
-        _activeSessions.value = listOf(session) +
-            _activeSessions.value.filterNot { it.id == session.id || it.profileId == session.profileId }
+        val previous = _activeSessions.value
+        _activeSessions.value = if (previous.any { it.id == session.id }) {
+            previous.map { if (it.id == session.id) session else it }
+        } else listOf(session) + previous.filterNot { it.profileId == session.profileId }
         _activeSession.value = _activeSessions.value.firstOrNull()
     }
 

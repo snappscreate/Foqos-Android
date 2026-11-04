@@ -32,6 +32,7 @@ import com.foqos.android.ui.common.strategyCapabilityBadges
 import com.foqos.android.ui.common.strategyOneLiner
 import com.foqos.android.ui.common.strategyPickerGroup
 import com.foqos.android.ui.common.strategyPickerIcon
+import com.foqos.android.ui.common.strategyDisplayName
 
 /**
  * Redesigned strategy picker: strategies are grouped by *mechanism* ([StrategyPickerGroup] - app /
@@ -68,11 +69,11 @@ fun StrategyPickerSheet(
             item(key = "picker-header") {
                 Column(modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)) {
                     Text(
-                        text = "How do you want to start and stop focus sessions?",
+                        text = "ブロックの開始・停止方法を選択",
                         style = MaterialTheme.typography.titleLarge,
                     )
                     Text(
-                        text = "Pick how sessions are triggered. You can fine-tune timers and physical unlocks after choosing.",
+                        text = "NFC・QR・タイマーなど、必要な操作に合わせて選べるよ。",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp),
@@ -139,11 +140,11 @@ private fun StrategyRow(strategy: BlockingStrategy, selected: Boolean, onClick: 
             )
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(text = strategy.name, style = MaterialTheme.typography.titleSmall)
+                    Text(text = strategyDisplayName(strategy), style = MaterialTheme.typography.titleSmall)
                     if (isRecommendedStrategy(strategy)) {
                         AssistChip(
                             onClick = {},
-                            label = { Text("Recommended", style = MaterialTheme.typography.labelSmall) },
+                            label = { Text("おすすめ", style = MaterialTheme.typography.labelSmall) },
                             colors = AssistChipDefaults.assistChipColors(
                                 containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                                 labelColor = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -167,7 +168,7 @@ private fun StrategyRow(strategy: BlockingStrategy, selected: Boolean, onClick: 
             if (selected) {
                 Icon(
                     imageVector = Icons.Filled.Check,
-                    contentDescription = "Selected",
+                    contentDescription = "選択中",
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(top = 2.dp),
                 )

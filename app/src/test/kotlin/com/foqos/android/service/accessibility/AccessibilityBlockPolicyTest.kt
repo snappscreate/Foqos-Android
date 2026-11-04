@@ -38,6 +38,64 @@ class AccessibilityBlockPolicyTest {
         sessionStartEpochMillis = 0L,
     )
 
+    @Test fun `multiple profiles enforce explicit block over another profile allowlist`() {
+        val allowlist = state().copy(
+            profileId = "allow", sessionId = "s-allow",
+            fullScreenMode = true,
+            fullScreenAllowedPackages = setOf("com.example.video"),
+        )
+        val blocklist = state(blockedPackages = setOf("com.example.video")).copy(
+            profileId = "block", sessionId = "s-block",
+        )
+        assertThat(policy.decideForAppAcrossProfiles(
+            "com.example.video", listOf(allowlist, blocklist),
+        )).isEqualTo(BlockDecision.BlockApp("com.example.video"))
+    }
+
+    @Test fun `a pause in one profile does not release another profile block`() {
+        val paused = state().copy(
+            profileId = "paused", sessionId = "s-paused",
+            fullScreenMode = true, pauseActive = true,
+        )
+        val blocked = state(blockedPackages = setOf("com.example.video")).copy(
+            profileId = "blocked", sessionId = "s-blocked",
+        )
+        assertThat(policy.decideForAppAcrossProfiles(
+            "com.example.video", listOf(paused, blocked),
+        )).isEqualTo(BlockDecision.BlockApp("com.example.video"))
+    }
+
+    @Test fun `two independently allowing profiles permit an app`() {
+        val one = state().copy(profileId = "one", sessionId = "s-one",
+            fullScreenMode = true, fullScreenAllowedPackages = setOf("com.example.reader"))
+        val two = state().copy(profileId = "two", sessionId = "s-two",
+            fullScreenMode = true, fullScreenAllowedPackages = setOf("com.example.reader"))
+        assertThat(policy.decideForAppAcrossProfiles(
+            "com.example.reader", listOf(one, two),
+        )).isEqualTo(BlockDecision.Allow)
+    }
+
+    @Test fun `one profile can still block a URL allowed by another`() {
+        val allowed = state().copy(profileId = "one", sessionId = "s-one",
+            fullScreenMode = true, fullScreenAllowedPackages = setOf("com.android.chrome"))
+        val blocked = state(
+            blockedDomains = listOf("example.com"),
+        ).copy(profileId = "two", sessionId = "s-two")
+        assertThat(policy.decideForUrlAcrossProfiles(
+            "com.android.chrome", "https://example.com", listOf(allowed, blocked),
+        )).isEqualTo(BlockDecision.BlockDomain("com.android.chrome", "example.com"))
+    }
+
+    @Test fun `geofence suspension of one profile does not suspend another`() {
+        val outside = state().copy(profileId = "outside", sessionId = "s-outside",
+            fullScreenMode = true, locationSuspended = true)
+        val inside = state(blockedPackages = setOf("com.example.video"))
+            .copy(profileId = "inside", sessionId = "s-inside")
+        assertThat(policy.decideForAppAcrossProfiles(
+            "com.example.video", listOf(outside, inside),
+        )).isEqualTo(BlockDecision.BlockApp("com.example.video"))
+    }
+
     // --- No active session ---------------------------------------------------------------
 
     @Test

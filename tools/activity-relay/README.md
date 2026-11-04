@@ -1,8 +1,17 @@
 # Foqos AI activity test relay
 
 Optional backend for the Foqos **Settings → AI活動認識テスト** page.
-The offline pose mode runs without this backend. Photo/video Gemini modes
-require a private HTTPS relay because Android APKs cannot securely hide API keys.
+The offline pose mode works with no API setup.
+
+For a **private, personal development test**, the screen also offers
+「直接API（テスト専用）」: enter a Gemini API key at runtime. The app does not
+write that key to disk or ship it in the APK, and discards it when leaving the
+screen. This direct mode calls `gemini-2.5-flash-lite` and estimates yen using
+the published paid standard tariff and 160 JPY/USD; actual billed cost may
+differ. **Do not distribute this test mode as a publicly deployed app.**
+
+For regular use, select 「HTTPS中継」 and deploy the relay below. Android APKs
+cannot securely hide an embedded API key.
 
 ## Deploy (Cloudflare Workers)
 
@@ -15,7 +24,7 @@ require a private HTTPS relay because Android APKs cannot securely hide API keys
 4. Open Foqos → 設定 → AI活動認識テスト. Enter your Worker's
    `https://...workers.dev` URL and the `LAB_TOKEN`. They stay in memory
    only while the test screen is open.
-5. Choose Gemini・静止画 or Gemini・動画 and run the capture.
+5. Switch to 「HTTPS中継」, choose Gemini・静止画 or Gemini・動画 and run the capture.
 
 Model can be changed with `GEMINI_MODEL` in `wrangler.jsonc`; use a Gemini
 model that supports image/video inputs and structured JSON output. To display

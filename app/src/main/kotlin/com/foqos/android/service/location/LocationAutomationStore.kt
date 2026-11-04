@@ -108,6 +108,20 @@ class LocationAutomationStore(context: Context) {
         awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
 
+    fun observeAllStates(): Flow<Map<String, Pair<LocationRule, Boolean?>>> = callbackFlow {
+        val snapshot = {
+            readAll().associate { rule ->
+                rule.profileId to (rule to (manualInside(rule.profileId) ?: lastInside(rule.profileId)))
+            }
+        }
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+            trySend(snapshot())
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        trySend(snapshot())
+        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+
     fun clear(profileId: String) {
         migrateIfNeeded()
         prefs.edit().remove("rule_$profileId").remove("last_inside_$profileId")

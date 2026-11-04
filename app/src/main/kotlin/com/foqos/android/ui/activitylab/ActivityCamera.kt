@@ -1,7 +1,6 @@
 package com.foqos.android.ui.activitylab
 
 import android.content.Context
-import android.net.Uri
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageCapture
@@ -47,7 +46,7 @@ class ActivityCamera(private val context: Context) {
         provider = cameraProvider
         cameraProvider.unbindAll()
         val previewUseCase = Preview.Builder().build().also {
-            it.surfaceProvider = preview.surfaceProvider
+            it.setSurfaceProvider(preview.surfaceProvider)
         }
         val selector = if (front) CameraSelector.DEFAULT_FRONT_CAMERA
             else CameraSelector.DEFAULT_BACK_CAMERA

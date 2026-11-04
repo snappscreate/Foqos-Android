@@ -56,7 +56,7 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
     private lateinit var sessionManager: SessionManager
     private var connected = false
     private val observerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private var lastPeriodicAccessActive: Boolean? = null
+    private var lastPeriodicAccessStates: Map<String, Boolean> = emptyMap()
     private var lastLoggedSettingsClass: String? = null
     private var lastLoggedSettingsProbe: String? = null
 
@@ -72,10 +72,12 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
         connected = true
         // Timed access may end without any new foreground app event.
         observerScope.launch {
-            blockingStateHolder.state.collect { current ->
-                val shouldRecheck = lastPeriodicAccessActive == true &&
-                    current != null && !current.periodicAccessActive
-                lastPeriodicAccessActive = current?.periodicAccessActive
+            blockingStateHolder.states.collect { current ->
+                val flags = current.mapValues { it.value.periodicAccessActive }
+                val shouldRecheck = lastPeriodicAccessStates.any { (id, wasOpen) ->
+                    wasOpen && flags[id] != true
+                }
+                lastPeriodicAccessStates = flags
                 if (shouldRecheck) {
                     val packageName = rootInActiveWindow?.packageName?.toString()
                     if (!packageName.isNullOrBlank()) {

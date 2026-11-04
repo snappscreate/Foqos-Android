@@ -211,7 +211,7 @@ class BlockOverlayActivity : ComponentActivity() {
                         locationStatus.second == false
                     val periodicOpen = PeriodicAccessSchedule.isActive(
                         PeriodicAccessStore.Config(current.periodicWaitMinutes, current.periodicAccessMinutes),
-                        current.periodicAnchorEpochMillis, current.periodicActivatedCycle, periodicNow,
+                        current.periodicAnchorEpochMillis, current.periodicActivatedAtEpochMillis, periodicNow,
                     )
                     if (current.pauseActive || current.breakActive || periodicOpen || current.locationSuspended || outside) {
                         if (fullScreen) finishAndGoHome() else finish()
@@ -252,19 +252,16 @@ class BlockOverlayActivity : ComponentActivity() {
                     sessionStartEpochMillis = state?.sessionStartEpochMillis ?: System.currentTimeMillis(),
                     softUnblockInfo = softUnblockInfo,
                     periodicPauseAvailable = state?.let { current ->
-                        PeriodicAccessSchedule.isAccessible(
+                        PeriodicAccessSchedule.isAvailable(
                             PeriodicAccessStore.Config(current.periodicWaitMinutes, current.periodicAccessMinutes),
-                            current.periodicAnchorEpochMillis, periodicNow,
+                            current.periodicAnchorEpochMillis, current.periodicActivatedAtEpochMillis, periodicNow,
                         ) && !PeriodicAccessSchedule.isActive(
                             PeriodicAccessStore.Config(current.periodicWaitMinutes, current.periodicAccessMinutes),
-                            current.periodicAnchorEpochMillis, current.periodicActivatedCycle, periodicNow,
+                            current.periodicAnchorEpochMillis, current.periodicActivatedAtEpochMillis, periodicNow,
                         ) && !current.pauseActive && !current.breakActive
                     } == true,
                     periodicPauseRemainingSeconds = state?.let { current ->
-                        (PeriodicAccessSchedule.remainingWindowMillis(
-                            PeriodicAccessStore.Config(current.periodicWaitMinutes, current.periodicAccessMinutes),
-                            current.periodicAnchorEpochMillis, periodicNow,
-                        ) + 999L) / 1000L
+                        current.periodicAccessMinutes.toLong() * 60L
                     } ?: 0L,
                     onActivatePeriodicPause = {
                         val profileId = state?.profileId

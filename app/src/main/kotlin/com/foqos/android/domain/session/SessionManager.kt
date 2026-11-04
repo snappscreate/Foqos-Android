@@ -43,6 +43,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** What a [StrategyUiRequest] emitted by [SessionManager.uiRequests] resolves to once fed input. */
 sealed interface PendingStrategyAction {
@@ -77,6 +79,7 @@ class SessionManager @Inject constructor(
 ) : StrategyHost {
 
     private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
+    private val sessionMutex = Mutex()
 
     private val _activeSession = MutableStateFlow<BlockedProfileSession?>(null)
     val activeSession: StateFlow<BlockedProfileSession?> = _activeSession.asStateFlow()
@@ -816,24 +819,31 @@ class SessionManager @Inject constructor(
 
     // --- StrategyHost ------------------------------------------------------------------------
 
-    override suspend fun createSession(profile: BlockedProfile, tag: String, forceStarted: Boolean): BlockedProfileSession {
-        // Other active profiles are independent. Keep just one session per profile.
+    override suspend fun createSession(
+        profile: BlockedProfile, tag: String, forceStarted: Boolean,
+    ): BlockedProfileSession = sessionMutex.withLock {
+        // Serialize simultaneous starts so two NFC/schedule events cannot make two sessions
+        // for the same profile or overwrite a different profile's in-memory cache.
         val existing = sessionForProfile(profile.id)
             ?: sessionRepository.activeSessionForProfile(profile.id)
-        if (existing != null) return existing
+        if (existing != null) {
+            if (sessionForProfile(profile.id) == null) cacheSession(existing)
+            return@withLock existing
+        }
 
         val session = sessionRepository.startSession(profile, tag = tag, forceStarted = forceStarted)
         onSessionStarted(profile, session)
-        return session
+        session
     }
 
     override suspend fun endSession(session: BlockedProfileSession, at: Instant) {
+        sessionMutex.withLock {
         // Guard against a stale/late call targeting a session that isn't active anymore (e.g. a
         // queued stop-UI action for a session that a background alarm already ended) - without
         // this, the destructive steps below would wrongly clobber a *different*, currently active
         // session on the same profile.
         val persisted = sessionRepository.getById(session.id)
-        if (persisted == null || !persisted.isActive) return
+        if (persisted == null || !persisted.isActive) return@withLock
 
         sessionRepository.endSession(session.id, at)
         alarmScheduler.cancelAllForProfile(session.profileId)
@@ -854,6 +864,7 @@ class SessionManager @Inject constructor(
         val profile = profileRepository.getById(session.profileId)
         if (profile?.schedule?.isConfigured == true) {
             alarmScheduler.scheduleWeeklySchedule(profile)
+        }
         }
     }
 

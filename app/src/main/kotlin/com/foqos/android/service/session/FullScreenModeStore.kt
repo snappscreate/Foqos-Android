@@ -21,6 +21,21 @@ class FullScreenModeStore(context: Context) {
             (0 until json.length()).map { json.getString(it) }.toSet()
         }.getOrDefault(emptySet())
 
+    /** Priority apps are only a subset of the already allowed apps. */
+    fun featuredPackages(profileId: String): Set<String> =
+        runCatching {
+            val json = JSONArray(prefs.getString("${profileId}_featured", "[]"))
+            (0 until json.length()).map { json.getString(it) }.toSet()
+        }.getOrDefault(emptySet()).intersect(allowedPackages(profileId))
+
+    /** May be changed from the block screen without changing the actual whitelist. */
+    fun saveFeaturedPackages(profileId: String, packages: Set<String>) {
+        val selected = packages.intersect(allowedPackages(profileId))
+        prefs.edit().putString("${profileId}_featured", JSONArray().apply {
+            selected.sorted().forEach { put(it) }
+        }.toString()).commit()
+    }
+
     /** Restrict web access to exact approved hosts and their subdomains. */
     fun allowedUrls(profileId: String): Set<String> =
         runCatching {
@@ -55,6 +70,7 @@ class FullScreenModeStore(context: Context) {
         }.toString()
         prefs.edit().putBoolean("${profileId}_enabled", enabled)
             .putString("${profileId}_allowed", serialized).commit()
+        saveFeaturedPackages(profileId, featuredPackages(profileId))
     }
 
     fun saveUrls(profileId: String, urls: Set<String>) {
@@ -78,6 +94,6 @@ class FullScreenModeStore(context: Context) {
     }
 
     fun delete(profileId: String) {
-        prefs.edit().remove("${profileId}_enabled").remove("${profileId}_allowed").remove("${profileId}_urls").remove("${profileId}_browser").remove("${profileId}_browser_until").apply()
+        prefs.edit().remove("${profileId}_enabled").remove("${profileId}_allowed").remove("${profileId}_featured").remove("${profileId}_urls").remove("${profileId}_browser").remove("${profileId}_browser_until").apply()
     }
 }

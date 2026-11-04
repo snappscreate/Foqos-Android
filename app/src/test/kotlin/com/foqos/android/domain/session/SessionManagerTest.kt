@@ -175,6 +175,33 @@ class SessionManagerTest {
         }
     }
 
+    @Test
+    fun `home pause cannot bypass NFC condition while inside geofence`() = runTest {
+        val profile = createProfile(strategyId = NfcPauseTimerBlockingStrategy.ID)
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val location = LocationAutomationStore(context)
+        location.save(LocationRule(profile.id, 33.60, 130.42, 200f))
+        try {
+            location.setLastInside(true)
+            sessionManager.onLocationTransition(profile.id, true)
+            val originalId = sessionManager.activeSession.value!!.id
+
+            // An unverified tap must never start a pause.
+            sessionManager.pauseLocationSessionFromHome(profile.id)
+            assertThat(sessionManager.activeSession.value?.id).isEqualTo(originalId)
+            assertThat(sessionManager.activeSession.value?.isPauseActive()).isFalse()
+
+            // An arbitrary code cannot authorize the alternate verified path either.
+            val approved = sessionManager.pauseLocationWithVerifiedCode(
+                profile.id, "unregistered-tag", com.foqos.android.data.model.PhysicalUnblockType.NFC,
+            )
+            assertThat(approved).isFalse()
+            assertThat(sessionManager.activeSession.value?.isPauseActive()).isFalse()
+        } finally {
+            location.clear()
+        }
+    }
+
     // --- Manual start/stop lifecycle --------------------------------------------------------
 
     @Test

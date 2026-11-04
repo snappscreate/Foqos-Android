@@ -465,6 +465,20 @@ class BlockOverlayActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(newIntent: Intent) {
+        super.onNewIntent(newIntent)
+        val previous = intent
+        setIntent(newIntent)
+        // This activity is singleTask: a new blocked app/profile reuses the same instance.
+        // Recreate only for an actually different target so the shield never keeps stale
+        // shortcuts, NFC owner or blocked-app label.
+        val changed = listOf(EXTRA_PACKAGE_NAME, EXTRA_DOMAIN, EXTRA_PROFILE_ID).any {
+            previous.getStringExtra(it) != newIntent.getStringExtra(it)
+        } || previous.getBooleanExtra(EXTRA_LOCATION_PAUSE_REQUEST, false) !=
+            newIntent.getBooleanExtra(EXTRA_LOCATION_PAUSE_REQUEST, false)
+        if (changed) recreate()
+    }
+
     override fun onResume() {
         super.onResume()
         shieldResumed = true

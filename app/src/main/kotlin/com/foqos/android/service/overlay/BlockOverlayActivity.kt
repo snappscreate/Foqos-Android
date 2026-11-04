@@ -56,6 +56,8 @@ import com.foqos.android.domain.session.SessionManager
 import com.foqos.android.domain.strategy.NfcSoftUnblockBlockingStrategy
 import com.foqos.android.domain.strategy.QrSoftUnblockBlockingStrategy
 import com.foqos.android.service.session.BlockingStateHolder
+import com.foqos.android.service.session.PeriodicAccessSchedule
+import com.foqos.android.service.session.PeriodicAccessStore
 import com.foqos.android.ui.common.DeveloperUiVisibility
 import com.foqos.android.ui.block.BlockScreenContent
 import com.foqos.android.ui.block.FullScreenShortcutGrid
@@ -64,6 +66,7 @@ import com.foqos.android.ui.theme.FoqosTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 /**
  * Shows [BlockScreenContent] full-screen over whatever app/website
@@ -132,10 +135,18 @@ class BlockOverlayActivity : ComponentActivity() {
                 val allowedPackages = state?.profileId?.let(fullScreenStore::allowedPackages).orEmpty()
                 val allowedUrls = state?.profileId?.let(fullScreenStore::allowedUrls).orEmpty()
                 var showAllowedApps by remember { mutableStateOf(false) }
+                var periodicNow by remember { mutableStateOf(System.currentTimeMillis()) }
+                LaunchedEffect(state?.sessionId, state?.periodicWaitMinutes) {
+                    while (true) {
+                        delay(1_000L)
+                        periodicNow = System.currentTimeMillis()
+                    }
+                }
+
 
                 // Auto-finishes on session end or once a grant for this exact package is issued
                 // (by this screen's own "Open for N min" button below, or another path entirely).
-                LaunchedEffect(state, targetPackage, locationStatus) {
+                LaunchedEffect(state, targetPackage, locationStatus, periodicNow) {
                     val current = state
                     if (current == null) {
                         finishAndGoHome()
@@ -145,7 +156,11 @@ class BlockOverlayActivity : ComponentActivity() {
                     // Simply finish() can reveal an underlying blocked app instead.
                     val outside = locationStatus.first?.profileId == current.profileId &&
                         locationStatus.second == false
-                    if (current.pauseActive || current.breakActive || current.periodicAccessActive || current.locationSuspended || outside) {
+                    val periodicOpen = PeriodicAccessSchedule.isAccessible(
+                        PeriodicAccessStore.Config(current.periodicWaitMinutes, current.periodicAccessMinutes),
+                        current.periodicAnchorEpochMillis, periodicNow,
+                    )
+                    if (current.pauseActive || current.breakActive || periodicOpen || current.locationSuspended || outside) {
                         if (fullScreen) finishAndGoHome() else finish()
                         return@LaunchedEffect
                     }

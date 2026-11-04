@@ -131,32 +131,27 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
                 it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD &&
                     it.root?.packageName?.toString() == eventPackage
             }) return
-        val snapshot = blockingStateHolder.state.value
-        val state = snapshot?.let { current ->
-            val store = FullScreenModeStore(applicationContext)
-            if (store.enabled(current.profileId)) {
-                val browserPackage = store.launchedBrowserPackage(current.profileId)
-                    ?: DefaultBrowserResolver.packageName(this)
-                current.copy(
-                    fullScreenMode = true,
-                    fullScreenAllowedPackages = store.allowedPackages(current.profileId),
-                    fullScreenAllowedUrls = store.allowedUrls(current.profileId),
-                    fullScreenBrowserPackage = browserPackage,
-                    fullScreenBrowserStartupUntil = browserPackage?.let {
-                        store.browserStartupUntil(current.profileId, it)
-                    } ?: 0L,
-                )
-            } else current
-        }
-        // Location status is the authority. Persisted session snapshots can lag behind
-        // a geofence transition, especially after process restoration.
+        val store = FullScreenModeStore(applicationContext)
         val location = LocationAutomationStore(applicationContext)
         val rule = location.read()
-        val effectiveState = state?.copy(
-            locationSuspended = state.locationSuspended ||
-                (rule?.profileId == state.profileId &&
-                    (location.manualInside() ?: location.lastInside()) == false),
-        )
+        val effectiveStates = blockingStateHolder.states.value.values.map { current ->
+            val browserPackage = store.launchedBrowserPackage(current.profileId)
+                ?: DefaultBrowserResolver.packageName(this)
+            val configured = if (store.enabled(current.profileId)) current.copy(
+                fullScreenMode = true,
+                fullScreenAllowedPackages = store.allowedPackages(current.profileId),
+                fullScreenAllowedUrls = store.allowedUrls(current.profileId),
+                fullScreenBrowserPackage = browserPackage,
+                fullScreenBrowserStartupUntil = browserPackage?.let {
+                    store.browserStartupUntil(current.profileId, it)
+                } ?: 0L,
+            ) else current
+            configured.copy(
+                locationSuspended = configured.locationSuspended ||
+                    (rule?.profileId == configured.profileId &&
+                        (location.manualInside() ?: location.lastInside()) == false),
+            )
+        }
         val neverBlock = AccessibilityBlockPolicy.neverBlockWithLauncher(currentLauncherPackageName())
 
         // Diagnostics only: never emit Settings window text or accessibility-node contents.
@@ -189,17 +184,21 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
             lastLoggedSettingsProbe = null
         }
 
-        val protectedSettingsScreen = effectiveState?.strictMode == true &&
+        val protectedSettingsScreen = effectiveStates.any { it.strictMode } &&
             packageName in AccessibilityBlockPolicy.SETTINGS_PACKAGES &&
             isProtectedFoqosSettingsScreen()
 
         val decision = if (packageName in AccessibilityBlockPolicy.BROWSER_PACKAGES ||
-            (effectiveState?.fullScreenMode == true && packageName == effectiveState.fullScreenBrowserPackage)) {
+            effectiveStates.any { it.fullScreenMode && packageName == it.fullScreenBrowserPackage }) {
             val url = readUrlBarText(packageName)
-            blockPolicy.decideForUrl(packageName, url, effectiveState, neverBlockPackages = neverBlock)
+            blockPolicy.decideForUrlAcrossProfiles(
+                packageName, url, effectiveStates, neverBlockPackages = neverBlock,
+            )
         } else {
-            blockPolicy.decideForApp(packageName, effectiveState, neverBlockPackages = neverBlock,
-                protectedSettingsScreen = protectedSettingsScreen)
+            blockPolicy.decideForAppAcrossProfiles(
+                packageName, effectiveStates, neverBlockPackages = neverBlock,
+                protectedSettingsScreen = protectedSettingsScreen,
+            )
         }
 
         applyDecision(decision)

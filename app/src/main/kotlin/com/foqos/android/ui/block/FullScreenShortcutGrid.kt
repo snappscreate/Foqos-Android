@@ -9,6 +9,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
@@ -41,9 +48,48 @@ fun FullScreenShortcutGrid(
     onApp: (String) -> Unit,
     onPhone: () -> Unit,
     onUrl: (String) -> Unit,
+    featuredPackages: Set<String> = emptySet(),
+    onEditFeatured: (() -> Unit)? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("使用できるアプリ・サイト", color = androidx.compose.ui.graphics.Color.White)
+        if (featuredPackages.isNotEmpty() || onEditFeatured != null) {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+                    .background(Color.White.copy(alpha = 0.17f), RoundedCornerShape(16.dp))
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("おすすめアプリ", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                    if (onEditFeatured != null) {
+                        TextButton(onClick = onEditFeatured) {
+                            Text("編集", color = Color.White)
+                        }
+                    }
+                }
+                if (featuredPackages.isEmpty()) {
+                    Text("編集から、許可アプリの中で自動起動する候補を選べるよ",
+                        color = Color.White, style = MaterialTheme.typography.bodySmall)
+                } else {
+                    Text("10秒後に候補からランダムに1つ起動",
+                        color = Color.White, style = MaterialTheme.typography.labelSmall)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        maxItemsInEachRow = 4,
+                    ) {
+                        featuredPackages.sorted().forEach { pkg ->
+                            ShortcutAppIcon(pkg, appLabel, onApp, featured = true)
+                        }
+                    }
+                }
+            }
+        }
+        Text("使用できるアプリ・サイト", color = Color.White)
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -68,32 +114,8 @@ fun FullScreenShortcutGrid(
                     textAlign = TextAlign.Center,
                 )
             }
-            packages.sorted().forEach { pkg ->
-                Column(
-                    modifier = Modifier.size(width = 72.dp, height = 92.dp)
-                        .clickable { onApp(pkg) },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(5.dp),
-                ) {
-                    AndroidView(
-                        factory = { context ->
-                            ImageView(context).apply {
-                                setImageDrawable(runCatching {
-                                    context.packageManager.getApplicationIcon(pkg)
-                                }.getOrNull())
-                            }
-                        },
-                        modifier = Modifier.size(48.dp),
-                    )
-                    Text(
-                        appLabel(pkg),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        color = androidx.compose.ui.graphics.Color.White,
-                        style = MaterialTheme.typography.labelSmall,
-                        textAlign = TextAlign.Center,
-                    )
-                }
+            (packages - featuredPackages).sorted().forEach { pkg ->
+                ShortcutAppIcon(pkg, appLabel, onApp, featured = false)
             }
             urls.sorted().forEach { address ->
                 Column(
@@ -137,5 +159,40 @@ fun FullScreenShortcutGrid(
                 }
             }
         }
+    }
+}
+
+/** Same launcher action for featured and regular allowlisted apps. */
+@Composable
+private fun ShortcutAppIcon(
+    packageName: String,
+    appLabel: (String) -> String,
+    onApp: (String) -> Unit,
+    featured: Boolean,
+) {
+    Column(
+        modifier = Modifier.size(width = if (featured) 84.dp else 72.dp, height = if (featured) 104.dp else 92.dp)
+            .clickable { onApp(packageName) },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        AndroidView(
+            factory = { context ->
+                ImageView(context).apply {
+                    setImageDrawable(runCatching {
+                        context.packageManager.getApplicationIcon(packageName)
+                    }.getOrNull())
+                }
+            },
+            modifier = Modifier.size(if (featured) 60.dp else 48.dp),
+        )
+        Text(
+            appLabel(packageName),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            color = Color.White,
+            style = if (featured) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelSmall,
+            textAlign = TextAlign.Center,
+        )
     }
 }

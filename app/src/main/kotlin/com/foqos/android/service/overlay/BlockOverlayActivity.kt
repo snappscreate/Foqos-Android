@@ -145,7 +145,7 @@ class BlockOverlayActivity : ComponentActivity() {
                     // Simply finish() can reveal an underlying blocked app instead.
                     val outside = locationStatus.first?.profileId == current.profileId &&
                         locationStatus.second == false
-                    if (current.pauseActive || current.breakActive || current.locationSuspended || outside) {
+                    if (current.pauseActive || current.breakActive || current.periodicAccessActive || current.locationSuspended || outside) {
                         if (fullScreen) finishAndGoHome() else finish()
                         return@LaunchedEffect
                     }

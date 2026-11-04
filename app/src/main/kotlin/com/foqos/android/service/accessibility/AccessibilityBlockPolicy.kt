@@ -63,7 +63,7 @@ class AccessibilityBlockPolicy @Inject constructor() {
             val periodicAllowed = PeriodicAccessSchedule.isActive(
                         PeriodicAccessStore.Config(state.periodicWaitMinutes, state.periodicAccessMinutes),
                         state.periodicAnchorEpochMillis,
-                        state.periodicActivatedCycle,
+                        state.periodicActivatedAtEpochMillis,
                         nowMillis,
                     )
             if (state.pauseActive || state.breakActive || periodicAllowed) return BlockDecision.Allow
@@ -92,7 +92,7 @@ class AccessibilityBlockPolicy @Inject constructor() {
         val periodicAllowed = PeriodicAccessSchedule.isActive(
                     PeriodicAccessStore.Config(state.periodicWaitMinutes, state.periodicAccessMinutes),
                     state.periodicAnchorEpochMillis,
-                        state.periodicActivatedCycle,
+                        state.periodicActivatedAtEpochMillis,
                     nowMillis,
                 )
         if (state.breakActive || state.pauseActive || periodicAllowed) return BlockDecision.Allow
@@ -121,7 +121,7 @@ class AccessibilityBlockPolicy @Inject constructor() {
         if (state?.locationSuspended == true) return BlockDecision.Allow
         if (state != null && PeriodicAccessSchedule.isActive(
                 PeriodicAccessStore.Config(state.periodicWaitMinutes, state.periodicAccessMinutes),
-                state.periodicAnchorEpochMillis, state.periodicActivatedCycle, nowMillis,
+                state.periodicAnchorEpochMillis, state.periodicActivatedAtEpochMillis, nowMillis,
             )) return BlockDecision.Allow
         val appDecision = decideForApp(packageName, state, nowMillis, neverBlockPackages)
         val restrictedBrowser = state?.fullScreenMode == true &&

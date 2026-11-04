@@ -634,20 +634,21 @@ class SessionManager @Inject constructor(
      * slate.
      */
     suspend fun resetAllState() {
-        val current = _activeSession.value
-        if (current != null) {
-            sessionRepository.endSession(current.id, Instant.now())
-            sessionServiceController.stopForegroundService(current.id)
+        val sessions = sessionRepository.activeSessionsOnce()
+        sessions.forEach { session ->
+            sessionRepository.endSession(session.id, Instant.now())
         }
-
+        sessions.firstOrNull()?.let {
+            sessionServiceController.stopForegroundService(it.id)
+        }
         blockingStateHolder.clear()
+        _activeSessions.value = emptyList()
         _activeSession.value = null
         _activeProfile.value = null
 
         val allProfiles = profileRepository.observeAll().first()
         allProfiles.forEach { profile -> alarmScheduler.cancelAllForProfile(profile.id) }
         alarmScheduler.cancel(AlarmActivityType.EMERGENCY_ALLOWANCE_RESET, EMERGENCY_ALLOWANCE_KEY)
-
         widgetRefresher.refresh()
     }
 
@@ -659,56 +660,48 @@ class SessionManager @Inject constructor(
      * derived from the session's own timestamps.
      */
     suspend fun rebuildStateAfterProcessRestart() {
-        val session = sessionRepository.activeSessionOnce()
-        _activeSession.value = session
-        if (session == null) {
-            _activeProfile.value = null
+        val sessions = sessionRepository.activeSessionsOnce()
+        _activeSessions.value = sessions
+        _activeSession.value = sessions.firstOrNull()
+        _activeProfile.value = _activeSession.value?.let { profileRepository.getById(it.profileId) }
+        if (sessions.isEmpty()) {
             blockingStateHolder.clear()
             return
         }
-
-        val profile = profileRepository.getById(session.profileId)
-        _activeProfile.value = profile
-        if (profile == null) return
-
+        blockingStateHolder.clear()
         val now = Instant.now()
-        val grants = softUnblockRepository.activeGrantsOnce(session.id, now)
-        val activeGrants = grants.associate { it.packageName to it.expiresAt.toEpochMilli() }
-
-        blockingStateHolder.setState(
-            BlockingState(
-                profileId = profile.id,
-                sessionId = session.id,
-                profileName = profile.name,
-                blockedPackages = profile.blockedPackages.toSet(),
-                allowMode = profile.allowModeEnabled,
-                blockedDomains = profile.domains,
-                allowModeDomains = profile.allowModeDomains,
-                strictMode = profile.enableStrictMode,
-                blockAppInstallation = profile.enableBlockAppInstallation,
-                breakActive = session.isBreakActive(now),
-                pauseActive = session.isPauseActive(now),
-                periodicAccessActive = periodicAccessActive(profile.id, session, now),
-                periodicActivatedAtEpochMillis = activatedPeriodicAt(profile.id, session),
-                periodicWaitMinutes = periodicAccessStore.read(profile.id).waitMinutes,
-                periodicAccessMinutes = periodicAccessStore.read(profile.id).accessMinutes,
-                periodicAnchorEpochMillis = periodicAnchor(session),
-                locationSuspended = locationStoreOutside(profile.id),
-                activeGrants = activeGrants,
-                disableBackgroundStops = profile.disableBackgroundStops,
-                sessionStartEpochMillis = session.startTime.toEpochMilli(),
-            ),
-        )
-
-        sessionServiceController.startForegroundService(session.id)
-
-        // FoqosAlarmScheduler's cancelAllForProfile only knows about alarms scheduled since this
-        // process started - the alarms themselves survive process death at the OS level, but our
-        // in-memory tracked-keys registry does not. Re-arming (idempotently, same trigger time)
-        // every alarm implied by the restored session/grants keeps that registry accurate so a
-        // later endSession()/cancelAllForProfile() call can actually cancel them.
-        rearmAlarmsAfterRestart(profile, session, now, grants)
-        schedulePeriodicAccess(profile.id, session, now)
+        sessions.forEach { session ->
+            val profile = profileRepository.getById(session.profileId) ?: return@forEach
+            val grants = softUnblockRepository.activeGrantsOnce(session.id, now)
+            val activeGrants = grants.associate { it.packageName to it.expiresAt.toEpochMilli() }
+            blockingStateHolder.setState(
+                BlockingState(
+                    profileId = profile.id,
+                    sessionId = session.id,
+                    profileName = profile.name,
+                    blockedPackages = profile.blockedPackages.toSet(),
+                    allowMode = profile.allowModeEnabled,
+                    blockedDomains = profile.domains,
+                    allowModeDomains = profile.allowModeDomains,
+                    strictMode = profile.enableStrictMode,
+                    blockAppInstallation = profile.enableBlockAppInstallation,
+                    breakActive = session.isBreakActive(now),
+                    pauseActive = session.isPauseActive(now),
+                    periodicAccessActive = periodicAccessActive(profile.id, session, now),
+                    periodicActivatedAtEpochMillis = activatedPeriodicAt(profile.id, session),
+                    periodicWaitMinutes = periodicAccessStore.read(profile.id).waitMinutes,
+                    periodicAccessMinutes = periodicAccessStore.read(profile.id).accessMinutes,
+                    periodicAnchorEpochMillis = periodicAnchor(session),
+                    locationSuspended = locationStoreOutside(profile.id),
+                    activeGrants = activeGrants,
+                    disableBackgroundStops = profile.disableBackgroundStops,
+                    sessionStartEpochMillis = session.startTime.toEpochMilli(),
+                ),
+            )
+            rearmAlarmsAfterRestart(profile, session, now, grants)
+            schedulePeriodicAccess(profile.id, session, now)
+        }
+        sessions.firstOrNull()?.let { sessionServiceController.startForegroundService(it.id) }
     }
 
     /**

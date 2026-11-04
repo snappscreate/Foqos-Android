@@ -317,9 +317,16 @@ class BlockOverlayActivity : ComponentActivity() {
                         }
                         return@LaunchedEffect
                     }
+                    // A soft grant from A cannot dismiss the shield while B still blocks.
                     val grantExpiry = current.activeGrants[targetPackage]
-                    if (grantExpiry != null && grantExpiry > System.currentTimeMillis()) {
-                        finish()
+                    if (grantExpiry != null && grantExpiry > periodicNow) {
+                        val otherBlocks = candidates.any { candidate ->
+                            val result = if (targetDomain != null)
+                                blockPolicy.decideForUrl(targetPackage, "https://$targetDomain", candidate, periodicNow)
+                            else blockPolicy.decideForApp(targetPackage, candidate, periodicNow)
+                            result != BlockDecision.Allow
+                        }
+                        if (!otherBlocks) finish()
                     }
                 }
 
@@ -449,7 +456,6 @@ class BlockOverlayActivity : ComponentActivity() {
                     onOpenTemporarily = {
                         scope.launch {
                             sessionManager.issueSoftUnblockGrant(targetPackage, state?.profileId)
-                            finish()
                         }
                     },
                 )

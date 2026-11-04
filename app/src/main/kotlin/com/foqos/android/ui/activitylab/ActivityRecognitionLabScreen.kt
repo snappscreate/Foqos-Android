@@ -83,6 +83,8 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
     var front by remember { mutableStateOf(false) }
     var interval by remember { mutableStateOf(2000L) }
     var duration by remember { mutableStateOf(20) }
+    var useRelay by remember { mutableStateOf(false) }
+    var apiKey by remember { mutableStateOf("") }
     var endpoint by remember { mutableStateOf("") }
     var token by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("待機中") }
@@ -171,21 +173,41 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall)
             }
             if (mode != ActivityMode.POSE) {
-                Text("Geminiへ映像を送信するため、HTTPS中継サーバーが必要。キーはアプリ内に埋め込まない。",
-                    style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(
-                    value = endpoint, onValueChange = { endpoint = it },
-                    modifier = Modifier.fillMaxWidth(), enabled = !busy,
-                    label = { Text("中継サーバーURL（HTTPS）") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = token, onValueChange = { token = it },
-                    modifier = Modifier.fillMaxWidth(), enabled = !busy,
-                    label = { Text("認証トークン（必要な場合）") },
-                    singleLine = true,
-                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = !useRelay, enabled = !busy,
+                        onClick = { useRelay = false },
+                        label = { Text("直接API（テスト専用）") })
+                    FilterChip(selected = useRelay, enabled = !busy,
+                        onClick = { useRelay = true },
+                        label = { Text("HTTPS中継") })
+                }
+                if (useRelay) {
+                    Text("中継側にGeminiのAPIキーを置く方式。通常運用ではこちらを推奨。",
+                        style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(
+                        value = endpoint, onValueChange = { endpoint = it },
+                        modifier = Modifier.fillMaxWidth(), enabled = !busy,
+                        label = { Text("中継サーバーURL（HTTPS）") },
+                        singleLine = true,
+                    )
+                    OutlinedTextField(
+                        value = token, onValueChange = { token = it },
+                        modifier = Modifier.fillMaxWidth(), enabled = !busy,
+                        label = { Text("中継サーバー認証トークン") },
+                        singleLine = true,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    )
+                } else {
+                    Text("個人用の実験だけに使う方法。APIキーは保存せず、画面を閉じると消える。撮影データはGoogleへ送信される。",
+                        style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(
+                        value = apiKey, onValueChange = { apiKey = it },
+                        modifier = Modifier.fillMaxWidth(), enabled = !busy,
+                        label = { Text("Gemini APIキー（実行時のみ）") },
+                        singleLine = true,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    )
+                }
             }
             Text(status, style = MaterialTheme.typography.bodyMedium)
             if (busy) {
@@ -197,7 +219,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
             } else {
                 Button(
                     enabled = granted && cameraReady && activity.isNotBlank() &&
-                        (mode == ActivityMode.POSE || endpoint.startsWith("https://")),
+                        (mode == ActivityMode.POSE || if (useRelay) endpoint.startsWith("https://") else apiKey.isNotBlank()),
                     onClick = {
                         captureJob = scope.launch {
                             val previous = files
@@ -214,9 +236,11 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                                     captures.add(video)
                                     files = captures.toList()
                                     status = "Geminiに動画を送信して判定中..."
-                                    ActivityGeminiRelay.judge(
+                                    if (useRelay) ActivityGeminiRelay.judge(
                                         endpoint.trim(), token.trim(), activity, "video",
                                         emptyList(), video, interval)
+                                    else ActivityGeminiRelay.judgeDirect(
+                                        apiKey.trim(), activity, emptyList(), video, interval)
                                 } else {
                                     val total = photoCount
                                     val actualInterval = (duration * 1000L / total).coerceAtLeast(interval)
@@ -231,9 +255,11 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                                     if (mode == ActivityMode.POSE) {
                                         PoseActivityJudge.judge(context, activity, captures)
                                     } else {
-                                        ActivityGeminiRelay.judge(
+                                        if (useRelay) ActivityGeminiRelay.judge(
                                             endpoint.trim(), token.trim(), activity, "photos",
                                             captures, null, actualInterval)
+                                        else ActivityGeminiRelay.judgeDirect(
+                                            apiKey.trim(), activity, captures, null, actualInterval)
                                     }
                                 }
                                 verdict = result.copy(elapsedMs = SystemClock.elapsedRealtime() - started)

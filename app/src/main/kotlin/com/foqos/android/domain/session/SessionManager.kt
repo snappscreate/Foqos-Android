@@ -81,6 +81,23 @@ class SessionManager @Inject constructor(
     private val _activeSession = MutableStateFlow<BlockedProfileSession?>(null)
     val activeSession: StateFlow<BlockedProfileSession?> = _activeSession.asStateFlow()
 
+    private val _activeSessions = MutableStateFlow<List<BlockedProfileSession>>(emptyList())
+    val activeSessions: StateFlow<List<BlockedProfileSession>> = _activeSessions.asStateFlow()
+
+    private fun sessionForProfile(profileId: String): BlockedProfileSession? =
+        _activeSessions.value.firstOrNull { it.profileId == profileId }
+
+    private fun cacheSession(session: BlockedProfileSession) {
+        _activeSessions.value = listOf(session) +
+            _activeSessions.value.filterNot { it.id == session.id || it.profileId == session.profileId }
+        _activeSession.value = _activeSessions.value.firstOrNull()
+    }
+
+    private fun uncacheSession(sessionId: String) {
+        _activeSessions.value = _activeSessions.value.filterNot { it.id == sessionId }
+        _activeSession.value = _activeSessions.value.firstOrNull()
+    }
+
     private val _activeProfile = MutableStateFlow<BlockedProfile?>(null)
     val activeProfile: StateFlow<BlockedProfile?> = _activeProfile.asStateFlow()
 
@@ -96,7 +113,8 @@ class SessionManager @Inject constructor(
             // (or, in tests, the backing store being torn down before this fire-and-forget job runs)
             // can't surface as an uncaught exception in this SupervisorJob scope.
             runCatching {
-                _activeSession.value = sessionRepository.activeSessionOnce()
+                _activeSessions.value = sessionRepository.activeSessionsOnce()
+                _activeSession.value = _activeSessions.value.firstOrNull()
                 _activeProfile.value = _activeSession.value?.let { profileRepository.getById(it.profileId) }
             }
         }
@@ -806,13 +824,10 @@ class SessionManager @Inject constructor(
     // --- StrategyHost ------------------------------------------------------------------------
 
     override suspend fun createSession(profile: BlockedProfile, tag: String, forceStarted: Boolean): BlockedProfileSession {
-        // Enforce "single active session at a time" at this single choke point, regardless of
-        // which caller forgot to end a still-active *different* session first (toggleFromDeeplink
-        // and the schedule-start handler already do this explicitly, so this is a no-op for them).
-        val current = _activeSession.value
-        if (current != null && current.profileId != profile.id) {
-            endSession(current, Instant.now())
-        }
+        // Other active profiles are independent. Keep just one session per profile.
+        val existing = sessionForProfile(profile.id)
+            ?: sessionRepository.activeSessionForProfile(profile.id)
+        if (existing != null) return existing
 
         val session = sessionRepository.startSession(profile, tag = tag, forceStarted = forceStarted)
         onSessionStarted(profile, session)
@@ -831,13 +846,14 @@ class SessionManager @Inject constructor(
         alarmScheduler.cancelAllForProfile(session.profileId)
         softUnblockRepository.clearForSession(session.id)
 
-        if (_activeSession.value?.id == session.id) {
-            blockingStateHolder.clear()
-            _activeSession.value = null
-            _activeProfile.value = null
-        }
+        blockingStateHolder.clearProfile(session.profileId)
+        uncacheSession(session.id)
+        _activeProfile.value = _activeSession.value?.let { profileRepository.getById(it.profileId) }
 
-        sessionServiceController.stopForegroundService(session.id)
+        // Keep the shared foreground service alive while any other profile is active.
+        if (_activeSessions.value.isEmpty()) {
+            sessionServiceController.stopForegroundService(session.id)
+        }
         widgetRefresher.refresh()
 
         // cancelAllForProfile above also wipes any still-armed weekly schedule alarms - re-arm
@@ -889,7 +905,7 @@ class SessionManager @Inject constructor(
     // --- Session-start side effects --------------------------------------------------------
 
     private fun onSessionStarted(profile: BlockedProfile, session: BlockedProfileSession) {
-        _activeSession.value = session
+        cacheSession(session)
         _activeProfile.value = profile
 
         val strategy = StrategyRegistry.byId(profile.strategyId)
@@ -945,14 +961,8 @@ class SessionManager @Inject constructor(
     private suspend fun handleScheduleStart(profileId: String, at: Instant) {
         val profile = profileRepository.getById(profileId) ?: return
         if (profile.schedule?.isConfigured == true) {
-            val current = _activeSession.value
-            when {
-                current == null -> createSession(profile, tag = AlarmActivityType.SCHEDULE_START.key, forceStarted = false)
-                current.profileId != profileId -> {
-                    endSession(current, at)
-                    createSession(profile, tag = AlarmActivityType.SCHEDULE_START.key, forceStarted = false)
-                }
-                else -> Unit // Same profile already running (started manually or by a prior fire) - leave it be.
+            if (sessionForProfile(profileId) == null) {
+                createSession(profile, tag = AlarmActivityType.SCHEDULE_START.key, forceStarted = false)
             }
             alarmScheduler.rearmScheduleStart(profile)
         }

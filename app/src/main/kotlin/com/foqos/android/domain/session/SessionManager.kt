@@ -3,6 +3,7 @@ package com.foqos.android.domain.session
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.foqos.android.service.location.LocationAutomationStore
+import com.foqos.android.service.session.GlobalSessionProtectionStore
 import com.foqos.android.service.session.PeriodicAccessStore
 import com.foqos.android.service.session.PeriodicAccessSchedule
 import com.foqos.android.data.model.BlockedProfile
@@ -133,6 +134,12 @@ class SessionManager @Inject constructor(
         val store = LocationAutomationStore(appContext)
         return store.read(profileId) != null &&
             (store.manualInside(profileId) ?: store.lastInside(profileId)) == false
+    }
+
+    private val globalProtection by lazy { GlobalSessionProtectionStore(appContext) }
+
+    suspend fun refreshGlobalProtectionSettings() {
+        _activeSessions.value.forEach { refreshActiveProfileConfig(it.profileId) }
     }
 
     private val periodicAccessStore by lazy { PeriodicAccessStore(appContext) }
@@ -394,7 +401,7 @@ class SessionManager @Inject constructor(
             emitError("Failed to find a profile stored locally that matches the tag")
             return
         }
-        if (fromBackground && profile.disableBackgroundStops) {
+        if (fromBackground && globalProtection.readFor(profile).disableBackgroundStops) {
             emitError("This profile requires the app to stop the session")
             return
         }
@@ -433,7 +440,7 @@ class SessionManager @Inject constructor(
             emitError("NFC + Pause Timer cannot be stopped through a shortcut")
             return
         }
-        if (fromBackground && currentProfile?.disableBackgroundStops == true) {
+        if (fromBackground && currentProfile?.let { globalProtection.readFor(it).disableBackgroundStops } == true) {
             emitError("This profile requires the app to stop the session")
             return
         }
@@ -537,7 +544,7 @@ class SessionManager @Inject constructor(
             emitError("Failed to find a profile stored locally that matches the tag")
             return
         }
-        if (!profile.enableEmergencyUnblock) {
+        if (!globalProtection.readFor(profile).enableEmergencyUnblock) {
             emitError("Emergency unblock is disabled for this profile")
             return
         }
@@ -693,8 +700,8 @@ class SessionManager @Inject constructor(
                     allowMode = profile.allowModeEnabled,
                     blockedDomains = profile.domains,
                     allowModeDomains = profile.allowModeDomains,
-                    strictMode = profile.enableStrictMode,
-                    blockAppInstallation = profile.enableBlockAppInstallation,
+                    strictMode = globalProtection.readFor(profile).strictMode,
+                    blockAppInstallation = globalProtection.readFor(profile).blockAppInstallation,
                     breakActive = session.isBreakActive(now),
                     pauseActive = session.isPauseActive(now),
                     periodicAccessActive = periodicAccessActive(profile.id, session, now),
@@ -704,7 +711,7 @@ class SessionManager @Inject constructor(
                     periodicAnchorEpochMillis = periodicAnchor(session),
                     locationSuspended = locationStoreOutside(profile.id),
                     activeGrants = activeGrants,
-                    disableBackgroundStops = profile.disableBackgroundStops,
+                    disableBackgroundStops = globalProtection.readFor(profile).disableBackgroundStops,
                     sessionStartEpochMillis = session.startTime.toEpochMilli(),
                 ),
             )
@@ -744,8 +751,8 @@ class SessionManager @Inject constructor(
                 allowMode = profile.allowModeEnabled,
                 blockedDomains = profile.domains,
                 allowModeDomains = profile.allowModeDomains,
-                strictMode = profile.enableStrictMode,
-                blockAppInstallation = profile.enableBlockAppInstallation,
+                strictMode = globalProtection.readFor(profile).strictMode,
+                blockAppInstallation = globalProtection.readFor(profile).blockAppInstallation,
                 breakActive = session.isBreakActive(now),
                 pauseActive = session.isPauseActive(now),
                 periodicAccessActive = periodicAccessActive(profile.id, session, now),
@@ -755,7 +762,7 @@ class SessionManager @Inject constructor(
                 periodicAnchorEpochMillis = periodicAnchor(session),
                 locationSuspended = locationStoreOutside(profile.id),
                 activeGrants = activeGrants,
-                disableBackgroundStops = profile.disableBackgroundStops,
+                disableBackgroundStops = globalProtection.readFor(profile).disableBackgroundStops,
                 sessionStartEpochMillis = session.startTime.toEpochMilli(),
             ),
         )
@@ -941,8 +948,8 @@ class SessionManager @Inject constructor(
                 allowMode = profile.allowModeEnabled,
                 blockedDomains = profile.domains,
                 allowModeDomains = profile.allowModeDomains,
-                strictMode = profile.enableStrictMode,
-                blockAppInstallation = profile.enableBlockAppInstallation,
+                strictMode = globalProtection.readFor(profile).strictMode,
+                blockAppInstallation = globalProtection.readFor(profile).blockAppInstallation,
                 breakActive = false,
                 pauseActive = false,
                 periodicAccessActive = periodicAccessActive(profile.id, session, Instant.now()),
@@ -952,7 +959,7 @@ class SessionManager @Inject constructor(
                 periodicAnchorEpochMillis = periodicAnchor(session),
                 locationSuspended = locationStoreOutside(profile.id),
                 activeGrants = emptyMap(),
-                disableBackgroundStops = profile.disableBackgroundStops,
+                disableBackgroundStops = globalProtection.readFor(profile).disableBackgroundStops,
                 sessionStartEpochMillis = session.startTime.toEpochMilli(),
             ),
         )

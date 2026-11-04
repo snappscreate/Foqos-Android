@@ -435,8 +435,8 @@ class SessionManager @Inject constructor(
      * Starts a timed break on the active session, if the profile/strategy allow it and allowance
      * remains. Mirrors iOS `StrategyManager.startBreak`.
      */
-    suspend fun startBreak() {
-        val session = _activeSession.value ?: run {
+    suspend fun startBreak(profileId: String? = _activeSession.value?.profileId) {
+        val session = profileId?.let(::sessionForProfile) ?: run {
             emitError("Breaks are only available in an active session")
             return
         }
@@ -473,7 +473,7 @@ class SessionManager @Inject constructor(
 
         val now = Instant.now()
         sessionRepository.startBreak(session.id, profile.allowMultipleBreaks, now)
-        blockingStateHolder.setBreakActive(true)
+        blockingStateHolder.updateProfile(session.profileId) { it.copy(breakActive = true) }
 
         val durationSeconds = minOf(totalAllowanceSeconds, remainingAllowance)
         alarmScheduler.scheduleExactAt(
@@ -483,17 +483,17 @@ class SessionManager @Inject constructor(
             mapOf("sessionId" to session.id),
         )
 
-        _activeSession.value = session.copy(breakStartTime = now, breakEndTime = null)
+        cacheSession(session.copy(breakStartTime = now, breakEndTime = null))
     }
 
     /** Ends the active session's break at [at], accumulating used break duration. */
-    suspend fun endBreak(at: Instant = Instant.now()) {
-        val session = _activeSession.value ?: return
+    suspend fun endBreak(at: Instant = Instant.now(), profileId: String? = _activeSession.value?.profileId) {
+        val session = profileId?.let(::sessionForProfile) ?: return
         val profile = profileRepository.getById(session.profileId) ?: return
 
         alarmScheduler.cancel(AlarmActivityType.BREAK_END, profile.id, mapOf("sessionId" to session.id))
         sessionRepository.endBreak(session.id, profile.allowMultipleBreaks, profile.breakTimeInMinutes * 60L, at)
-        blockingStateHolder.setBreakActive(false)
+        blockingStateHolder.updateProfile(session.profileId) { it.copy(breakActive = false) }
 
         val breakStart = session.breakStartTime
         val elapsedSeconds = if (breakStart != null) maxOf(0L, at.toEpochMilli() - breakStart.toEpochMilli()) / 1000L else 0L
@@ -504,10 +504,13 @@ class SessionManager @Inject constructor(
         }
 
         val resumed = session.copy(breakEndTime = at, usedBreakDurationInSeconds = newUsedDuration)
-        _activeSession.value = resumed
+        cacheSession(resumed)
         // A manual break ends with a fresh uninterrupted-blocking countdown.
         // Unlike NFC pauses this timestamp is already in the session record.
-        blockingStateHolder.setPeriodicAccessAnchor(at.toEpochMilli(), false)
+        blockingStateHolder.updateProfile(profile.id) {
+            it.copy(periodicAnchorEpochMillis = at.toEpochMilli(), periodicActivatedAtEpochMillis = 0L,
+                periodicAccessActive = false)
+        }
         schedulePeriodicAccess(profile.id, resumed, at)
     }
 
@@ -516,8 +519,8 @@ class SessionManager @Inject constructor(
      * refilled every `emergencyResetIntervalWeeks`), if the profile allows it and allowance
      * remains. Mirrors iOS `StrategyManager.emergencyUnblock`.
      */
-    suspend fun emergencyUnblock() {
-        val session = _activeSession.value ?: run {
+    suspend fun emergencyUnblock(profileId: String? = _activeSession.value?.profileId) {
+        val session = profileId?.let(::sessionForProfile) ?: run {
             emitError("No active session to unblock")
             return
         }
@@ -575,8 +578,8 @@ class SessionManager @Inject constructor(
      * Issues a soft-unblock grant for [packageName] against the active session's allowance, if any
      * remains. Used by the block overlay (Phase 5) to let a package open temporarily.
      */
-    suspend fun issueSoftUnblockGrant(packageName: String): SoftUnblockGrant? {
-        val session = _activeSession.value ?: return null
+    suspend fun issueSoftUnblockGrant(packageName: String, profileId: String? = _activeSession.value?.profileId): SoftUnblockGrant? {
+        val session = profileId?.let(::sessionForProfile) ?: return null
         val profile = profileRepository.getById(session.profileId) ?: return null
         val data = SoftUnblockStrategyData.fromJsonOrNull(profile.strategyDataJson)
 
@@ -591,7 +594,9 @@ class SessionManager @Inject constructor(
             return null
         }
 
-        blockingStateHolder.updateGrants { it + (packageName to grant.expiresAt.toEpochMilli()) }
+        blockingStateHolder.updateProfile(profile.id) {
+            it.copy(activeGrants = it.activeGrants + (packageName to grant.expiresAt.toEpochMilli()))
+        }
         alarmScheduler.scheduleExactAt(
             AlarmActivityType.GRANT_EXPIRY,
             profile.id,
@@ -981,7 +986,7 @@ class SessionManager @Inject constructor(
         val expectedSessionId = extras["sessionId"]
         if (expectedSessionId != null && current.id != expectedSessionId) return
         if (!current.isBreakActive(at)) return
-        endBreak(at)
+        endBreak(at, profileId)
     }
 
     /**

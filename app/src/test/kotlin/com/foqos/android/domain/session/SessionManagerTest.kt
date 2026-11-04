@@ -299,7 +299,7 @@ class SessionManagerTest {
     }
 
     @Test
-    fun `createSession ends a different currently active session before starting a new one`() = runTest {
+    fun `createSession keeps another active profile while starting a second one`() = runTest {
         val profileA = createProfile(id = "profile-a", strategyId = ManualBlockingStrategy.ID)
         val profileB = createProfile(id = "profile-b", strategyId = ManualBlockingStrategy.ID)
         sessionManager.startProfile(profileA.id)
@@ -307,8 +307,39 @@ class SessionManagerTest {
 
         sessionManager.createSession(profileB, tag = ManualBlockingStrategy.ID, forceStarted = false)
 
-        assertThat(sessionRepository.getById(sessionAId)?.endTime).isNotNull()
-        assertThat(sessionManager.activeSession.value?.profileId).isEqualTo(profileB.id)
+        assertThat(sessionRepository.getById(sessionAId)?.endTime).isNull()
+        assertThat(sessionManager.activeSessions.value.map { it.profileId })
+            .containsExactly(profileA.id, profileB.id)
+        assertThat(blockingStateHolder.states.value.keys).containsExactly(profileA.id, profileB.id)
+    }
+
+    @Test
+    fun `stopping one profile keeps the second profile enforced`() = runTest {
+        val profileA = createProfile(id = "profile-a", strategyId = ManualBlockingStrategy.ID)
+        val profileB = createProfile(id = "profile-b", strategyId = ManualBlockingStrategy.ID)
+        sessionManager.startProfile(profileA.id)
+        sessionManager.startProfile(profileB.id)
+
+        sessionManager.stopProfileSession(profileA.id)
+
+        assertThat(sessionManager.activeSessions.value.map { it.profileId }).containsExactly(profileB.id)
+        assertThat(blockingStateHolder.states.value.keys).containsExactly(profileB.id)
+        assertThat(sessionRepository.activeSessionForProfile(profileA.id)).isNull()
+        assertThat(sessionRepository.activeSessionForProfile(profileB.id)).isNotNull()
+    }
+
+    @Test
+    fun `a pause in one profile never changes second profile pause state`() = runTest {
+        val profileA = createProfile(id = "profile-a", strategyId = ManualBlockingStrategy.ID)
+        val profileB = createProfile(id = "profile-b", strategyId = ManualBlockingStrategy.ID)
+        sessionManager.startProfile(profileA.id)
+        sessionManager.startProfile(profileB.id)
+        val sessionA = sessionManager.activeSessions.value.first { it.profileId == profileA.id }
+
+        sessionManager.beginPause(sessionA, 5)
+
+        assertThat(blockingStateHolder.stateForProfile(profileA.id)?.pauseActive).isTrue()
+        assertThat(blockingStateHolder.stateForProfile(profileB.id)?.pauseActive).isFalse()
     }
 
     // --- Breaks --------------------------------------------------------------------------------
@@ -403,7 +434,7 @@ class SessionManagerTest {
     }
 
     @Test
-    fun `toggleFromDeeplink switches from one active profile to another`() = runTest {
+    fun `toggleFromDeeplink starts another profile without stopping the first`() = runTest {
         val profileA = createProfile(id = "profile-a", strategyId = ManualBlockingStrategy.ID)
         val profileB = createProfile(id = "profile-b", strategyId = ManualBlockingStrategy.ID)
         sessionManager.toggleFromDeeplink(profileA.id, fromBackground = true)
@@ -411,11 +442,10 @@ class SessionManagerTest {
 
         sessionManager.toggleFromDeeplink(profileB.id, fromBackground = true)
 
-        assertThat(sessionRepository.getById(sessionAId)?.endTime).isNotNull()
-        val active = sessionManager.activeSession.value
-        assertThat(active).isNotNull()
-        assertThat(active!!.profileId).isEqualTo(profileB.id)
-        assertThat(active.forceStarted).isTrue()
+        assertThat(sessionRepository.getById(sessionAId)?.endTime).isNull()
+        assertThat(sessionManager.activeSessions.value.map { it.profileId })
+            .containsExactly(profileA.id, profileB.id)
+        assertThat(sessionManager.activeSessions.value.first { it.profileId == profileB.id }.forceStarted).isTrue()
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.foqos.android.service.session
 
 import android.content.Context
+import com.foqos.android.ui.block.FocusShortcut
 import org.json.JSONArray
 import java.net.URI
 
@@ -21,20 +22,32 @@ class FullScreenModeStore(context: Context) {
             (0 until json.length()).map { json.getString(it) }.toSet()
         }.getOrDefault(emptySet())
 
-    /** Priority apps are only a subset of the already allowed apps. */
-    fun featuredPackages(profileId: String): Set<String> =
-        runCatching {
-            val json = JSONArray(prefs.getString("${profileId}_featured", "[]"))
-            (0 until json.length()).map { json.getString(it) }.toSet()
-        }.getOrDefault(emptySet()).intersect(allowedPackages(profileId))
-
-    /** May be changed from the block screen without changing the actual whitelist. */
-    fun saveFeaturedPackages(profileId: String, packages: Set<String>) {
-        val selected = packages.intersect(allowedPackages(profileId))
-        prefs.edit().putString("${profileId}_featured", JSONArray().apply {
-            selected.sorted().forEach { put(it) }
-        }.toString()).commit()
+    /** Legacy selections were raw package IDs; newer selections are typed destinations. */
+    fun featuredShortcuts(profileId: String): Set<String> = runCatching {
+        val json = JSONArray(prefs.getString("${profileId}_featured", "[]"))
+        (0 until json.length()).map { value ->
+            val raw = json.getString(value)
+            if (raw.startsWith("app:") || raw.startsWith("url:") || raw == FocusShortcut.PHONE)
+                raw else FocusShortcut.app(raw)
+        }.toSet()
+    }.getOrDefault(emptySet()).filterTo(mutableSetOf()) {
+        FocusShortcut.valid(it, allowedPackages(profileId), allowedUrls(profileId))
     }
+
+    fun featuredPackages(profileId: String): Set<String> =
+        featuredShortcuts(profileId).filter { it.startsWith(FocusShortcut.APP_PREFIX) }
+            .mapTo(mutableSetOf()) { it.removePrefix(FocusShortcut.APP_PREFIX) }
+
+    fun saveFeaturedShortcuts(profileId: String, ids: Set<String>) {
+        val packages = allowedPackages(profileId)
+        val urls = allowedUrls(profileId)
+        val accepted = ids.filter { FocusShortcut.valid(it, packages, urls) }.sorted()
+        prefs.edit().putString("${profileId}_featured",
+            JSONArray().apply { accepted.forEach(::put) }.toString()).commit()
+    }
+
+    fun saveFeaturedPackages(profileId: String, packages: Set<String>) =
+        saveFeaturedShortcuts(profileId, packages.mapTo(mutableSetOf(), FocusShortcut::app))
 
     /** Restrict web access to exact approved hosts and their subdomains. */
     fun allowedUrls(profileId: String): Set<String> =
@@ -70,7 +83,7 @@ class FullScreenModeStore(context: Context) {
         }.toString()
         prefs.edit().putBoolean("${profileId}_enabled", enabled)
             .putString("${profileId}_allowed", serialized).commit()
-        saveFeaturedPackages(profileId, featuredPackages(profileId))
+        saveFeaturedShortcuts(profileId, featuredShortcuts(profileId))
     }
 
     fun saveUrls(profileId: String, urls: Set<String>) {

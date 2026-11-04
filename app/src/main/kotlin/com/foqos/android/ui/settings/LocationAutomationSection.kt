@@ -1,8 +1,9 @@
 package com.foqos.android.ui.settings
 
 import android.Manifest
-import android.location.Location
+import android.content.Context
 import android.content.Intent
+import android.location.Location
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -13,15 +14,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,9 +28,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.foqos.android.data.model.BlockedProfile
-import com.foqos.android.data.repository.ProfileRepository
 import com.foqos.android.domain.session.SessionManager
 import com.foqos.android.service.location.GeofenceManager
 import com.foqos.android.service.location.LocationAutomationStore
@@ -42,120 +36,110 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import android.content.Context
 import javax.inject.Inject
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 
 @HiltViewModel
 class LocationAutomationViewModel @Inject constructor(
-    private val repository: ProfileRepository,
     private val sessions: SessionManager,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
-    val profiles = repository.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     private val store = LocationAutomationStore(context)
-    val initialRule: LocationRule? = store.read()
-    fun savedRule(): LocationRule? = store.read()
     var status by mutableStateOf("")
         private set
 
-    fun hasPermission() = GeofenceManager(context).hasRequiredPermissions()
+    fun savedRule(profileId: String): LocationRule? = store.read(profileId)
+    fun hasPermission(): Boolean = GeofenceManager(context).hasRequiredPermissions()
+    fun isLocked(profileId: String): Boolean =
+        sessions.activeSessions.value.any { it.profileId == profileId }
 
     fun save(profileId: String, latitude: String, longitude: String, radius: String) {
-        if (sessions.activeSession.value != null) {
-            status = "End the active blocking session before changing location automation."
+        if (isLocked(profileId)) {
+            status = "稼働中のプロファイルの位置範囲は変更できません"
             return
         }
         if (!hasPermission()) {
-            status = "Grant precise location and Allow all the time in Android app permissions first."
+            status = "位置情報を「常に許可」にし、正確な位置情報を有効にしてください"
             return
         }
         val rule = runCatching {
             LocationRule(profileId, latitude.toDouble(), longitude.toDouble(), radius.toFloat())
         }.getOrElse {
-            status = "Enter valid coordinates and a radius of at least 100 meters."
+            status = "緯度・経度と、100m以上の半径を入力してください"
             return
         }
-        val manager = GeofenceManager(context)
-        manager.register(rule)
+        GeofenceManager(context).register(rule)
             .addOnSuccessListener {
-                val old = store.read()
                 store.save(rule)
-                if (old != null && old.profileId != rule.profileId) manager.unregister(old.profileId)
-                status = "Location rule enabled. Android will monitor entry and exit."
+                status = "このプロファイルの位置範囲を保存しました"
             }
-            .addOnFailureListener { status = "Could not register location rule: ${it.message}" }
+            .addOnFailureListener { status = "位置範囲を登録できません：${it.message}" }
     }
 
-    fun disable() {
-        if (sessions.activeSession.value != null) {
-            status = "End the active blocking session before changing location automation."
+    fun disable(profileId: String) {
+        if (isLocked(profileId)) {
+            status = "稼働中のプロファイルの位置範囲は変更できません"
             return
         }
-        val rule = store.read() ?: return
-        GeofenceManager(context).unregister(rule.profileId)
+        if (store.read(profileId) == null) return
+        GeofenceManager(context).unregister(profileId)
             .addOnSuccessListener {
-                store.clear()
-                status = "Location automation disabled."
+                store.clear(profileId)
+                status = "このプロファイルの位置範囲を削除しました"
             }
-            .addOnFailureListener { status = "Could not disable location rule: ${it.message}" }
+            .addOnFailureListener { status = "位置範囲を削除できません：${it.message}" }
     }
 }
 
+/** Embedded in the individual profile editor, not the global settings page. */
 @Composable
-fun LocationAutomationSection(viewModel: LocationAutomationViewModel = hiltViewModel()) {
+fun LocationAutomationSection(
+    profileId: String,
+    editingLocked: Boolean,
+    isPersisted: Boolean,
+    viewModel: LocationAutomationViewModel = hiltViewModel(),
+) {
     val context = LocalContext.current
-    val profiles by viewModel.profiles.collectAsState()
-    val original = viewModel.initialRule
-    var selected by remember { mutableStateOf(original?.profileId.orEmpty()) }
-    var lat by remember { mutableStateOf(original?.latitude?.toString().orEmpty()) }
-    var lon by remember { mutableStateOf(original?.longitude?.toString().orEmpty()) }
-    var radius by remember { mutableStateOf(original?.radiusMeters?.toInt()?.toString() ?: "200") }
-    var expanded by remember { mutableStateOf(false) }
+    val original = remember(profileId) { viewModel.savedRule(profileId) }
+    var lat by remember(profileId) { mutableStateOf(original?.latitude?.toString().orEmpty()) }
+    var lon by remember(profileId) { mutableStateOf(original?.longitude?.toString().orEmpty()) }
+    var radius by remember(profileId) {
+        mutableStateOf(original?.radiusMeters?.toInt()?.toString() ?: "200")
+    }
     var message by remember { mutableStateOf("") }
     var distanceText by remember { mutableStateOf<String?>(null) }
+    val canEdit = !editingLocked && isPersisted
     val foregroundRequest = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
         message = if (results[Manifest.permission.ACCESS_FINE_LOCATION] == true)
-            "Now grant 'Allow all the time' from Android app settings."
-        else "Precise location permission is needed."
+            "次にAndroidのアプリ設定で位置情報を「常に許可」にしてください"
+        else "正確な位置情報へのアクセスが必要です"
     }
     val locationClient = remember(context) { LocationServices.getFusedLocationProviderClient(context) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(16.dp)) {
-        Text("Block automatically when entering the selected area. Leaving ends only a location-started session.",
-            style = MaterialTheme.typography.bodyMedium)
-        OutlinedButton(onClick = { expanded = true }) {
-            Text(profiles.firstOrNull { it.id == selected }?.name ?: "Select profile")
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            profiles.forEach { profile ->
-                DropdownMenuItem(text = { Text(profile.name) }, onClick = {
-                    selected = profile.id
-                    expanded = false
-                })
-            }
+        Text("このプロファイルにだけ適用する位置範囲を設定。範囲外ではこのプロファイルのブロックを停止し、範囲内では再開する。",
+            style = MaterialTheme.typography.bodySmall)
+        if (!isPersisted) {
+            Text("位置範囲を設定するには、まずプロファイルを保存してください")
         }
         OutlinedTextField(value = lat, onValueChange = { lat = it },
-            label = { Text("Latitude") }, modifier = Modifier.fillMaxWidth())
+            label = { Text("緯度") }, modifier = Modifier.fillMaxWidth(), enabled = canEdit)
         OutlinedTextField(value = lon, onValueChange = { lon = it },
-            label = { Text("Longitude") }, modifier = Modifier.fillMaxWidth())
+            label = { Text("経度") }, modifier = Modifier.fillMaxWidth(), enabled = canEdit)
         OutlinedTextField(value = radius, onValueChange = { radius = it },
-            label = { Text("Radius (meters, minimum 100)") }, modifier = Modifier.fillMaxWidth())
+            label = { Text("半径（メートル、100以上）") }, modifier = Modifier.fillMaxWidth(), enabled = canEdit)
         OutlinedButton(onClick = {
             foregroundRequest.launch(arrayOf(
                 Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION
             ))
-        }) { Text("1. Allow precise location") }
+        }) { Text("位置情報へのアクセスを許可") }
         OutlinedButton(onClick = {
             context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                 Uri.parse("package:${context.packageName}")))
-        }) { Text("2. Allow location all the time in app settings") }
-        OutlinedButton(onClick = {
+        }) { Text("アプリ設定で「常に許可」を設定") }
+        OutlinedButton(enabled = canEdit, onClick = {
             if (!viewModel.hasPermission()) {
-                message = "First grant precise and background location permissions."
+                message = "正確な位置情報とバックグラウンド位置情報の権限が必要です"
             } else {
                 @Suppress("MissingPermission")
                 locationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
@@ -163,46 +147,41 @@ fun LocationAutomationSection(viewModel: LocationAutomationViewModel = hiltViewM
                         if (location != null) {
                             lat = location.latitude.toString()
                             lon = location.longitude.toString()
-                            message = "Current position loaded. Check coordinates before saving."
-                        } else {
-                            message = "Could not determine location. Enter coordinates manually."
-                        }
-                    }.addOnFailureListener { message = "Location lookup failed: ${it.message}" }
+                            message = "現在位置を取得しました。保存前に座標を確認してください"
+                        } else message = "位置情報を取得できませんでした"
+                    }.addOnFailureListener { message = "位置情報の取得に失敗：${it.message}" }
             }
-        }) { Text("Use current location") }
+        }) { Text("現在位置を入力") }
         OutlinedButton(onClick = {
-            val rule = viewModel.savedRule()
+            val rule = viewModel.savedRule(profileId)
             if (rule == null) {
-                distanceText = "No saved blocking area."
+                distanceText = "このプロファイルに位置範囲は登録されていません"
             } else if (!viewModel.hasPermission()) {
-                distanceText = "Location permission required."
+                distanceText = "位置情報の権限が必要です"
             } else {
                 @Suppress("MissingPermission")
                 locationClient.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
                     .addOnSuccessListener { current ->
-                        if (current == null) {
-                            distanceText = "Current location unavailable."
-                        } else {
-                            val result = FloatArray(1)
-                            Location.distanceBetween(
-                                current.latitude, current.longitude,
-                                rule.latitude, rule.longitude, result,
-                            )
-                            val remaining = (result[0] - rule.radiusMeters).coerceAtLeast(0f)
-                            distanceText = if (remaining == 0f) "Inside saved blocking area" else
-                                "${remaining.toInt()} m to saved blocking area"
+                        if (current == null) distanceText = "現在位置を取得できませんでした"
+                        else {
+                            val results = FloatArray(1)
+                            Location.distanceBetween(current.latitude, current.longitude,
+                                rule.latitude, rule.longitude, results)
+                            val remaining = (results[0] - rule.radiusMeters).coerceAtLeast(0f)
+                            distanceText = if (remaining == 0f) "ブロック範囲内です" else
+                                "ブロック範囲まで約${remaining.toInt()}m"
                         }
-                    }.addOnFailureListener {
-                        distanceText = "Could not determine distance: ${it.message}"
-                    }
+                    }.addOnFailureListener { distanceText = "距離を取得できません：${it.message}" }
             }
-        }) { Text("Check distance to saved blocking area") }
+        }) { Text("登録済みの範囲までの距離") }
         if (distanceText != null) Text(distanceText!!, style = MaterialTheme.typography.bodySmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { viewModel.save(selected, lat, lon, radius) }) {
-                Text("Enable location rule")
+            Button(enabled = canEdit, onClick = { viewModel.save(profileId, lat, lon, radius) }) {
+                Text("位置範囲を保存")
             }
-            OutlinedButton(onClick = viewModel::disable) { Text("Disable") }
+            OutlinedButton(enabled = canEdit, onClick = { viewModel.disable(profileId) }) {
+                Text("位置範囲を削除")
+            }
         }
         if (message.isNotBlank()) Text(message, style = MaterialTheme.typography.bodySmall)
         if (viewModel.status.isNotBlank()) Text(viewModel.status, style = MaterialTheme.typography.bodySmall)

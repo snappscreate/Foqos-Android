@@ -20,6 +20,7 @@ enum class AlarmActivityType(val key: String) {
     STRATEGY_TIMER_END("StrategyTimerActivity"),
     BREAK_END("BreakScheduleActivity"),
     PAUSE_END("PauseScheduleActivity"),
+    PERIODIC_ACCESS_BOUNDARY("PeriodicAccessBoundaryActivity"),
     GRANT_EXPIRY("SoftUnblockGrantTimerActivity"),
     EMERGENCY_ALLOWANCE_RESET("EmergencyAllowanceResetActivity"),
     REMINDER("ReminderActivity"),

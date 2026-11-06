@@ -6,7 +6,7 @@ The offline pose mode works with no API setup.
 For a **private, personal development test**, the screen also offers
 「直接API（テスト専用）」: enter a Gemini API key at runtime. The app does not
 write that key to disk or ship it in the APK, and discards it when leaving the
-screen. This direct mode calls `gemini-2.5-flash-lite` and estimates yen using
+screen. This direct mode calls `gemini-3.5-flash` and estimates yen using
 the published paid standard tariff and 160 JPY/USD; actual billed cost may
 differ. **Do not distribute this test mode as a publicly deployed app.**
 

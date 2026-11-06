@@ -80,18 +80,20 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
         ActivityResultContracts.RequestPermission()
     ) { granted = it }
 
-    var activity by remember { mutableStateOf("腕立て伏せをする") }
-    var mode by remember { mutableStateOf(ActivityMode.PHOTOS) }
-    var front by remember { mutableStateOf(false) }
-    var interval by remember { mutableStateOf(2000L) }
-    var duration by remember { mutableStateOf(20) }
-    var useRelay by remember { mutableStateOf(false) }
+    val settingsStore = remember(context) { ActivityLabSettingsStore(context) }
+    val saved = remember(settingsStore) { settingsStore.load() }
+    var activity by remember { mutableStateOf(saved.activity) }
+    var mode by remember { mutableStateOf(ActivityMode.entries.firstOrNull { it.name == saved.mode } ?: ActivityMode.PHOTOS) }
+    var front by remember { mutableStateOf(saved.frontCamera) }
+    var interval by remember { mutableStateOf(saved.intervalMillis) }
+    var duration by remember { mutableStateOf(saved.durationSeconds) }
+    var useRelay by remember { mutableStateOf(saved.useRelay) }
     val keyStore = remember(context) { ActivityApiKeyStore(context) }
     var apiKey by remember { mutableStateOf(keyStore.load().orEmpty()) }
     var keySaved by remember { mutableStateOf(keyStore.hasKey()) }
     var keyMessage by remember { mutableStateOf("") }
-    var geminiModel by remember { mutableStateOf("gemini-3.5-flash") }
-    var endpoint by remember { mutableStateOf("") }
+    var geminiModel by remember { mutableStateOf(saved.geminiModel) }
+    var endpoint by remember { mutableStateOf(saved.endpoint) }
     var token by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("待機中") }
     var busy by remember { mutableStateOf(false) }
@@ -104,6 +106,13 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
     var cameraReady by remember { mutableStateOf(false) }
     var captureJob by remember { mutableStateOf<Job?>(null) }
     val photoCount = (duration * 1000L / interval).toInt().coerceIn(1, 40)
+    LaunchedEffect(activity, mode, front, interval, duration, useRelay, geminiModel, endpoint) {
+        settingsStore.save(ActivityLabSettingsStore.Settings(
+            activity = activity, mode = mode.name, frontCamera = front,
+            intervalMillis = interval, durationSeconds = duration,
+            geminiModel = geminiModel, useRelay = useRelay, endpoint = endpoint,
+        ))
+    }
     val latestFiles by rememberUpdatedState(files)
     val latestJob by rememberUpdatedState(captureJob)
 

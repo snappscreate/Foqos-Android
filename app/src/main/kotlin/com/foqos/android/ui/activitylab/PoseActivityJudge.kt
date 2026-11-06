@@ -97,6 +97,25 @@ object PoseActivityJudge {
         }
     }
 
+    private fun deepSquatVisible(pose: Pose): Boolean {
+        val sides = listOf(
+            PoseLandmark.LEFT_HIP to PoseLandmark.LEFT_KNEE,
+            PoseLandmark.RIGHT_HIP to PoseLandmark.RIGHT_KNEE,
+        )
+        return sides.any { (hipId, kneeId) ->
+            val hip = pose.getPoseLandmark(hipId)
+            val knee = pose.getPoseLandmark(kneeId)
+            if (hip == null || knee == null ||
+                hip.inFrameLikelihood < 0.65f || knee.inFrameLikelihood < 0.65f) false
+            else {
+                val dx = (hip.position.x - knee.position.x).toDouble()
+                val dy = (hip.position.y - knee.position.y).toDouble()
+                val distance = sqrt(dx * dx + dy * dy)
+                distance > 1.0 && kotlin.math.abs(dy) / distance <= 0.42
+            }
+        }
+    }
+
     private fun angle(pose: Pose, a: Int, b: Int, c: Int): Double? {
         val p = pose.getPoseLandmark(a) ?: return null
         val q = pose.getPoseLandmark(b) ?: return null

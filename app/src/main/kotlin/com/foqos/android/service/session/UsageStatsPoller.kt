@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
 import com.foqos.android.service.accessibility.AccessibilityBlockPolicy
+import com.foqos.android.service.accessibility.BrowserAuthGrace
 import com.foqos.android.service.accessibility.BlockDecision
 import com.foqos.android.service.overlay.BlockOverlayActivity
 import com.foqos.android.service.session.FullScreenModeStore
@@ -87,10 +88,24 @@ class UsageStatsPoller @Inject constructor(
             )
         }
         val neverBlock = AccessibilityBlockPolicy.neverBlockWithLauncher(currentLauncherPackageName())
-        // The fallback has no URL bar access; it still merges every app-level restriction.
-        val decision = blockPolicy.decideForAppAcrossProfiles(
-            packageName, effectiveStates, neverBlockPackages = neverBlock,
+        val browsers = AccessibilityBlockPolicy.BROWSER_PACKAGES +
+            effectiveStates.mapNotNull { it.fullScreenBrowserPackage }
+        val allowedSources = effectiveStates.asSequence()
+            .filter { it.fullScreenMode && !it.pauseActive && !it.locationSuspended }
+            .flatMap { it.fullScreenAllowedPackages.asSequence() }
+            .filter { it !in browsers &&
+                blockPolicy.decideForAppAcrossProfiles(
+                    it, effectiveStates, neverBlockPackages = neverBlock,
+                ) == BlockDecision.Allow
+            }.toSet()
+        val browserAuthGrace = BrowserAuthGrace.tracker.observe(
+            packageName, browsers, allowedSources,
         )
+        // UsageStats cannot read the URL bar, but shares the same handoff clock.
+        val decision = if (browserAuthGrace) BlockDecision.Allow else
+            blockPolicy.decideForAppAcrossProfiles(
+                packageName, effectiveStates, neverBlockPackages = neverBlock,
+            )
         when (decision) {
             BlockDecision.Allow -> Unit
             is BlockDecision.BlockApp -> maybeLaunchOverlay(decision.packageName, domain = null)

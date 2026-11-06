@@ -231,13 +231,21 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
             }
 
             if (!busy) {
+                Text("活動：$activity", style = MaterialTheme.typography.bodyMedium)
+                Text("方式：${mode.label} / 観察時間：${duration}秒" +
+                    (if (mode == ActivityMode.VIDEO) "" else " / 撮影間隔：${interval / 1000.0}秒"),
+                    style = MaterialTheme.typography.bodySmall)
+                Text("カメラ：${if (front) "前面" else "背面"}" +
+                    (if (mode == ActivityMode.POSE) ""
+                    else " / モデル：${if (geminiModel.endsWith("-lite")) "3.5 Flash-Lite" else "3.5 Flash"}") +
+                    (if (mode == ActivityMode.POSE || useRelay) ""
+                    else " / APIキー：${if (apiKey.isNotBlank()) "設定済み" else "未設定"}"),
+                    style = MaterialTheme.typography.bodySmall)
                 OutlinedButton(
                     onClick = { settingsExpanded = !settingsExpanded },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text((if (settingsExpanded) "▲ 設定を閉じる" else "▼ 設定を変更") +
-                        "　|　${activity.take(18)} / ${mode.label} / ${duration}秒" +
-                        (if (mode == ActivityMode.VIDEO) "" else " / ${interval / 1000.0}秒間隔"))
+                    Text(if (settingsExpanded) "▲ 設定を閉じる" else "▼ 設定を変更")
                 }
                 if (settingsExpanded) {
                     OutlinedButton(enabled = !busy, onClick = { front = !front }) {

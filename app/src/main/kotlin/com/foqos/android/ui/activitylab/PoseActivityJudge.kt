@@ -78,7 +78,7 @@ object PoseActivityJudge {
                     angles.add(measured)
                     if (squat) squatPhases.add(when {
                         measured >= 155.0 -> 1
-                        measured <= 110.0 && deepSquatVisible(pose) -> 0
+                        measured <= 105.0 && deepSquatVisible(pose) -> 0
                         else -> -1
                     })
                 }
@@ -106,8 +106,8 @@ object PoseActivityJudge {
                 val deepFrames = squatPhases.count { it == 0 }
                 val details = "$evidence、深い姿勢${deepFrames}枚、完了${completed}回"
                 return when {
-                    completed >= 1 -> ActivityVerdict("一致",
-                        "立ってから深くしゃがみ、再び立つ動きを確認した。", details)
+                    completed >= 1 && deepFrames >= 2 -> ActivityVerdict("一致",
+                        "膝の十分な屈曲と、腰が膝付近まで下がる姿勢を複数フレームで確認し、立位に戻った。", details)
                     minAngle > 120.0 && maxAngle >= 155.0 ->
                         ActivityVerdict("不一致",
                             "膝の曲げ伸ばしはあったが深いスクワット姿勢がなかった。", details)
@@ -128,21 +128,33 @@ object PoseActivityJudge {
         }
     }
 
+    /**
+     * A knee bend alone is not a squat. Require visible hip descent to approximately
+     * knee height as well as substantial knee flexion. A side view is most reliable.
+     * Ambiguous frames must never be counted as "deep".
+     */
     private fun deepSquatVisible(pose: Pose): Boolean {
         val sides = listOf(
-            PoseLandmark.LEFT_HIP to PoseLandmark.LEFT_KNEE,
-            PoseLandmark.RIGHT_HIP to PoseLandmark.RIGHT_KNEE,
+            Triple(PoseLandmark.LEFT_HIP, PoseLandmark.LEFT_KNEE, PoseLandmark.LEFT_ANKLE),
+            Triple(PoseLandmark.RIGHT_HIP, PoseLandmark.RIGHT_KNEE, PoseLandmark.RIGHT_ANKLE),
         )
-        return sides.any { (hipId, kneeId) ->
+        return sides.any { (hipId, kneeId, ankleId) ->
             val hip = pose.getPoseLandmark(hipId)
             val knee = pose.getPoseLandmark(kneeId)
-            if (hip == null || knee == null ||
-                hip.inFrameLikelihood < 0.65f || knee.inFrameLikelihood < 0.65f) false
-            else {
-                val dx = (hip.position.x - knee.position.x).toDouble()
-                val dy = (hip.position.y - knee.position.y).toDouble()
-                val distance = sqrt(dx * dx + dy * dy)
-                distance > 1.0 && kotlin.math.abs(dy) / distance <= 0.42
+            val ankle = pose.getPoseLandmark(ankleId)
+            if (hip == null || knee == null || ankle == null ||
+                listOf(hip, knee, ankle).any { it.inFrameLikelihood < 0.7f }) {
+                false
+            } else {
+                val thighX = (hip.position.x - knee.position.x).toDouble()
+                val thighY = (hip.position.y - knee.position.y).toDouble()
+                val thighLength = sqrt(thighX * thighX + thighY * thighY)
+                val shinLength = kotlin.math.abs(ankle.position.y - knee.position.y).toDouble()
+                // Hip must be roughly level with the knee, not just a bent torso.
+                // Relative body lengths are used instead of camera-pixel thresholds.
+                thighLength > 1.0 && shinLength > 1.0 &&
+                    kotlin.math.abs(thighY) / thighLength <= 0.32 &&
+                    hip.position.y >= knee.position.y - shinLength * 0.20
             }
         }
     }

@@ -19,7 +19,13 @@ class ActivityApiKeyStore(context: Context) {
 
     fun hasKey(): Boolean = prefs.contains(ENCRYPTED_KEY)
 
-    fun save(key: String) {
+    fun save(key: String) = saveSecret(ENCRYPTED_KEY, key)
+
+    fun saveRelayToken(token: String) = saveSecret(ENCRYPTED_RELAY_TOKEN, token)
+    fun loadRelayToken(): String? = loadSecret(ENCRYPTED_RELAY_TOKEN)
+    fun deleteRelayToken() { prefs.edit().remove(ENCRYPTED_RELAY_TOKEN).commit() }
+
+    private fun saveSecret(preferenceKey: String, key: String) {
         val trimmed = key.trim()
         require(trimmed.isNotEmpty()) { "APIキーが空だよ" }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
@@ -27,13 +33,15 @@ class ActivityApiKeyStore(context: Context) {
         val encrypted = cipher.doFinal(trimmed.toByteArray(Charsets.UTF_8))
         val value = Base64.encodeToString(cipher.iv, Base64.NO_WRAP) + ":" +
             Base64.encodeToString(encrypted, Base64.NO_WRAP)
-        check(prefs.edit().putString(ENCRYPTED_KEY, value).commit()) {
+        check(prefs.edit().putString(preferenceKey, value).commit()) {
             "APIキーを保存できなかった"
         }
     }
 
-    fun load(): String? {
-        val saved = prefs.getString(ENCRYPTED_KEY, null) ?: return null
+    fun load(): String? = loadSecret(ENCRYPTED_KEY)
+
+    private fun loadSecret(preferenceKey: String): String? {
+        val saved = prefs.getString(preferenceKey, null) ?: return null
         return try {
             val pieces = saved.split(":", limit = 2)
             require(pieces.size == 2) { "保存形式が不正" }
@@ -44,7 +52,7 @@ class ActivityApiKeyStore(context: Context) {
         } catch (_: Exception) {
             // A restored backup can contain ciphertext but not its Keystore key.
             // Don't keep unreadable secrets around or fall back to plaintext storage.
-            delete()
+            prefs.edit().remove(preferenceKey).commit()
             null
         }
     }
@@ -69,6 +77,7 @@ class ActivityApiKeyStore(context: Context) {
     private companion object {
         const val PREFS = "activity_lab_private_credentials"
         const val ENCRYPTED_KEY = "gemini_api_key_encrypted"
+        const val ENCRYPTED_RELAY_TOKEN = "relay_auth_token_encrypted"
         const val KEY_ALIAS = "foqos.activitylab.gemini.aes.v1"
     }
 }

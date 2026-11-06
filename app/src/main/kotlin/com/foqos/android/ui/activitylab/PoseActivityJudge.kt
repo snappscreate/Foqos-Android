@@ -154,7 +154,7 @@ object PoseActivityJudge {
                 // Relative body lengths are used instead of camera-pixel thresholds.
                 thighLength > 1.0 && shinLength > 1.0 &&
                     kotlin.math.abs(thighY) / thighLength <= 0.32 &&
-                    hip.position.y >= knee.position.y - shinLength * 0.20
+                    hip.position.y.toDouble() >= knee.position.y.toDouble() - shinLength * 0.20
             }
         }
     }

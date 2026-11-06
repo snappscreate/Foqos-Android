@@ -238,7 +238,112 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                         (if (mode == ActivityMode.VIDEO) "" else " / ${interval / 1000.0}秒間隔"))
                 }
                 if (settingsExpanded) {
-${settingsText}
+            OutlinedTextField(
+                value = activity, onValueChange = { activity = it },
+                label = { Text("確認したい活動") },
+                placeholder = { Text("例：腕立て伏せをする、本を読む") },
+                enabled = !busy, modifier = Modifier.fillMaxWidth(),
+            )
+            Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ActivityMode.entries.forEach { item ->
+                    FilterChip(selected = mode == item, enabled = !busy,
+                        onClick = { mode = item }, label = { Text(item.label) })
+                }
+            }
+            if (mode != ActivityMode.VIDEO) {
+                Text("撮影間隔：${interval / 1000.0}秒")
+                Row(modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(500L, 1000L, 2000L, 5000L).forEach { value ->
+                        FilterChip(selected = interval == value, enabled = !busy,
+                            onClick = { interval = value },
+                            label = { Text("${value / 1000.0}秒") })
+                    }
+                }
+            }
+            Text("観察時間：${duration}秒")
+            Slider(
+                value = duration.toFloat(), onValueChange = { duration = it.toInt() },
+                valueRange = 10f..60f, steps = 9, enabled = !busy,
+            )
+            val photoCount = (duration * 1000L / interval).toInt().coerceIn(1, 40)
+            if (mode != ActivityMode.VIDEO) {
+                val effectiveInterval = (duration * 1000L / photoCount).coerceAtLeast(interval)
+                Text("取得予定：${photoCount}枚（最大40枚）、実際の間隔：約${effectiveInterval / 1000.0}秒",
+                    style = MaterialTheme.typography.bodySmall)
+            }
+            if (mode != ActivityMode.POSE) {
+                Text("AIモデル")
+                Row(modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("gemini-3.5-flash", "gemini-3.5-flash-lite").forEach { model ->
+                        FilterChip(selected = geminiModel == model, enabled = !busy,
+                            onClick = { geminiModel = model },
+                            label = { Text(if (model.endsWith("-lite")) "3.5 Flash-Lite（低コスト）"
+                                else "3.5 Flash") })
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = !useRelay, enabled = !busy,
+                        onClick = { useRelay = false },
+                        label = { Text("直接API（テスト専用）") })
+                    FilterChip(selected = useRelay, enabled = !busy,
+                        onClick = { useRelay = true },
+                        label = { Text("HTTPS中継") })
+                }
+                if (useRelay) {
+                    Text("中継側にGeminiのAPIキーを置く方式。通常運用ではこちらを推奨。",
+                        style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(
+                        value = endpoint, onValueChange = { endpoint = it },
+                        modifier = Modifier.fillMaxWidth(), enabled = !busy,
+                        label = { Text("中継サーバーURL（HTTPS）") },
+                        singleLine = true,
+                    )
+                    OutlinedTextField(
+                        value = token, onValueChange = { token = it },
+                        modifier = Modifier.fillMaxWidth(), enabled = !busy,
+                        label = { Text("中継サーバー認証トークン") },
+                        singleLine = true,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    )
+                } else {
+                    Text("個人用のテスト向け。APIキーは端末内で暗号化保存できる。映像はGeminiへ送信されるので、公開アプリでは中継方式を使ってね。",
+                        style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(
+                        value = apiKey, onValueChange = {
+                            apiKey = it
+                            keyMessage = ""
+                        },
+                        modifier = Modifier.fillMaxWidth(), enabled = !busy,
+                        label = { Text("Gemini APIキー") },
+                        singleLine = true,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(enabled = !busy && apiKey.isNotBlank(), onClick = {
+                            runCatching { keyStore.save(apiKey) }
+                                .onSuccess {
+                                    keySaved = true
+                                    keyMessage = "APIキーを暗号化して保存したよ"
+                                }.onFailure {
+                                    keyMessage = "保存に失敗：${it.message}"
+                                }
+                        }) { Text("APIキーを保存") }
+                        OutlinedButton(enabled = !busy && keySaved, onClick = {
+                            keyStore.delete()
+                            apiKey = ""
+                            keySaved = false
+                            keyMessage = "保存したAPIキーを削除したよ"
+                        }) { Text("保存キーを削除") }
+                    }
+                    if (keyMessage.isNotBlank()) Text(keyMessage,
+                        style = MaterialTheme.typography.bodySmall)
+                    if (keySaved) Text("この端末に保存済み（Android Keystore暗号化）",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            }
                 }
             } else {
                 Text("撮影・判定中", style = MaterialTheme.typography.titleMedium)
@@ -246,7 +351,23 @@ ${settingsText}
             }
             if (busy) {
                 Text(status, style = MaterialTheme.typography.bodyMedium)
-${pics}
+            if (files.isNotEmpty()) {
+                Text("取得したデータ：${files.size}件",
+                    style = MaterialTheme.typography.titleSmall)
+                Row(modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    files.filter { it.extension == "jpg" }.forEach { imageFile ->
+                        val thumbnail = remember(imageFile) {
+                            BitmapFactory.decodeFile(imageFile.absolutePath,
+                                BitmapFactory.Options().apply { inSampleSize = 8 })
+                                ?.asImageBitmap()
+                        }
+                        if (thumbnail != null) Image(bitmap = thumbnail,
+                            contentDescription = "撮影画像",
+                            modifier = Modifier.size(64.dp))
+                    }
+                }
+            }
             }
             Spacer(modifier = Modifier.height(16.dp))
         }

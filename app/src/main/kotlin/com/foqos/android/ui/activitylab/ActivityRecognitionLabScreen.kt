@@ -419,6 +419,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                 ) {
                     Text(result.reason)
                     if (result.evidence.isNotBlank()) Text(result.evidence)
+                    ActivityResultThumbnails(files)
                     Text("判定処理時間：${result.elapsedMs / 1000.0}秒")
                     if (verdictMode != ActivityMode.POSE) {
                         Text("入力：${result.inputTokens} tokens / 出力：${result.outputTokens} tokens")

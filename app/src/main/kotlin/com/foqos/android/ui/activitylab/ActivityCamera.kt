@@ -28,7 +28,10 @@ import kotlinx.coroutines.suspendCancellableCoroutine
  * All recordings are silent; the experiment does not request microphone access.
  */
 class ActivityCamera(private val context: Context) {
-    val preview = PreviewView(context)
+    val preview = PreviewView(context).apply {
+        // TextureView respects Compose overlay ordering and the 220dp preview bounds.
+        implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+    }
     private val executor: Executor = ContextCompat.getMainExecutor(context)
     private val imageCapture = ImageCapture.Builder()
         .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build()

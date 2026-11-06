@@ -28,7 +28,7 @@ internal class ActivityLabSettingsStore(context: Context) {
         intervalMillis = prefs.getLong("interval", 1000L)
             .takeIf { it in setOf(500L, 1000L, 2000L, 5000L) } ?: 1000L,
         durationSeconds = prefs.getInt("duration", 10).coerceIn(10, 60),
-        geminiModel = prefs.getString("model", "gemini-3.5-flash-lite")
+        geminiModel = prefs.getString("model", "gemini-3.5-flash-lite").orEmpty()
             .takeIf { it in setOf("gemini-3.5-flash", "gemini-3.5-flash-lite") }
             ?: "gemini-3.5-flash-lite",
         useRelay = prefs.getBoolean("relay", false),

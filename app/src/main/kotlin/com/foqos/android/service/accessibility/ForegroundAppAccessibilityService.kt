@@ -185,11 +185,28 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
             lastLoggedSettingsProbe = null
         }
 
+        // OAuth and sign-in can switch from an explicitly approved app to Chrome or
+        // another browser. Give that one transition five seconds, irrespective of URL.
+        // The original app must be allowed by *all* concurrently running profiles.
+        val browserPackages = AccessibilityBlockPolicy.BROWSER_PACKAGES +
+            effectiveStates.mapNotNull { it.fullScreenBrowserPackage }
+        val sourceApps = effectiveStates.asSequence()
+            .filter { it.fullScreenMode && !it.pauseActive && !it.locationSuspended }
+            .flatMap { it.fullScreenAllowedPackages.asSequence() }
+            .filter { it !in browserPackages &&
+                blockPolicy.decideForAppAcrossProfiles(
+                    it, effectiveStates, neverBlockPackages = neverBlock,
+                ) == BlockDecision.Allow
+            }.toSet()
+        val browserAuthGrace = BrowserAuthGrace.tracker.observe(
+            packageName, browserPackages, sourceApps,
+        )
+
         val protectedSettingsScreen = effectiveStates.any { it.strictMode } &&
             packageName in AccessibilityBlockPolicy.SETTINGS_PACKAGES &&
             isProtectedFoqosSettingsScreen()
 
-        val decision = if (packageName in AccessibilityBlockPolicy.BROWSER_PACKAGES ||
+        val decision = if (browserAuthGrace) BlockDecision.Allow else if (packageName in AccessibilityBlockPolicy.BROWSER_PACKAGES ||
             effectiveStates.any { it.fullScreenMode && packageName == it.fullScreenBrowserPackage }) {
             val url = readUrlBarText(packageName)
             blockPolicy.decideForUrlAcrossProfiles(

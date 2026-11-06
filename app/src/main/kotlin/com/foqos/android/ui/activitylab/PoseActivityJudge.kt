@@ -38,6 +38,7 @@ object PoseActivityJudge {
         )
         return try {
             val angles = mutableListOf<Double>()
+            val squatPhases = mutableListOf<Int>()
             for (file in images) {
                 val image = InputImage.fromFilePath(context, Uri.fromFile(file))
                 val pose = suspendCancellableCoroutine<Pose> { continuation ->
@@ -55,7 +56,15 @@ object PoseActivityJudge {
                         PoseLandmark.RIGHT_WRIST)
                     else angle(pose, PoseLandmark.RIGHT_HIP, PoseLandmark.RIGHT_KNEE,
                         PoseLandmark.RIGHT_ANKLE)
-                listOfNotNull(left, right).average().takeIf { !it.isNaN() }?.let(angles::add)
+                val measured = listOfNotNull(left, right).average().takeIf { !it.isNaN() }
+                if (measured != null) {
+                    angles.add(measured)
+                    if (squat) squatPhases.add(when {
+                        measured >= 155.0 -> 1
+                        measured <= 110.0 && deepSquatVisible(pose) -> 0
+                        else -> -1
+                    })
+                }
             }
             if (angles.size < 4) return ActivityVerdict(
                 "判断不能", "関節を十分に検出できなかった（有効画像${angles.size}/${images.size}）。全身が映る位置にカメラを置いてね。")

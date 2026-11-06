@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -93,6 +95,9 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
     var token by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("待機中") }
     var busy by remember { mutableStateOf(false) }
+    var settingsExpanded by remember { mutableStateOf(false) }
+    var showingResult by remember { mutableStateOf(false) }
+    var capturedCount by remember { mutableStateOf(0) }
     var files by remember { mutableStateOf<List<File>>(emptyList()) }
     var verdict by remember { mutableStateOf<ActivityVerdict?>(null) }
     var verdictMode by remember { mutableStateOf(ActivityMode.PHOTOS) }
@@ -136,19 +141,6 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
             Text("ブロック解除には接続されない検証画面。撮影画像は終了時に削除する。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            OutlinedTextField(
-                value = activity, onValueChange = { activity = it },
-                label = { Text("確認したい活動") },
-                placeholder = { Text("例：腕立て伏せをする、本を読む") },
-                enabled = !busy, modifier = Modifier.fillMaxWidth(),
-            )
-            Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ActivityMode.entries.forEach { item ->
-                    FilterChip(selected = mode == item, enabled = !busy,
-                        onClick = { mode = item }, label = { Text(item.label) })
-                }
-            }
             if (granted) {
                 AndroidView(factory = { camera.preview },
                     modifier = Modifier.fillMaxWidth().height(220.dp))
@@ -160,100 +152,6 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                     Text("カメラ使用を許可する")
                 }
             }
-            if (mode != ActivityMode.VIDEO) {
-                Text("撮影間隔：${interval / 1000.0}秒")
-                Row(modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(500L, 1000L, 2000L, 5000L).forEach { value ->
-                        FilterChip(selected = interval == value, enabled = !busy,
-                            onClick = { interval = value },
-                            label = { Text("${value / 1000.0}秒") })
-                    }
-                }
-            }
-            Text("観察時間：${duration}秒")
-            Slider(
-                value = duration.toFloat(), onValueChange = { duration = it.toInt() },
-                valueRange = 10f..60f, steps = 9, enabled = !busy,
-            )
-            val photoCount = (duration * 1000L / interval).toInt().coerceIn(1, 40)
-            if (mode != ActivityMode.VIDEO) {
-                val effectiveInterval = (duration * 1000L / photoCount).coerceAtLeast(interval)
-                Text("取得予定：${photoCount}枚（最大40枚）、実際の間隔：約${effectiveInterval / 1000.0}秒",
-                    style = MaterialTheme.typography.bodySmall)
-            }
-            if (mode != ActivityMode.POSE) {
-                Text("AIモデル")
-                Row(modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("gemini-3.5-flash", "gemini-3.5-flash-lite").forEach { model ->
-                        FilterChip(selected = geminiModel == model, enabled = !busy,
-                            onClick = { geminiModel = model },
-                            label = { Text(if (model.endsWith("-lite")) "3.5 Flash-Lite（低コスト）"
-                                else "3.5 Flash") })
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = !useRelay, enabled = !busy,
-                        onClick = { useRelay = false },
-                        label = { Text("直接API（テスト専用）") })
-                    FilterChip(selected = useRelay, enabled = !busy,
-                        onClick = { useRelay = true },
-                        label = { Text("HTTPS中継") })
-                }
-                if (useRelay) {
-                    Text("中継側にGeminiのAPIキーを置く方式。通常運用ではこちらを推奨。",
-                        style = MaterialTheme.typography.bodySmall)
-                    OutlinedTextField(
-                        value = endpoint, onValueChange = { endpoint = it },
-                        modifier = Modifier.fillMaxWidth(), enabled = !busy,
-                        label = { Text("中継サーバーURL（HTTPS）") },
-                        singleLine = true,
-                    )
-                    OutlinedTextField(
-                        value = token, onValueChange = { token = it },
-                        modifier = Modifier.fillMaxWidth(), enabled = !busy,
-                        label = { Text("中継サーバー認証トークン") },
-                        singleLine = true,
-                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                    )
-                } else {
-                    Text("個人用のテスト向け。APIキーは端末内で暗号化保存できる。映像はGeminiへ送信されるので、公開アプリでは中継方式を使ってね。",
-                        style = MaterialTheme.typography.bodySmall)
-                    OutlinedTextField(
-                        value = apiKey, onValueChange = {
-                            apiKey = it
-                            keyMessage = ""
-                        },
-                        modifier = Modifier.fillMaxWidth(), enabled = !busy,
-                        label = { Text("Gemini APIキー") },
-                        singleLine = true,
-                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(enabled = !busy && apiKey.isNotBlank(), onClick = {
-                            runCatching { keyStore.save(apiKey) }
-                                .onSuccess {
-                                    keySaved = true
-                                    keyMessage = "APIキーを暗号化して保存したよ"
-                                }.onFailure {
-                                    keyMessage = "保存に失敗：${it.message}"
-                                }
-                        }) { Text("APIキーを保存") }
-                        OutlinedButton(enabled = !busy && keySaved, onClick = {
-                            keyStore.delete()
-                            apiKey = ""
-                            keySaved = false
-                            keyMessage = "保存したAPIキーを削除したよ"
-                        }) { Text("保存キーを削除") }
-                    }
-                    if (keyMessage.isNotBlank()) Text(keyMessage,
-                        style = MaterialTheme.typography.bodySmall)
-                    if (keySaved) Text("この端末に保存済み（Android Keystore暗号化）",
-                        style = MaterialTheme.typography.bodySmall)
-                }
-            }
-            Text(status, style = MaterialTheme.typography.bodyMedium)
             if (busy) {
                 OutlinedButton(onClick = {
                     captureJob?.cancel()
@@ -270,6 +168,8 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                             files = emptyList()
                             previous.forEach(File::delete)
                             verdict = null
+                            showingResult = false
+                            capturedCount = 0
                             busy = true
                             var analysisStarted = SystemClock.elapsedRealtime()
                             val captures = mutableListOf<File>()
@@ -278,6 +178,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                                     status = "${duration}秒間の動画を撮影中..."
                                     val video = camera.recordFor(duration * 1000L)
                                     captures.add(video)
+                                    capturedCount = 1
                                     files = captures.toList()
                                     status = "Geminiに動画を送信して判定中..."
                                     analysisStarted = SystemClock.elapsedRealtime()
@@ -293,6 +194,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                                         status = "撮影中：${i + 1}/${total}枚"
                                         val frame = camera.captureFile()
                                         captures.add(frame)
+                                        capturedCount = captures.size
                                         files = captures.toList()
                                         if (i < total - 1) delay(actualInterval)
                                     }
@@ -310,7 +212,8 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                                 }
                                 verdictMode = mode
                                 verdict = result.copy(elapsedMs = SystemClock.elapsedRealtime() - analysisStarted)
-                                status = "判定完了"
+                                status = "待機中"
+                                showingResult = true
                             } catch (cancel: CancellationException) {
                                 status = "キャンセルしたよ"
                                 throw cancel
@@ -325,35 +228,52 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                 ) { Text("撮影・判定を開始") }
             }
 
-            val result = verdict
-            if (result != null) {
-                Text("判定：${result.status}", style = MaterialTheme.typography.titleLarge)
-                Text(result.reason)
-                if (result.evidence.isNotBlank()) Text(result.evidence)
-                Text("判定処理時間：${result.elapsedMs / 1000.0}秒")
-                if (verdictMode != ActivityMode.POSE) {
-                    Text("入力：${result.inputTokens} tokens / 出力：${result.outputTokens} tokens")
-                    result.estimatedYen?.let { Text("API推定費用：%.3f円".format(it)) }
-                } else Text("端末内判定：API料金0円")
-            }
-            if (files.isNotEmpty()) {
-                Text("取得したデータ：${files.size}件",
-                    style = MaterialTheme.typography.titleSmall)
-                Row(modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    files.filter { it.extension == "jpg" }.forEach { imageFile ->
-                        val thumbnail = remember(imageFile) {
-                            BitmapFactory.decodeFile(imageFile.absolutePath,
-                                BitmapFactory.Options().apply { inSampleSize = 8 })
-                                ?.asImageBitmap()
-                        }
-                        if (thumbnail != null) Image(bitmap = thumbnail,
-                            contentDescription = "撮影画像",
-                            modifier = Modifier.size(64.dp))
-                    }
+            if (!busy) {
+                OutlinedButton(
+                    onClick = { settingsExpanded = !settingsExpanded },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text((if (settingsExpanded) "▲ 設定を閉じる" else "▼ 設定を変更") +
+                        "　|　${activity.take(18)} / ${mode.label} / ${duration}秒" +
+                        (if (mode == ActivityMode.VIDEO) "" else " / ${interval / 1000.0}秒間隔"))
                 }
+                if (settingsExpanded) {
+${settingsText}
+                }
+            } else {
+                Text("撮影・判定中", style = MaterialTheme.typography.titleMedium)
+                Text("取得データ：${capturedCount}件")
+            }
+            if (busy) {
+                Text(status, style = MaterialTheme.typography.bodyMedium)
+${pics}
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
+    val result = verdict
+    if (showingResult && result != null) {
+        AlertDialog(
+            onDismissRequest = { showingResult = false },
+            title = { Text("活動判定：${result.status}") },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(result.reason)
+                    if (result.evidence.isNotBlank()) Text(result.evidence)
+                    Text("判定処理時間：${result.elapsedMs / 1000.0}秒")
+                    if (verdictMode != ActivityMode.POSE) {
+                        Text("入力：${result.inputTokens} tokens / 出力：${result.outputTokens} tokens")
+                        result.estimatedYen?.let { Text("推定費用：%.3f円".format(it)) }
+                    } else Text("端末内判定：API料金0円")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showingResult = false }) { Text("閉じる") }
+            },
+        )
+    }
+
 }

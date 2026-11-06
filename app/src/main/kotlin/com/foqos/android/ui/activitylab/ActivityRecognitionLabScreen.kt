@@ -145,9 +145,6 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
             if (granted) {
                 AndroidView(factory = { camera.preview },
                     modifier = Modifier.fillMaxWidth().height(220.dp))
-                OutlinedButton(enabled = !busy, onClick = { front = !front }) {
-                    Text(if (front) "背面カメラに切り替え" else "前面カメラに切り替え")
-                }
             } else {
                 OutlinedButton(onClick = { requestCamera.launch(Manifest.permission.CAMERA) }) {
                     Text("カメラ使用を許可する")
@@ -219,7 +216,11 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                                 status = "キャンセルしたよ"
                                 throw cancel
                             } catch (error: Exception) {
-                                status = "失敗：${error.message ?: error.javaClass.simpleName}"
+                                val description = error.message ?: error.javaClass.simpleName
+                                verdictMode = mode
+                                verdict = ActivityVerdict("エラー", description)
+                                status = "待機中"
+                                showingResult = true
                             } finally {
                                 busy = false
                             }
@@ -239,6 +240,9 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                         (if (mode == ActivityMode.VIDEO) "" else " / ${interval / 1000.0}秒間隔"))
                 }
                 if (settingsExpanded) {
+                    OutlinedButton(enabled = !busy, onClick = { front = !front }) {
+                        Text(if (front) "背面カメラに切り替え" else "前面カメラに切り替え")
+                    }
             OutlinedTextField(
                 value = activity, onValueChange = { activity = it },
                 label = { Text("確認したい活動") },

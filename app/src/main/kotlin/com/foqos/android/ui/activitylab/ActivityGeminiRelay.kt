@@ -83,12 +83,14 @@ object ActivityGeminiRelay {
      */
     suspend fun judgeDirect(
         apiKey: String,
+        model: String,
         activity: String,
         photos: List<File>,
         video: File?,
         intervalMillis: Long,
     ): ActivityVerdict = withContext(Dispatchers.IO) {
         require(apiKey.isNotBlank()) { "Gemini APIキーを入力してね" }
+        require(model in SUPPORTED_MODELS) { "未対応のモデル名だよ" }
         val parts = JSONArray().put(JSONObject().put("text",
             "時系列の撮影データを見て「${activity.take(160)}」を本当に行ったか判定。" +
                 "姿勢だけで断定せず、明確な動きや継続の証拠が不足する場合は判断不能。"))
@@ -119,7 +121,7 @@ object ActivityGeminiRelay {
                 .put("responseMimeType", "application/json").put("responseSchema", schema))
             .toString().toByteArray(Charsets.UTF_8)
         require(body.size < 18_000_000) { "撮影データが大きすぎるよ。枚数を減らしてね" }
-        val url = URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent")
+        val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
         val connection = url.openConnection() as HttpURLConnection
         try {
             connection.requestMethod = "POST"
@@ -147,13 +149,16 @@ object ActivityGeminiRelay {
                 evidence = answer.optString("evidence", ""),
                 inputTokens = inputs,
                 outputTokens = outputs,
-                // Gemini 2.5 Flash-Lite standard paid tariff, 160 JPY/USD.
-                estimatedYen = (inputs * 0.10 + outputs * 0.40) * 160.0 / 1_000_000.0,
+                // Published paid standard price; free-tier requests may be free.
+                estimatedYen = ((inputs * if (model == "gemini-3.5-flash") 1.50 else 0.30) +
+                    (outputs * if (model == "gemini-3.5-flash") 9.00 else 2.50)) * 160.0 / 1_000_000.0,
             )
         } finally {
             connection.disconnect()
         }
     }
+
+    private val SUPPORTED_MODELS = setOf("gemini-3.5-flash", "gemini-3.5-flash-lite")
 
     private fun compressForUpload(file: File): String {
         val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }

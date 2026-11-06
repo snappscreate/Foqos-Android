@@ -84,6 +84,29 @@ object PoseActivityJudge {
                 }
             }
             val evidence = "有効画像${angles.size}/${images.size}、関節角度${minAngle.toInt()}〜${maxAngle.toInt()}°、上下の切替${transitions}回"
+            if (squat) {
+                var phase = 0
+                var completed = 0
+                for (sample in squatPhases) {
+                    if (sample == 1 && phase == 0) phase = 1
+                    else if (sample == 0 && phase == 1) phase = 2
+                    else if (sample == 1 && phase == 2) {
+                        completed++
+                        phase = 1
+                    }
+                }
+                val deepFrames = squatPhases.count { it == 0 }
+                val details = "$evidence、深い姿勢${deepFrames}枚、完了${completed}回"
+                return when {
+                    completed >= 1 -> ActivityVerdict("一致",
+                        "立ってから深くしゃがみ、再び立つ動きを確認した。", details)
+                    minAngle > 120.0 && maxAngle >= 155.0 ->
+                        ActivityVerdict("不一致",
+                            "膝の曲げ伸ばしはあったが深いスクワット姿勢がなかった。", details)
+                    else -> ActivityVerdict("判断不能",
+                        "十分に深い姿勢と復帰が確認できない。横向きで全身を映して再試行してね。", details)
+                }
+            }
             when {
                 range >= threshold && transitions >= 2 ->
                     ActivityVerdict("一致", "姿勢の上下変化を繰り返し確認した。", evidence)

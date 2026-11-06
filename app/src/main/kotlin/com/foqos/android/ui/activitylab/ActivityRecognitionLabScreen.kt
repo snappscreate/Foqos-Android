@@ -262,7 +262,6 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
             }
 
             if (!busy) {
-                Text("活動：$activity", style = MaterialTheme.typography.bodyMedium)
                 Text("方式：${mode.label} / 観察時間：${duration}秒" +
                     (if (mode == ActivityMode.VIDEO) "" else " / 撮影間隔：${interval / 1000.0}秒"),
                     style = MaterialTheme.typography.bodySmall)
@@ -435,6 +434,9 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                     Text(result.reason)
                     if (result.evidence.isNotBlank()) Text(result.evidence)
                     ActivityResultThumbnails(files)
+                    files.firstOrNull { it.extension == "mp4" }?.let { video ->
+                        Text("動画サイズ：%.2f MB".format(video.length() / 1_000_000.0))
+                    }
                     Text("判定処理時間：${result.elapsedMs / 1000.0}秒")
                     if (verdictMode != ActivityMode.POSE) {
                         Text("入力：${result.inputTokens} tokens / 出力：${result.outputTokens} tokens")

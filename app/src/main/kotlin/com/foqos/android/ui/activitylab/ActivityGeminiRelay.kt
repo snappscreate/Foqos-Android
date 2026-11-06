@@ -22,6 +22,7 @@ object ActivityGeminiRelay {
     suspend fun judge(
         endpoint: String,
         bearer: String,
+        model: String,
         activity: String,
         mode: String,
         photos: List<File>,
@@ -31,7 +32,8 @@ object ActivityGeminiRelay {
         require(endpoint.startsWith("https://", ignoreCase = true)) {
             "HTTPSの中継サーバーURLを指定してね"
         }
-        val request = JSONObject().put("activity", activity).put("mode", mode)
+        require(model in SUPPORTED_MODELS) { "未対応のモデル名だよ" }
+        val request = JSONObject().put("activity", activity).put("mode", mode).put("model", model)
         if (video != null) {
             require(video.length() <= 14_000_000) { "動画が14MBを超えたため送信を中止。撮影時間を短くしてね。" }
             request.put("video", JSONObject().put("mimeType", "video/mp4")

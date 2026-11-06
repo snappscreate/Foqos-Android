@@ -96,7 +96,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
     var keyMessage by remember { mutableStateOf("") }
     var geminiModel by remember { mutableStateOf(saved.geminiModel) }
     var endpoint by remember { mutableStateOf(saved.endpoint) }
-    var token by remember { mutableStateOf("") }
+    var token by remember { mutableStateOf(keyStore.loadRelayToken().orEmpty()) }
     var status by remember { mutableStateOf("待機中") }
     var busy by remember { mutableStateOf(false) }
     var settingsExpanded by remember { mutableStateOf(false) }
@@ -343,6 +343,21 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                         singleLine = true,
                         visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                     )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(enabled = !busy && token.isNotBlank(),
+                            onClick = {
+                                runCatching { keyStore.saveRelayToken(token) }
+                                    .onSuccess { keyMessage = "中継認証トークンを暗号化保存したよ" }
+                                    .onFailure { keyMessage = "保存に失敗：${it.message}" }
+                            }) { Text("トークンを保存") }
+                        OutlinedButton(enabled = !busy, onClick = {
+                            keyStore.deleteRelayToken()
+                            token = ""
+                            keyMessage = "中継認証トークンを削除したよ"
+                        }) { Text("トークンを削除") }
+                    }
+                    if (keyMessage.isNotBlank()) Text(keyMessage,
+                        style = MaterialTheme.typography.bodySmall)
                 } else {
                     Text("個人用のテスト向け。APIキーは端末内で暗号化保存できる。映像はGeminiへ送信されるので、公開アプリでは中継方式を使ってね。",
                         style = MaterialTheme.typography.bodySmall)

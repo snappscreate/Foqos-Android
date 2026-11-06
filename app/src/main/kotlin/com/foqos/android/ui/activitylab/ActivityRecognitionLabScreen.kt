@@ -103,6 +103,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
     var verdictMode by remember { mutableStateOf(ActivityMode.PHOTOS) }
     var cameraReady by remember { mutableStateOf(false) }
     var captureJob by remember { mutableStateOf<Job?>(null) }
+    val photoCount = (duration * 1000L / interval).toInt().coerceIn(1, 40)
     val latestFiles by rememberUpdatedState(files)
     val latestJob by rememberUpdatedState(captureJob)
 
@@ -267,7 +268,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                 value = duration.toFloat(), onValueChange = { duration = it.toInt() },
                 valueRange = 10f..60f, steps = 9, enabled = !busy,
             )
-            val photoCount = (duration * 1000L / interval).toInt().coerceIn(1, 40)
+
             if (mode != ActivityMode.VIDEO) {
                 val effectiveInterval = (duration * 1000L / photoCount).coerceAtLeast(interval)
                 Text("取得予定：${photoCount}枚（最大40枚）、実際の間隔：約${effectiveInterval / 1000.0}秒",

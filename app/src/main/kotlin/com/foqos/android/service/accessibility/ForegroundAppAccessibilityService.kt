@@ -22,6 +22,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 
 /**
@@ -60,6 +62,7 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
     private var lastLoggedSettingsClass: String? = null
     private var lastLoggedSettingsProbe: String? = null
 
+    private var browserAuthRecheckJob: Job? = null
     private var lastOverlayPackage: String? = null
     private var lastOverlayAtElapsedMillis: Long = 0L
 
@@ -201,6 +204,28 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
         val browserAuthGrace = BrowserAuthGrace.tracker.observe(
             packageName, browserPackages, sourceApps,
         )
+
+        // Do not rely on Chrome emitting another accessibility event after five seconds.
+        // Recheck the browser once the login handoff grace expires.
+        if (browserAuthGrace && browserAuthRecheckJob?.isActive != true) {
+            browserAuthRecheckJob = observerScope.launch {
+                delay(5_100L)
+                val activePackage = rootInActiveWindow?.packageName?.toString()
+                if (activePackage == packageName) {
+                    val recheck = AccessibilityEvent.obtain(
+                        AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED)
+                    try {
+                        recheck.packageName = activePackage
+                        onAccessibilityEvent(recheck)
+                    } finally {
+                        recheck.recycle()
+                    }
+                }
+            }
+        } else if (!browserAuthGrace) {
+            browserAuthRecheckJob?.cancel()
+            browserAuthRecheckJob = null
+        }
 
         val protectedSettingsScreen = effectiveStates.any { it.strictMode } &&
             packageName in AccessibilityBlockPolicy.SETTINGS_PACKAGES &&

@@ -8,6 +8,8 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.FileOutputOptions
 import androidx.camera.video.PendingRecording
+import androidx.camera.video.Quality
+import androidx.camera.video.QualitySelector
 import androidx.camera.video.Recorder
 import androidx.camera.video.Recording
 import androidx.camera.video.VideoCapture
@@ -30,7 +32,13 @@ class ActivityCamera(private val context: Context) {
     private val executor: Executor = ContextCompat.getMainExecutor(context)
     private val imageCapture = ImageCapture.Builder()
         .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build()
-    private val videoCapture = VideoCapture.withOutput(Recorder.Builder().build())
+    // Motion recognition does not require HD. Low bitrate keeps even 60s clips small.
+    private val videoCapture = VideoCapture.withOutput(
+        Recorder.Builder()
+            .setQualitySelector(QualitySelector.from(Quality.SD))
+            .setTargetVideoEncodingBitRate(750_000)
+            .build()
+    )
     private var provider: ProcessCameraProvider? = null
     private var activeRecording: Recording? = null
 

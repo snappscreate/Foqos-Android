@@ -84,7 +84,11 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
     var interval by remember { mutableStateOf(2000L) }
     var duration by remember { mutableStateOf(20) }
     var useRelay by remember { mutableStateOf(false) }
-    var apiKey by remember { mutableStateOf("") }
+    val keyStore = remember(context) { ActivityApiKeyStore(context) }
+    var apiKey by remember { mutableStateOf(keyStore.load().orEmpty()) }
+    var keySaved by remember { mutableStateOf(keyStore.hasKey()) }
+    var keyMessage by remember { mutableStateOf("") }
+    var geminiModel by remember { mutableStateOf("gemini-3.5-flash") }
     var endpoint by remember { mutableStateOf("") }
     var token by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("待機中") }
@@ -179,6 +183,16 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall)
             }
             if (mode != ActivityMode.POSE) {
+                Text("AIモデル")
+                Row(modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("gemini-3.5-flash", "gemini-3.5-flash-lite").forEach { model ->
+                        FilterChip(selected = geminiModel == model, enabled = !busy,
+                            onClick = { geminiModel = model },
+                            label = { Text(if (model.endsWith("-lite")) "3.5 Flash-Lite（低コスト）"
+                                else "3.5 Flash") })
+                    }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = !useRelay, enabled = !busy,
                         onClick = { useRelay = false },
@@ -204,15 +218,39 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                         visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                     )
                 } else {
-                    Text("個人用の実験だけに使う方法。APIキーは保存せず、画面を閉じると消える。撮影データはGoogleへ送信される。",
+                    Text("個人用のテスト向け。APIキーは端末内で暗号化保存できる。映像はGeminiへ送信されるので、公開アプリでは中継方式を使ってね。",
                         style = MaterialTheme.typography.bodySmall)
                     OutlinedTextField(
-                        value = apiKey, onValueChange = { apiKey = it },
+                        value = apiKey, onValueChange = {
+                            apiKey = it
+                            keyMessage = ""
+                        },
                         modifier = Modifier.fillMaxWidth(), enabled = !busy,
-                        label = { Text("Gemini APIキー（実行時のみ）") },
+                        label = { Text("Gemini APIキー") },
                         singleLine = true,
                         visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                     )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(enabled = !busy && apiKey.isNotBlank(), onClick = {
+                            runCatching { keyStore.save(apiKey) }
+                                .onSuccess {
+                                    keySaved = true
+                                    keyMessage = "APIキーを暗号化して保存したよ"
+                                }.onFailure {
+                                    keyMessage = "保存に失敗：${it.message}"
+                                }
+                        }) { Text("APIキーを保存") }
+                        OutlinedButton(enabled = !busy && keySaved, onClick = {
+                            keyStore.delete()
+                            apiKey = ""
+                            keySaved = false
+                            keyMessage = "保存したAPIキーを削除したよ"
+                        }) { Text("保存キーを削除") }
+                    }
+                    if (keyMessage.isNotBlank()) Text(keyMessage,
+                        style = MaterialTheme.typography.bodySmall)
+                    if (keySaved) Text("この端末に保存済み（Android Keystore暗号化）",
+                        style = MaterialTheme.typography.bodySmall)
                 }
             }
             Text(status, style = MaterialTheme.typography.bodyMedium)
@@ -247,7 +285,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                                         endpoint.trim(), token.trim(), activity, "video",
                                         emptyList(), video, interval)
                                     else ActivityGeminiRelay.judgeDirect(
-                                        apiKey.trim(), activity, emptyList(), video, interval)
+                                        apiKey.trim(), geminiModel, activity, emptyList(), video, interval)
                                 } else {
                                     val total = photoCount
                                     val actualInterval = (duration * 1000L / total).coerceAtLeast(interval)
@@ -267,7 +305,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                                             endpoint.trim(), token.trim(), activity, "photos",
                                             captures, null, actualInterval)
                                         else ActivityGeminiRelay.judgeDirect(
-                                            apiKey.trim(), activity, captures, null, actualInterval)
+                                            apiKey.trim(), geminiModel, activity, captures, null, actualInterval)
                                     }
                                 }
                                 verdictMode = mode

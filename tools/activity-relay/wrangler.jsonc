@@ -4,6 +4,6 @@
   "compatibility_date": "2026-10-01",
   "workers_dev": true,
   "vars": {
-    "GEMINI_MODEL": "gemini-2.5-flash-lite"
+    "GEMINI_MODEL": "gemini-3.5-flash"
   }
 }

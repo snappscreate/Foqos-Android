@@ -55,7 +55,9 @@ export default {
         parts.push({inlineData: {mimeType:"image/jpeg", data:frame.data}});
       }
     }
-    const model = env.GEMINI_MODEL || "gemini-3.5-flash";
+    const requestedModel = payload.model || env.GEMINI_MODEL || "gemini-3.5-flash";
+    const model = ["gemini-3.5-flash", "gemini-3.5-flash-lite"].includes(requestedModel)
+      ? requestedModel : "gemini-3.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
     const reply = await fetch(url, {
       method: "POST",

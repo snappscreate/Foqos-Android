@@ -5,7 +5,7 @@
  *   GEMINI_API_KEY  (required; Gemini never reaches the Android APK)
  *   LAB_TOKEN       (required; long, random, private per-device token)
  * Optional vars:
- *   GEMINI_MODEL    (defaults to gemini-2.5-flash-lite)
+ *   GEMINI_MODEL    (defaults to gemini-3.5-flash)
  *   INPUT_USD_PER_M, OUTPUT_USD_PER_M, USD_JPY
  *
  * This deliberately has no CORS and no persistent image/video storage.
@@ -55,7 +55,7 @@ export default {
         parts.push({inlineData: {mimeType:"image/jpeg", data:frame.data}});
       }
     }
-    const model = env.GEMINI_MODEL || "gemini-2.5-flash-lite";
+    const model = env.GEMINI_MODEL || "gemini-3.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
     const reply = await fetch(url, {
       method: "POST",

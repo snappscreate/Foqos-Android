@@ -24,6 +24,23 @@ data class ActivityVerdict(
     val elapsedMs: Long = 0,
 )
 
+/** 1 = standing, 0 = demonstrably deep, -1 = transitional or uncertain. */
+internal object SquatCycleCounter {
+    fun count(phases: List<Int>): Int {
+        var state = 0
+        var completed = 0
+        for (sample in phases) {
+            if (sample == 1 && state == 0) state = 1
+            else if (sample == 0 && state == 1) state = 2
+            else if (sample == 1 && state == 2) {
+                completed++
+                state = 1
+            }
+        }
+        return completed
+    }
+}
+
 /** Offline motion validation. Other activities are explicitly unsupported, not guessed. */
 object PoseActivityJudge {
     suspend fun judge(context: Context, activity: String, images: List<File>): ActivityVerdict {
@@ -85,16 +102,7 @@ object PoseActivityJudge {
             }
             val evidence = "有効画像${angles.size}/${images.size}、関節角度${minAngle.toInt()}〜${maxAngle.toInt()}°、上下の切替${transitions}回"
             if (squat) {
-                var phase = 0
-                var completed = 0
-                for (sample in squatPhases) {
-                    if (sample == 1 && phase == 0) phase = 1
-                    else if (sample == 0 && phase == 1) phase = 2
-                    else if (sample == 1 && phase == 2) {
-                        completed++
-                        phase = 1
-                    }
-                }
+                val completed = SquatCycleCounter.count(squatPhases)
                 val deepFrames = squatPhases.count { it == 0 }
                 val details = "$evidence、深い姿勢${deepFrames}枚、完了${completed}回"
                 return when {

@@ -282,7 +282,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                                     status = "Geminiに動画を送信して判定中..."
                                     analysisStarted = SystemClock.elapsedRealtime()
                                     if (useRelay) ActivityGeminiRelay.judge(
-                                        endpoint.trim(), token.trim(), activity, "video",
+                                        endpoint.trim(), token.trim(), geminiModel, activity, "video",
                                         emptyList(), video, interval)
                                     else ActivityGeminiRelay.judgeDirect(
                                         apiKey.trim(), geminiModel, activity, emptyList(), video, interval)
@@ -302,7 +302,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                                         PoseActivityJudge.judge(context, activity, captures)
                                     } else {
                                         if (useRelay) ActivityGeminiRelay.judge(
-                                            endpoint.trim(), token.trim(), activity, "photos",
+                                            endpoint.trim(), token.trim(), geminiModel, activity, "photos",
                                             captures, null, actualInterval)
                                         else ActivityGeminiRelay.judgeDirect(
                                             apiKey.trim(), geminiModel, activity, captures, null, actualInterval)

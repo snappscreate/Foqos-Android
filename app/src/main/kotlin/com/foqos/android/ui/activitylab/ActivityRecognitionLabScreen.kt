@@ -5,6 +5,8 @@ package com.foqos.android.ui.activitylab
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
+import androidx.compose.ui.Alignment
 import android.os.SystemClock
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -152,12 +154,32 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (granted) {
-                AndroidView(factory = { camera.preview },
-                    modifier = Modifier.fillMaxWidth().height(220.dp))
+                Box(modifier = Modifier.fillMaxWidth().height(220.dp)) {
+                    AndroidView(factory = { camera.preview },
+                        modifier = Modifier.fillMaxSize())
+                    if (!busy) {
+                        OutlinedButton(
+                            onClick = { front = !front },
+                            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                        ) {
+                            Text(if (front) "背面に切替" else "前面に切替")
+                        }
+                    }
+                }
             } else {
                 OutlinedButton(onClick = { requestCamera.launch(Manifest.permission.CAMERA) }) {
                     Text("カメラ使用を許可する")
                 }
+            }
+            if (!busy) {
+                OutlinedTextField(
+                    value = activity,
+                    onValueChange = { activity = it },
+                    label = { Text("確認したい活動") },
+                    placeholder = { Text("例：腕立て伏せをする、本を読む") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
             }
             if (busy) {
                 OutlinedButton(onClick = {
@@ -257,15 +279,6 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                     Text(if (settingsExpanded) "▲ 設定を閉じる" else "▼ 設定を変更")
                 }
                 if (settingsExpanded) {
-                    OutlinedButton(enabled = !busy, onClick = { front = !front }) {
-                        Text(if (front) "背面カメラに切り替え" else "前面カメラに切り替え")
-                    }
-            OutlinedTextField(
-                value = activity, onValueChange = { activity = it },
-                label = { Text("確認したい活動") },
-                placeholder = { Text("例：腕立て伏せをする、本を読む") },
-                enabled = !busy, modifier = Modifier.fillMaxWidth(),
-            )
             Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ActivityMode.entries.forEach { item ->

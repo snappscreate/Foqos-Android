@@ -241,7 +241,7 @@ class SessionManager @Inject constructor(
         } else {
             // Leaving the geofence is the deliberate escape hatch for a chosen activity.
             com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext).clear(profileId)
-            if (current?.profileId == profileId && current.tag == LOCATION_SESSION_TAG) {
+            if (current?.profileId == profileId) {
                 // Do not end the session on EXIT. Keep history, NFC registrations and
                 // timed pause state intact, only suspend enforcement until ENTER.
                 blockingStateHolder.updateProfile(profileId) { it.copy(locationSuspended = true) }

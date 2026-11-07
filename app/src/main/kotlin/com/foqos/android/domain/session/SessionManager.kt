@@ -375,6 +375,11 @@ class SessionManager @Inject constructor(
     suspend fun onProfileNfcScan(profileId: String) {
         val current = sessionForProfile(profileId) ?: sessionRepository.activeSessionForProfile(profileId)
         if (current?.profileId == profileId) {
+            if (com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
+                    .selection(profileId, current.id) != null) {
+                emitError("動作チャレンジが解除条件になっています")
+                return
+            }
             val profile = profileRepository.getById(profileId) ?: return
             if (profile.strategyId ==
                 com.foqos.android.domain.strategy.NfcPauseTimerBlockingStrategy.ID
@@ -453,6 +458,11 @@ class SessionManager @Inject constructor(
                     emitError("Failed to find a profile stored locally that matches the tag")
                     return
                 }
+                if (com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
+                        .selection(profile.id, session.id) != null) {
+                    emitError("動作チャレンジが解除条件になっています")
+                    return
+                }
                 val strategy = StrategyRegistry.byId(profile.strategyId)
                 strategy.onStopInput(profile, session, input, this)
             }
@@ -476,6 +486,11 @@ class SessionManager @Inject constructor(
         }
         val profile = profileRepository.getById(session.profileId) ?: run {
             emitError("Failed to find a profile stored locally that matches the tag")
+            return
+        }
+        if (com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
+                .selection(profileId, session.id) != null) {
+            emitError("動作チャレンジが解除条件になっています")
             return
         }
         if (fromBackground && globalProtection.readFor(profile).disableBackgroundStops) {
@@ -520,6 +535,11 @@ class SessionManager @Inject constructor(
             return
         }
         val currentProfile = profileRepository.getById(profileId)
+        if (com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
+                .selection(profileId, current.id) != null) {
+            emitError("動作チャレンジが解除条件になっています")
+            return
+        }
         if (currentProfile?.strategyId ==
             com.foqos.android.domain.strategy.NfcPauseTimerBlockingStrategy.ID) {
             emitError("NFC + Pause Timer cannot be stopped through a shortcut")

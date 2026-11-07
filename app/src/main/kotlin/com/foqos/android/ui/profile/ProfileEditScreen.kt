@@ -88,6 +88,7 @@ import com.foqos.android.ui.common.strategyEmoji
 import com.foqos.android.ui.common.strategyDisplayName
 import com.foqos.android.ui.common.strategyOneLiner
 import com.foqos.android.ui.activitylab.ActivityUnlockSettingsSection
+import com.foqos.android.ui.activitylab.ProfileUnlockPolicySection
 import com.foqos.android.ui.physicalunlock.PhysicalUnlockEditor
 import com.foqos.android.ui.settings.LocationAutomationSection
 import kotlinx.coroutines.flow.first
@@ -181,12 +182,12 @@ fun ProfileEditScreen(
         ) {
             NameSection(name = uiState.draft.name, error = uiState.nameError, onNameChange = viewModel::updateName)
 
-            StrategySection(
-                strategyId = uiState.draft.strategyId,
-                strategyDataJson = uiState.draft.strategyDataJson,
-                onOpenPicker = { showStrategyPicker = true },
-                onStrategyDataChange = viewModel::updateStrategyDataJson,
-            )
+            SectionCard(title = "停止・一時停止の条件") {
+                ProfileUnlockPolicySection(
+                    profile = uiState.draft,
+                    editingLocked = uiState.editingLocked,
+                )
+            }
 
             SectionCard(title = "一時停止のサブ条件（AI動画判定）") {
                 ActivityUnlockSettingsSection(

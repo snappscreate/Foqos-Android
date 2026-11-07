@@ -165,6 +165,10 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun requestConfiguredPause(profileId: String) {
+        viewModelScope.launch { sessionManager.requestConfiguredPause(profileId) }
+    }
+
     fun startProfile(profileId: String) {
         viewModelScope.launch { sessionManager.startProfile(profileId) }
     }

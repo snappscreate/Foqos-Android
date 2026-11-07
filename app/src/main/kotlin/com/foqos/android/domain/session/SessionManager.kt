@@ -571,6 +571,9 @@ class SessionManager @Inject constructor(
                     return
                 }
                 if (independentUnlock.configured(profile.id)) {
+                    // A delayed QR/NFC result from an old session must not act on
+                    // a different current session of the same profile.
+                    if (sessionForProfile(profile.id)?.id != action.sessionId) return
                     val scanned = input as? StrategyInput.Code ?: return
                     authorizeConfiguredCode(profile.id, scanned.value,
                         if (scanned.source == StrategyInput.CodeSource.NFC) PhysicalUnblockType.NFC

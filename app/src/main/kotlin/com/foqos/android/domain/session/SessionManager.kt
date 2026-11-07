@@ -233,6 +233,18 @@ class SessionManager @Inject constructor(
                 return@withContext
             }
             val profile = profileRepository.getById(profileId) ?: return@withContext
+            if (independentUnlock.configured(profileId)) {
+                val stopMethod = independentUnlock.read(profileId).stop
+                val required = when (stopMethod) {
+                    com.foqos.android.ui.activitylab.UnlockMethod.NFC -> PhysicalUnblockType.NFC
+                    com.foqos.android.ui.activitylab.UnlockMethod.QR -> PhysicalUnblockType.QR_CODE
+                    else -> null
+                }
+                if (required != null && profile.physicalUnblockItems.none { it.type == required }) {
+                    emitError("自動ブロックを開始できません：停止用NFC・QRが未登録です")
+                    return@withContext
+                }
+            }
             val conflict = conflictingFullScreenProfile(profileId)
             if (conflict == null) {
                 try {

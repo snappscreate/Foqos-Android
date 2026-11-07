@@ -400,16 +400,22 @@ class BlockOverlayActivity : ComponentActivity() {
                     com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore(this@BlockOverlayActivity)
                         .takeIf { store -> store.configured(it.id) }?.read(it.id)
                 }
-                val nfcReady = (independentPolicy?.let {
-                    it.stop == com.foqos.android.ui.activitylab.UnlockMethod.NFC ||
+                val nfcReady = if (independentPolicy != null) {
+                    activeProfile?.physicalUnblockItems?.any {
+                        it.type == PhysicalUnblockType.NFC
+                    } == true && (
+                        independentPolicy.stop == com.foqos.android.ui.activitylab.UnlockMethod.NFC ||
                         (selectedActivity == null &&
-                            it.pause == com.foqos.android.ui.activitylab.UnlockMethod.NFC)
-                } ?: (selectedActivity == null)) && (activeProfile?.let { profile ->
-                    StrategyRegistry.byId(profile.strategyId).usesNfc ||
-                        (locationPauseRequest && profile.physicalUnblockItems.any {
-                            it.type == PhysicalUnblockType.NFC
-                        })
-                } ?: false)
+                            independentPolicy.pause == com.foqos.android.ui.activitylab.UnlockMethod.NFC)
+                    )
+                } else {
+                    selectedActivity == null && (activeProfile?.let { profile ->
+                        StrategyRegistry.byId(profile.strategyId).usesNfc ||
+                            (locationPauseRequest && profile.physicalUnblockItems.any {
+                                it.type == PhysicalUnblockType.NFC
+                            })
+                    } ?: false)
+                }
 
                 BlockScreenContent(
                     configuredStopAvailable = independentPolicy?.stop ==

@@ -4,6 +4,9 @@ import android.app.Application
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
+import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.content.pm.ResolveInfo
 import androidx.test.core.app.ApplicationProvider
 import com.foqos.android.service.accessibility.AccessibilityBlockPolicy
 import com.foqos.android.service.overlay.BlockOverlayActivity
@@ -31,6 +34,18 @@ class UsageStatsPollerTest {
     @Test
     fun `poller detects a blocked foreground package and launches the block overlay`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
+        // Simulate an installed launcher-visible app: the production filter intentionally
+        // ignores packages without a home-screen entry.
+        Shadows.shadowOf(context.packageManager).addResolveInfoForIntent(
+            Intent(Intent.ACTION_MAIN).setPackage("com.instagram.android")
+                .addCategory(Intent.CATEGORY_LAUNCHER),
+            ResolveInfo().apply {
+                activityInfo = ActivityInfo().apply {
+                    packageName = "com.instagram.android"
+                    name = "MainActivity"
+                }
+            },
+        )
         val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         val now = System.currentTimeMillis()
         Shadows.shadowOf(usageStatsManager)

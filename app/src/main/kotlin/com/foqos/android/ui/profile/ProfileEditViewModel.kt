@@ -352,6 +352,11 @@ class ProfileEditViewModel @Inject constructor(
             }.distinct()
             val toSave = current.draft.copy(
                 name = trimmedName,
+                // Independent unlock policies always start from the home button.
+                // Legacy strategy data is retained for profiles that have not migrated.
+                strategyId = if (com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore(context)
+                        .configured(current.draft.id)) ManualBlockingStrategy.ID
+                    else current.draft.strategyId,
                 schedule = null,
                 enableBreaks = false,
                 allowMultipleBreaks = false,

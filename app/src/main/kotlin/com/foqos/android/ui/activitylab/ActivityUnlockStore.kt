@@ -73,6 +73,17 @@ class ActivityUnlockStore(context: Context) {
         return prefs.edit().putString("selected_$profileId", "$sessionId|$conditionId").commit()
     }
 
+    fun savePauseMinutes(sessionId: String, minutes: Int) {
+        prefs.edit().putInt("pause_$sessionId", minutes.coerceIn(1, 180)).commit()
+    }
+
+    fun pauseMinutes(sessionId: String): Int? =
+        if (prefs.contains("pause_$sessionId")) prefs.getInt("pause_$sessionId", 10) else null
+
+    fun clearPauseMinutes(sessionId: String) {
+        prefs.edit().remove("pause_$sessionId").apply()
+    }
+
     fun clear(profileId: String) {
         prefs.edit().remove("selected_$profileId").apply()
     }

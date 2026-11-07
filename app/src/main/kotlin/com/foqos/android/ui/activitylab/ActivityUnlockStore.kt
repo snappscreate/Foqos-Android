@@ -74,7 +74,10 @@ class ActivityUnlockStore(context: Context) {
         val stored = prefs.getString("selected_$profileId", null)
             ?: return mainConditionId(profileId)?.let { SelectedActivityUnlock(sessionId, it) }
         val parts = stored.split("|", limit = 2)
-        if (parts.size != 2 || parts[0] != sessionId) return null
+        if (parts.size != 2 || parts[0] != sessionId) {
+            prefs.edit().remove("selected_$profileId").apply()
+            return mainConditionId(profileId)?.let { SelectedActivityUnlock(sessionId, it) }
+        }
         return SelectedActivityUnlock(parts[0], parts[1])
     }
 

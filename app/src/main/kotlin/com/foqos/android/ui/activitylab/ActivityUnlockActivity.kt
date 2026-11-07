@@ -40,6 +40,7 @@ class ActivityUnlockActivity : ComponentActivity() {
         const val EXTRA_DESCRIPTION = "description"
         const val EXTRA_SECONDS = "seconds"
         const val EXTRA_COUNTDOWN = "countdown"
+        const val EXTRA_FRONT = "front_camera"
         const val EXTRA_PROFILE_ID = "profile_id"
         const val EXTRA_SESSION_ID = "session_id"
         const val EXTRA_CONDITION_ID = "condition_id"
@@ -63,12 +64,15 @@ class ActivityUnlockActivity : ComponentActivity() {
             else entry!!.recordingSeconds).coerceIn(10, 60)
         val countdown = (if (isTest) intent.getIntExtra(EXTRA_COUNTDOWN, 5)
             else entry!!.countdownSeconds).coerceIn(0, 30)
+        val frontCamera = if (isTest) intent.getBooleanExtra(EXTRA_FRONT, true)
+            else entry!!.frontCamera
         setContent {
             FoqosTheme {
                 ActivityUnlockCapture(
                     description = description,
                     seconds = seconds,
                     countdown = countdown,
+                    frontCamera = frontCamera,
                     isTest = isTest,
                     onBack = { finish() },
                     onVerified = {
@@ -87,6 +91,7 @@ private fun ActivityUnlockCapture(
     description: String,
     seconds: Int,
     countdown: Int,
+    frontCamera: Boolean,
     isTest: Boolean,
     onBack: () -> Unit,
     onVerified: suspend () -> Boolean,
@@ -115,7 +120,7 @@ private fun ActivityUnlockCapture(
     LaunchedEffect(granted, owner) {
         cameraReady = false
         if (granted) {
-            try { camera.bind(owner, front = false, videoMode = true); cameraReady = true }
+            try { camera.bind(owner, front = frontCamera, videoMode = true); cameraReady = true }
             catch (e: Exception) { status = "カメラを起動できない：${e.message}" }
         }
     }
@@ -138,7 +143,7 @@ private fun ActivityUnlockCapture(
         } else {
             Button(onClick = { permission.launch(Manifest.permission.CAMERA) }) { Text("カメラの使用を許可") }
         }
-        Text("録画 ${seconds}秒 / 開始前 ${countdown}秒")
+        Text("録画 ${seconds}秒 / 開始前 ${countdown}秒 / ${if (frontCamera) "前面" else "背面"}カメラ")
         Text(status)
         if (!canRequest) Text("AI活動認識テストでGemini APIキーまたはHTTPS中継を設定してね。",
             color = MaterialTheme.colorScheme.error)

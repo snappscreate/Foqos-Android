@@ -90,6 +90,7 @@ fun BlockScreenContent(
     onOpenTemporarily: () -> Unit,
     onActivityChallenge: (() -> Unit)? = null,
     selectedActivityLabel: String? = null,
+    onChooseSubActivity: (() -> Unit)? = null,
     configuredStopAvailable: Boolean = false,
     configuredStopSelected: Boolean = false,
     onSelectConfiguredStop: () -> Unit = {},
@@ -239,6 +240,13 @@ fun BlockScreenContent(
                     Text(if (configuredStopSelected) "停止用NFCを待機中（タップで一時停止に戻す）"
                          else "NFCでブロックを完全停止する")
                 }
+            }
+            if (onChooseSubActivity != null) {
+                OutlinedButton(
+                    onClick = onChooseSubActivity,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                ) { Text("別の動作判定（サブ条件）に切り替える") }
             }
             if (onActivityChallenge != null) {
                 OutlinedButton(

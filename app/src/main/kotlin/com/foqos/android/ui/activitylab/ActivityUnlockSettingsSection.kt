@@ -15,6 +15,7 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
     val context = LocalContext.current
     val store = remember(profileId) { ActivityUnlockStore(context) }
     var conditions by remember(profileId) { mutableStateOf(store.conditions(profileId)) }
+    var mainConditionId by remember(profileId) { mutableStateOf(store.mainConditionId(profileId)) }
     var editingId by remember(profileId) { mutableStateOf<String?>(null) }
     var draft by remember(profileId) { mutableStateOf(ActivityUnlockCondition()) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -24,7 +25,13 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
     }
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("メイン解除条件は上の解除方式で設定。代替の動画条件を登録できる。", style = MaterialTheme.typography.bodySmall)
+        Text("通常は上の解除方式がメイン。ここで登録した動作条件をメインに指定することもできる。", style = MaterialTheme.typography.bodySmall)
+        if (mainConditionId != null) {
+            OutlinedButton(enabled = !editingLocked, onClick = {
+                store.setMainCondition(profileId, null)
+                mainConditionId = null
+            }) { Text("メインを通常の解除方式に戻す") }
+        }
         conditions.forEach { condition ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.weight(1f)) {
@@ -36,7 +43,12 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
                     draft = condition; editingId = condition.id
                 }) { Text("編集") }
                 OutlinedButton(enabled = !editingLocked, onClick = {
+                    store.setMainCondition(profileId, condition.id)
+                    mainConditionId = condition.id
+                }) { Text(if (mainConditionId == condition.id) "✓メイン" else "メインにする") }
+                OutlinedButton(enabled = !editingLocked, onClick = {
                     saveList(conditions.filterNot { it.id == condition.id })
+                    if (mainConditionId == condition.id) mainConditionId = null
                     if (editingId == condition.id) editingId = null
                 }) { Text("削除") }
             }

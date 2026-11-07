@@ -90,6 +90,9 @@ fun BlockScreenContent(
     onOpenTemporarily: () -> Unit,
     onActivityChallenge: (() -> Unit)? = null,
     selectedActivityLabel: String? = null,
+    configuredStopAvailable: Boolean = false,
+    configuredStopSelected: Boolean = false,
+    onSelectConfiguredStop: () -> Unit = {},
     periodicPauseAvailable: Boolean = false,
     periodicPauseRemainingSeconds: Long = 0L,
     onActivatePeriodicPause: () -> Unit = {},
@@ -227,6 +230,16 @@ fun BlockScreenContent(
                 Text("Foqosのホームを開く")
             }
 
+            if (configuredStopAvailable) {
+                OutlinedButton(
+                    onClick = onSelectConfiguredStop,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                ) {
+                    Text(if (configuredStopSelected) "停止用NFCを待機中（タップで一時停止に戻す）"
+                         else "NFCでブロックを完全停止する")
+                }
+            }
             if (onActivityChallenge != null) {
                 OutlinedButton(
                     onClick = onActivityChallenge,

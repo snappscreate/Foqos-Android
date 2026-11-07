@@ -237,7 +237,9 @@ fun HomeScreen(
                         onStopRequested = { viewModel.stopActiveSession(profile.id) },
                         onCardClick = { onEditProfile(profile.id) },
                         onPlayStop = {
-                            if (session != null && unlockStore.configured(profile.id)) {
+                            if (session != null && recurringEligible) {
+                                viewModel.activatePeriodicAccess(profile.id)
+                            } else if (session != null && unlockStore.configured(profile.id)) {
                                 val policy = unlockStore.read(profile.id)
                                 if (profile.id in uiState.locationStates &&
                                     uiState.locationStates[profile.id]?.second == false) {

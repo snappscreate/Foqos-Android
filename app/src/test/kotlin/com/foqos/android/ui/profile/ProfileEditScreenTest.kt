@@ -87,12 +87,12 @@ class ProfileEditScreenTest {
             }
         }
 
-        composeTestRule.onNodeWithText("Blocking strategy").assertExists()
-        composeTestRule.onNodeWithText("Apps").assertExists()
-        composeTestRule.onNodeWithText("Websites").assertExists()
-        composeTestRule.onNodeWithText("Schedule").assertExists()
-        composeTestRule.onNodeWithText("Breaks").assertExists()
-        composeTestRule.onNodeWithText("Session protection").assertExists()
+        composeTestRule.onNodeWithText("ブロック開始・解除方法").assertExists()
+        composeTestRule.onNodeWithText("アプリ").assertExists()
+        composeTestRule.onNodeWithText("Webサイト").assertExists()
+        composeTestRule.onNodeWithText("位置範囲による自動ブロック").assertExists()
+        composeTestRule.onNodeWithText("一時停止のサブ条件（AI動画判定）").assertExists()
+        composeTestRule.onNodeWithText("ブロック方式").assertExists()
     }
 
     /**
@@ -158,12 +158,12 @@ class ProfileEditScreenTest {
             }
         }
 
-        composeTestRule.onNodeWithText("Physical unlocks").assertExists()
+        composeTestRule.onNodeWithText("NFC・QRコードによる解除").assertExists()
         composeTestRule.onNodeWithText("Desk tag").assertExists()
         composeTestRule.onNodeWithText("Kitchen tag").assertExists()
         composeTestRule.onNodeWithText("Fridge code").assertExists()
-        composeTestRule.onNodeWithText("Schedule").assertExists()
-        composeTestRule.onNodeWithText("Breaks").assertExists()
+        composeTestRule.onNodeWithText("位置範囲による自動ブロック").assertExists()
+        composeTestRule.onNodeWithText("一時停止のサブ条件（AI動画判定）").assertExists()
     }
 
     /**
@@ -200,13 +200,13 @@ class ProfileEditScreenTest {
             }
         }
 
-        composeTestRule.onNodeWithText("Manual").performClick()
+        composeTestRule.onNodeWithText("手動で開始・停止").performClick()
 
-        composeTestRule.onNodeWithText("How do you want to start and stop focus sessions?").assertExists()
-        composeTestRule.onNodeWithText("Start & stop in the app").assertExists()
-        composeTestRule.onNodeWithText("NFC tag").assertExists()
-        composeTestRule.onNodeWithText("QR code").assertExists()
-        composeTestRule.onNodeWithText("NFC + Manual").assertExists()
-        composeTestRule.onAllNodesWithText("Recommended").assertCountEquals(2)
+        composeTestRule.onNodeWithText("ブロックの開始・停止方法を選択").assertExists()
+        composeTestRule.onNodeWithText("アプリで開始・停止").assertExists()
+        composeTestRule.onNodeWithText("NFCタグ").assertExists()
+        composeTestRule.onNodeWithText("QRコード").assertExists()
+        composeTestRule.onNodeWithText("NFC開始・手動停止").assertExists()
+        composeTestRule.onNodeWithText("おすすめ").assertExists()
     }
 }

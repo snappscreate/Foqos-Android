@@ -2,6 +2,7 @@ package com.foqos.android.ui.activitylab
 
 import android.content.Context
 import com.foqos.android.data.model.BlockedProfile
+import com.foqos.android.data.model.StrategyPauseTimerData
 import com.foqos.android.domain.strategy.StrategyRegistry
 
 /** Separate STOP (ends session) and PAUSE (temporarily suspends blocking) policies. */
@@ -38,7 +39,10 @@ class ProfileUnlockPolicyStore(context: Context) {
             strategy.hasPauseMode && strategy.usesQr -> UnlockMethod.QR
             else -> UnlockMethod.MANUAL
         }
-        return ProfileUnlockPolicy(stop, pause, profile.breakTimeInMinutes.coerceIn(1, 180))
+        val duration = if (strategy.hasPauseMode) {
+            StrategyPauseTimerData.fromJsonOrNull(profile.strategyDataJson).pauseDurationInMinutes
+        } else profile.breakTimeInMinutes
+        return ProfileUnlockPolicy(stop, pause, duration.coerceIn(1, 180))
     }
 
     fun save(profileId: String, policy: ProfileUnlockPolicy) {

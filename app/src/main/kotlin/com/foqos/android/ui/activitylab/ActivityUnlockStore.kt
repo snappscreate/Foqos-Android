@@ -81,6 +81,11 @@ class ActivityUnlockStore(context: Context) {
         return mainConditionId(profileId)?.let { SelectedActivityUnlock(sessionId, it) }
     }
 
+    fun hasExplicitSelection(profileId: String, sessionId: String): Boolean {
+        val parts = prefs.getString("selected_$profileId", null)?.split("|", limit = 2)
+        return parts?.size == 2 && parts[0] == sessionId
+    }
+
     fun selection(profileId: String, sessionId: String): SelectedActivityUnlock? {
         val stored = prefs.getString("selected_$profileId", null)
             ?: return activeMain(profileId, sessionId)

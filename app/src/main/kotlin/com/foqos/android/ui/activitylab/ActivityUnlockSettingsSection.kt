@@ -36,7 +36,7 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.weight(1f)) {
                     Text(condition.description)
-                    Text("撮影${condition.recordingSeconds}秒 / 開始前${condition.countdownSeconds}秒 / 一時停止${condition.pauseMinutes}分",
+                    Text("撮影${condition.recordingSeconds}秒 / 開始前${condition.countdownSeconds}秒 / 一時停止${condition.pauseMinutes}分 / ${if (condition.frontCamera) "前面" else "背面"}",
                         style = MaterialTheme.typography.bodySmall)
                 }
                 OutlinedButton(enabled = !editingLocked, onClick = {
@@ -67,6 +67,13 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
                 label = { Text("判定する動作（例：腕立て伏せを30回行う）") },
                 modifier = Modifier.fillMaxWidth(),
             )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("撮影カメラ：")
+                OutlinedButton(enabled = !editingLocked,
+                    onClick = { draft = draft.copy(frontCamera = !draft.frontCamera) }) {
+                    Text(if (draft.frontCamera) "前面（タップで背面）" else "背面（タップで前面）")
+                }
+            }
             Text("撮影時間：${draft.recordingSeconds}秒")
             Slider(value = draft.recordingSeconds.toFloat(),
                 onValueChange = { draft = draft.copy(recordingSeconds = it.toInt()) },
@@ -91,6 +98,7 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
                         putExtra(ActivityUnlockActivity.EXTRA_DESCRIPTION, draft.description)
                         putExtra(ActivityUnlockActivity.EXTRA_SECONDS, draft.recordingSeconds)
                         putExtra(ActivityUnlockActivity.EXTRA_COUNTDOWN, draft.countdownSeconds)
+                        putExtra(ActivityUnlockActivity.EXTRA_FRONT, draft.frontCamera)
                     })
                 }) { Text("判定をテスト") }
                 Button(enabled = !editingLocked && draft.description.isNotBlank(), onClick = {

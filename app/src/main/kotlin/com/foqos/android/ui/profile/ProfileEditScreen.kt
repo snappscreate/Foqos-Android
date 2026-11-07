@@ -87,6 +87,7 @@ import com.foqos.android.ui.common.shortDayName
 import com.foqos.android.ui.common.strategyEmoji
 import com.foqos.android.ui.common.strategyDisplayName
 import com.foqos.android.ui.common.strategyOneLiner
+import com.foqos.android.ui.activitylab.ActivityUnlockSettingsSection
 import com.foqos.android.ui.physicalunlock.PhysicalUnlockEditor
 import com.foqos.android.ui.settings.LocationAutomationSection
 import kotlinx.coroutines.flow.first
@@ -186,6 +187,13 @@ fun ProfileEditScreen(
                 onOpenPicker = { showStrategyPicker = true },
                 onStrategyDataChange = viewModel::updateStrategyDataJson,
             )
+
+            SectionCard(title = "一時停止のサブ条件（AI動画判定）") {
+                ActivityUnlockSettingsSection(
+                    profileId = uiState.draft.id,
+                    editingLocked = uiState.editingLocked,
+                )
+            }
 
             // Mutually exclusive blocking modes. Selecting a mode does not reset either
             // mode's saved app selections or the shared website whitelist.

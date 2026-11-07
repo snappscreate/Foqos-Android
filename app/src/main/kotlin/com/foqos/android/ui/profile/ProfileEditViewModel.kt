@@ -81,6 +81,8 @@ class ProfileEditViewModel @Inject constructor(
         val periodicAccessMinutes: Int = 5,
     )
 
+    val locationAutomationViewModel = com.foqos.android.ui.settings.LocationAutomationViewModel(sessionManager, context)
+
     private val fullScreenStore = FullScreenModeStore(context)
     private val periodicStore = PeriodicAccessStore(context)
 

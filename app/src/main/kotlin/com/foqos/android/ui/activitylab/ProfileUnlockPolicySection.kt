@@ -19,7 +19,11 @@ fun ProfileUnlockPolicySection(profile: BlockedProfile, editingLocked: Boolean) 
     val activityStore = remember(profile.id) { ActivityUnlockStore(context) }
     var policy by remember(profile.id) { mutableStateOf(store.forProfile(profile)) }
     var mainActivity by remember(profile.id) { mutableStateOf(activityStore.mainConditionId(profile.id)) }
-    val hasLocation = remember(profile.id) { LocationAutomationStore(context).read(profile.id) != null }
+    val locationStore = remember(profile.id) { LocationAutomationStore(context) }
+    val locationState by remember(profile.id) { locationStore.observeState(profile.id) }
+        .collectAsState(initial = null to null)
+    val hasLocation = locationState.first != null
+    var refreshActivities by remember(profile.id) { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
 
     fun update(next: ProfileUnlockPolicy) {
@@ -63,8 +67,14 @@ fun ProfileUnlockPolicySection(profile: BlockedProfile, editingLocked: Boolean) 
             }
         }
         if (policy.pause == UnlockMethod.ACTIVITY) {
-            val activities = activityStore.conditions(profile.id)
+            val activities = remember(profile.id, refreshActivities) {
+                activityStore.conditions(profile.id)
+            }
             Text("メインの動作判定", style = MaterialTheme.typography.titleSmall)
+            OutlinedButton(onClick = {
+                refreshActivities++
+                mainActivity = activityStore.mainConditionId(profile.id)
+            }) { Text("登録した動作を再読み込み") }
             if (activities.isEmpty()) {
                 Text("下の「一時停止のサブ条件」で動作を登録してから選んでね",
                     color = MaterialTheme.colorScheme.error)
@@ -92,6 +102,14 @@ fun ProfileUnlockPolicySection(profile: BlockedProfile, editingLocked: Boolean) 
                 enabled = !editingLocked,
             )
         }
+        if ((policy.stop == UnlockMethod.NFC || policy.pause == UnlockMethod.NFC) &&
+            profile.physicalUnblockItems.none { it.type == com.foqos.android.data.model.PhysicalUnblockType.NFC }
+        ) Text("NFCタグがまだ未登録。プロファイルを保存してから登録してね。",
+            color = MaterialTheme.colorScheme.error)
+        if ((policy.stop == UnlockMethod.QR || policy.pause == UnlockMethod.QR) &&
+            profile.physicalUnblockItems.none { it.type == com.foqos.android.data.model.PhysicalUnblockType.QR_CODE }
+        ) Text("QRコードがまだ未登録。プロファイルを保存してから登録してね。",
+            color = MaterialTheme.colorScheme.error)
         Text("NFC・QRを使う場合は、下の「NFC・QRコードによる解除」でタグやコードを登録してね。",
             style = MaterialTheme.typography.bodySmall)
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }

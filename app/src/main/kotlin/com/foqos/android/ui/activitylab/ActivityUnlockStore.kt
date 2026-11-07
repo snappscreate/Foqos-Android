@@ -27,6 +27,7 @@ data class SelectedActivityUnlock(val sessionId: String, val conditionId: String
 /** Selection is bound to an actual running session, never a global profile toggle. */
 class ActivityUnlockStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("activity_unlock_conditions_v1", Context.MODE_PRIVATE)
+    private val context = context.applicationContext
 
     fun conditions(profileId: String): List<ActivityUnlockCondition> = runCatching {
         val array = JSONArray(prefs.getString("conditions_$profileId", "[]"))
@@ -73,13 +74,20 @@ class ActivityUnlockStore(context: Context) {
         }
     }
 
+    private fun activeMain(profileId: String, sessionId: String): SelectedActivityUnlock? {
+        if (ProfileUnlockPolicyStore(context).configured(profileId) &&
+            ProfileUnlockPolicyStore(context).read(profileId).pause != UnlockMethod.ACTIVITY
+        ) return null
+        return mainConditionId(profileId)?.let { SelectedActivityUnlock(sessionId, it) }
+    }
+
     fun selection(profileId: String, sessionId: String): SelectedActivityUnlock? {
         val stored = prefs.getString("selected_$profileId", null)
-            ?: return mainConditionId(profileId)?.let { SelectedActivityUnlock(sessionId, it) }
+            ?: return activeMain(profileId, sessionId)
         val parts = stored.split("|", limit = 2)
         if (parts.size != 2 || parts[0] != sessionId) {
             prefs.edit().remove("selected_$profileId").apply()
-            return mainConditionId(profileId)?.let { SelectedActivityUnlock(sessionId, it) }
+            return activeMain(profileId, sessionId)
         }
         return SelectedActivityUnlock(parts[0], parts[1])
     }

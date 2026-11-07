@@ -217,7 +217,12 @@ fun HomeScreen(
                     val activatedAt = session?.let { periodicStore.activatedAt(profile.id, it.id, anchor) } ?: 0L
                     val recurringActive = session != null && PeriodicAccessSchedule.isActive(
                         recurringConfig, anchor, activatedAt, periodicNow)
-                    val recurringEligible = session != null && !session.isPauseActive() &&
+                    val activitySelection = session?.let {
+                        com.foqos.android.ui.activitylab.ActivityUnlockStore(context)
+                            .selection(profile.id, it.id)
+                    }
+                    val recurringEligible = session != null && activitySelection == null &&
+                        !session.isPauseActive() &&
                         !session.isBreakActive() && !recurringActive &&
                         PeriodicAccessSchedule.isAvailable(recurringConfig, anchor, activatedAt, periodicNow)
                     ProfileCard(

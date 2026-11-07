@@ -43,6 +43,17 @@ class ActivityUnlockStore(context: Context) {
         }.filter { it.description.isNotBlank() }
     }.getOrDefault(emptyList())
 
+    fun mainConditionId(profileId: String): String? =
+        prefs.getString("main_$profileId", null)
+
+    fun setMainCondition(profileId: String, id: String?) {
+        require(id == null || conditions(profileId).any { it.id == id })
+        prefs.edit().apply {
+            if (id == null) remove("main_$profileId")
+            else putString("main_$profileId", id)
+        }.commit()
+    }
+
     fun save(profileId: String, conditions: List<ActivityUnlockCondition>) {
         val array = JSONArray()
         conditions.forEach { condition ->
@@ -53,13 +64,15 @@ class ActivityUnlockStore(context: Context) {
                 .put("countdownSeconds", value.countdownSeconds)
                 .put("pauseMinutes", value.pauseMinutes))
         }
+        if (conditions.none { it.id == mainConditionId(profileId) }) setMainCondition(profileId, null)
         check(prefs.edit().putString("conditions_$profileId", array.toString()).commit()) {
             "活動条件を保存できなかった"
         }
     }
 
     fun selection(profileId: String, sessionId: String): SelectedActivityUnlock? {
-        val stored = prefs.getString("selected_$profileId", null) ?: return null
+        val stored = prefs.getString("selected_$profileId", null)
+            ?: return mainConditionId(profileId)?.let { SelectedActivityUnlock(sessionId, it) }
         val parts = stored.split("|", limit = 2)
         if (parts.size != 2 || parts[0] != sessionId) return null
         return SelectedActivityUnlock(parts[0], parts[1])

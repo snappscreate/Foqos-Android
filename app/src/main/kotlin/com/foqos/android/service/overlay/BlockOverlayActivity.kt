@@ -394,12 +394,12 @@ class BlockOverlayActivity : ComponentActivity() {
                         putExtra(ActivityUnlockActivity.EXTRA_CONDITION_ID, condition.id)
                     })
                 }
-                val nfcReady = activeProfile?.let { profile ->
+                val nfcReady = selectedActivity == null && (activeProfile?.let { profile ->
                     StrategyRegistry.byId(profile.strategyId).usesNfc ||
                         (locationPauseRequest && profile.physicalUnblockItems.any {
                             it.type == PhysicalUnblockType.NFC
                         })
-                } ?: false
+                } ?: false)
 
                 BlockScreenContent(
                     profileName = state?.profileName.orEmpty(),

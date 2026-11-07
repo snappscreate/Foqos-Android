@@ -12,6 +12,7 @@ import android.provider.Settings
 import com.foqos.android.service.accessibility.AccessibilityBlockPolicy
 import com.foqos.android.service.accessibility.BrowserAuthGrace
 import com.foqos.android.service.accessibility.BlockDecision
+import com.foqos.android.service.accessibility.LauncherVisibleAppFilter
 import com.foqos.android.service.overlay.BlockOverlayActivity
 import com.foqos.android.service.session.FullScreenModeStore
 import com.foqos.android.service.location.LocationAutomationStore
@@ -108,7 +109,11 @@ class UsageStatsPoller @Inject constructor(
             )
         when (decision) {
             BlockDecision.Allow -> Unit
-            is BlockDecision.BlockApp -> maybeLaunchOverlay(decision.packageName, domain = null)
+            is BlockDecision.BlockApp -> {
+                if (LauncherVisibleAppFilter.isEligible(context, decision.packageName, currentLauncherPackageName())) {
+                    maybeLaunchOverlay(decision.packageName, domain = null)
+                }
+            }
             is BlockDecision.BlockDomain -> maybeLaunchOverlay(decision.packageName, decision.domain)
             is BlockDecision.RedirectAway -> maybeLaunchOverlay(packageName, domain = null)
         }

@@ -34,6 +34,11 @@ fun ProfileUnlockPolicySection(profile: BlockedProfile, editingLocked: Boolean) 
         } catch (e: Exception) { error = e.message }
     }
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        if (!store.configured(profile.id)) {
+            Text("旧方式のプロファイルは保存時に新方式へ移行するよ。開始は手動になり、従来の開始・停止一体型タイマーは引き継がれない。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         Text("停止条件", style = MaterialTheme.typography.titleMedium)
         Text("停止はセッションを終了。一時停止とは別に設定する。", style = MaterialTheme.typography.bodySmall)
         listOf(

@@ -176,9 +176,12 @@ class SessionManagerTest {
         try {
             profileRepository.updatePhysicalUnblockItems(profile.id) {
                 it + PhysicalUnblockItem(name = "NFC pause", type = PhysicalUnblockType.NFC,
-                    codeValue = "nfc-proof")
+                    codeValue = "nfc-proof") +
+                    PhysicalUnblockItem(name = "QR stop", type = PhysicalUnblockType.QR_CODE,
+                        codeValue = "qr-stop-proof")
             }
             sessionManager.startProfile(profile.id)
+            assertThat(sessionManager.activeSession.value).isNotNull()
             assertThat(sessionManager.authorizeConfiguredCode(
                 profile.id, "nfc-proof", PhysicalUnblockType.NFC, forPause = false)).isFalse()
             assertThat(sessionManager.authorizeConfiguredCode(

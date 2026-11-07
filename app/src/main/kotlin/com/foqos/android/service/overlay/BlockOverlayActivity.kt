@@ -113,6 +113,7 @@ class BlockOverlayActivity : ComponentActivity() {
     private var nfcScanMessage by mutableStateOf<String?>(null)
     private var boundaryDistance by mutableStateOf<String?>(null)
     private var shieldResumed by mutableStateOf(false)
+    private var configuredStopRequested by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -411,6 +412,10 @@ class BlockOverlayActivity : ComponentActivity() {
                 } ?: false)
 
                 BlockScreenContent(
+                    configuredStopAvailable = independentPolicy?.stop ==
+                        com.foqos.android.ui.activitylab.UnlockMethod.NFC,
+                    configuredStopSelected = configuredStopRequested,
+                    onSelectConfiguredStop = { configuredStopRequested = !configuredStopRequested },
                     profileName = state?.profileName.orEmpty(),
                     blockedLabel = blockedLabel,
                     sessionStartEpochMillis = state?.sessionStartEpochMillis ?: System.currentTimeMillis(),
@@ -644,8 +649,9 @@ class BlockOverlayActivity : ComponentActivity() {
         val independent = com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore(this)
         if (independent.configured(profile.id)) {
             val policy = independent.read(profile.id)
-            val forPause = intent.getBooleanExtra(EXTRA_LOCATION_PAUSE_REQUEST, false) ||
-                policy.pause == com.foqos.android.ui.activitylab.UnlockMethod.NFC
+            val forPause = !configuredStopRequested &&
+                (intent.getBooleanExtra(EXTRA_LOCATION_PAUSE_REQUEST, false) ||
+                    policy.pause == com.foqos.android.ui.activitylab.UnlockMethod.NFC)
             val approved = sessionManager.authorizeConfiguredCode(
                 profile.id, code, PhysicalUnblockType.NFC, forPause = forPause,
             )

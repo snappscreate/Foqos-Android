@@ -14,6 +14,7 @@ internal class ActivityLabSettingsStore(context: Context) {
         val frontCamera: Boolean = false,
         val intervalMillis: Long = 1000L,
         val durationSeconds: Int = 10,
+        val countdownSeconds: Int = 5,
         val geminiModel: String = "gemini-3.5-flash-lite",
         val useRelay: Boolean = false,
         val endpoint: String = "",
@@ -28,6 +29,7 @@ internal class ActivityLabSettingsStore(context: Context) {
         intervalMillis = prefs.getLong("interval", 1000L)
             .takeIf { it in setOf(500L, 1000L, 2000L, 5000L) } ?: 1000L,
         durationSeconds = prefs.getInt("duration", 10).coerceIn(10, 60),
+        countdownSeconds = prefs.getInt("countdown", 5).takeIf { it in setOf(0, 3, 5, 10, 15) } ?: 5,
         geminiModel = prefs.getString("model", "gemini-3.5-flash-lite").orEmpty()
             .takeIf { it in setOf("gemini-3.5-flash", "gemini-3.5-flash-lite") }
             ?: "gemini-3.5-flash-lite",
@@ -42,6 +44,7 @@ internal class ActivityLabSettingsStore(context: Context) {
             .putBoolean("front", value.frontCamera)
             .putLong("interval", value.intervalMillis)
             .putInt("duration", value.durationSeconds)
+            .putInt("countdown", value.countdownSeconds)
             .putString("model", value.geminiModel)
             .putBoolean("relay", value.useRelay)
             .putString("endpoint", value.endpoint)

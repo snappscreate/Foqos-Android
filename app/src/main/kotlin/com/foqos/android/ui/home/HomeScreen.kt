@@ -528,12 +528,14 @@ private fun ProfileCard(
                     Icon(
                         imageVector = when {
                             periodicEligible -> Icons.Filled.Pause
+                            isActive && independentUnlock != null -> Icons.Filled.Pause
                             isActive && isLocationProfile && locationInside == true -> Icons.Filled.Pause
                             isActive -> Icons.Filled.Stop
                             else -> Icons.Filled.PlayArrow
                         },
                         contentDescription = when {
                             periodicEligible -> "周期休憩を開始"
+                            isActive && independentUnlock != null -> "一時停止"
                             isActive && isLocationProfile && locationInside == true -> "一時停止"
                             isActive -> stringResource(R.string.home_stop_action)
                             else -> stringResource(R.string.home_start_action)
@@ -543,10 +545,14 @@ private fun ProfileCard(
             }
 
             if (isActive && independentUnlock != null &&
-                independentUnlock.stop != UnlockMethod.MANUAL) {
+                !(independentUnlock.stop == UnlockMethod.MANUAL &&
+                    isLocationProfile && locationInside == true)) {
                 TextButton(onClick = onStopRequested) {
-                    Text(if (independentUnlock.stop == UnlockMethod.NFC)
-                        "NFCで完全停止" else "QRコードで完全停止")
+                    Text(when (independentUnlock.stop) {
+                        UnlockMethod.NFC -> "NFCで完全停止"
+                        UnlockMethod.QR -> "QRコードで完全停止"
+                        else -> "手動で完全停止"
+                    })
                 }
             }
 

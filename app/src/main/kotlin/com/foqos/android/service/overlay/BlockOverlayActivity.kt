@@ -395,7 +395,15 @@ class BlockOverlayActivity : ComponentActivity() {
                         putExtra(ActivityUnlockActivity.EXTRA_CONDITION_ID, condition.id)
                     })
                 }
-                val nfcReady = selectedActivity == null && (activeProfile?.let { profile ->
+                val independentPolicy = activeProfile?.let {
+                    com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore(this@BlockOverlayActivity)
+                        .takeIf { store -> store.configured(it.id) }?.read(it.id)
+                }
+                val nfcReady = (independentPolicy?.let {
+                    it.stop == com.foqos.android.ui.activitylab.UnlockMethod.NFC ||
+                        (selectedActivity == null &&
+                            it.pause == com.foqos.android.ui.activitylab.UnlockMethod.NFC)
+                } ?: (selectedActivity == null)) && (activeProfile?.let { profile ->
                     StrategyRegistry.byId(profile.strategyId).usesNfc ||
                         (locationPauseRequest && profile.physicalUnblockItems.any {
                             it.type == PhysicalUnblockType.NFC
@@ -633,6 +641,19 @@ class BlockOverlayActivity : ComponentActivity() {
                 } == true
             }) ?: return
         val profile = profileRepository.getById(session.profileId) ?: return
+        val independent = com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore(this)
+        if (independent.configured(profile.id)) {
+            val policy = independent.read(profile.id)
+            val forPause = intent.getBooleanExtra(EXTRA_LOCATION_PAUSE_REQUEST, false) ||
+                policy.pause == com.foqos.android.ui.activitylab.UnlockMethod.NFC
+            val approved = sessionManager.authorizeConfiguredCode(
+                profile.id, code, PhysicalUnblockType.NFC, forPause = forPause,
+            )
+            nfcScanMessage = if (approved) {
+                if (forPause) "一時停止したよ" else "ブロックを停止したよ"
+            } else "このNFCは現在の条件に一致しないよ"
+            return
+        }
         if (ActivityUnlockStore(this).selection(profile.id, session.id) != null) {
             nfcScanMessage = "動作チャレンジ選択中。NFCへの変更はできないよ"
             return

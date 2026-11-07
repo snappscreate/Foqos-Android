@@ -176,7 +176,10 @@ class SessionManager @Inject constructor(
     /** Starts only the currently available recurring break; it never bypasses NFC outside that window. */
     suspend fun activatePeriodicAccess(profileId: String): Boolean = withContext(ioDispatcher) {
         val session = sessionForProfile(profileId) ?: return@withContext false
-        if (session.isPauseActive()) return@withContext false
+        if (session.isPauseActive() ||
+            com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
+                .selection(profileId, session.id) != null
+        ) return@withContext false
         val now = Instant.now()
         val config = periodicAccessStore.read(profileId)
         val anchor = periodicAnchor(session)

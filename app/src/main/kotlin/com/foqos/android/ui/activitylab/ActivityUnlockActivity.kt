@@ -107,8 +107,10 @@ private fun ActivityUnlockCapture(
     var verdict by remember { mutableStateOf<ActivityVerdict?>(null) }
     var captureJob by remember { mutableStateOf<Job?>(null) }
     var video by remember { mutableStateOf<File?>(null) }
+    val latestCaptureJob by rememberUpdatedState(captureJob)
+    val latestVideo by rememberUpdatedState(video)
     DisposableEffect(camera) {
-        onDispose { captureJob?.cancel(); camera.close(); video?.delete() }
+        onDispose { latestCaptureJob?.cancel(); camera.close(); latestVideo?.delete() }
     }
     LaunchedEffect(granted, owner) {
         cameraReady = false
@@ -126,6 +128,7 @@ private fun ActivityUnlockCapture(
         Text(if (isTest) "動作判定テスト（解除なし）" else "AI動作チャレンジ",
             style = MaterialTheme.typography.titleLarge)
         Text(description, style = MaterialTheme.typography.titleMedium)
+        Text("動画は判定時のみ送信し、判定後に端末の一時ファイルを削除する。", style = MaterialTheme.typography.bodySmall)
         if (granted) {
             Box(modifier = Modifier.fillMaxWidth().height(220.dp).clipToBounds()) {
                 AndroidView(factory = { camera.preview }, modifier = Modifier.fillMaxSize().clipToBounds())

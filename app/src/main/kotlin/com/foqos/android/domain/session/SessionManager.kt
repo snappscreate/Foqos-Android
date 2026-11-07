@@ -308,7 +308,7 @@ class SessionManager @Inject constructor(
     }
 
     /** Start a timed pause under the dedicated, independent main condition. */
-    suspend fun requestConfiguredPause(profileId: String) = withContext(ioDispatcher) {
+    suspend fun requestConfiguredPause(profileId: String): Unit = withContext(ioDispatcher) {
         val current = sessionForProfile(profileId) ?: return@withContext
         if (current.isPauseActive() || locationStoreOutside(profileId)) return@withContext
         val profile = profileRepository.getById(profileId) ?: return@withContext
@@ -374,7 +374,7 @@ class SessionManager @Inject constructor(
     }
 
     /** Request physical proof before a location-profile pause. */
-    suspend fun requestLocationPauseFromHome(profileId: String) = withContext(ioDispatcher) {
+    suspend fun requestLocationPauseFromHome(profileId: String): Unit = withContext(ioDispatcher) {
         val session = sessionForProfile(profileId) ?: return@withContext
         if (session.profileId != profileId || session.isPauseActive()) return@withContext
         if (independentUnlock.configured(profileId)) {

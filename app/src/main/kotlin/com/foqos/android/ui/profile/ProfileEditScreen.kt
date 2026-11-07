@@ -333,6 +333,7 @@ fun ProfileEditScreen(
                     profileId = uiState.draft.id,
                     editingLocked = uiState.editingLocked,
                     isPersisted = uiState.isPersisted,
+                    viewModel = viewModel.locationAutomationViewModel,
                 )
             }
 

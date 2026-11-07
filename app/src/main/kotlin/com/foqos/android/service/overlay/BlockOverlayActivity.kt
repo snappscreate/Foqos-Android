@@ -384,6 +384,8 @@ class BlockOverlayActivity : ComponentActivity() {
                 val selectedActivity = activityConditions.firstOrNull {
                     it.id == persistentActivitySelection?.conditionId
                 }
+                val explicitActivitySelection =
+                    activityUnlockStore.hasExplicitSelection(activityProfileId, activitySessionId)
                 fun openActivityChallenge(condition: ActivityUnlockCondition) {
                     if (activityProfileId.isBlank() || activitySessionId.isBlank()) return
                     val chosen = activityUnlockStore.select(activityProfileId, activitySessionId, condition.id)
@@ -484,6 +486,11 @@ class BlockOverlayActivity : ComponentActivity() {
                         }
                     }) else null,
                     selectedActivityLabel = selectedActivity?.description,
+                    onChooseSubActivity =
+                        if (selectedActivity != null && !explicitActivitySelection &&
+                            activityConditions.any { it.id != selectedActivity.id }) ({
+                            showActivityChoices = true
+                        }) else null,
                     onGoBack = { finishAndGoHome() },
                     onOpenFoqosHome = { openFoqosHome() },
                     fullScreenMode = fullScreen || locationPauseRequest,
@@ -533,14 +540,16 @@ class BlockOverlayActivity : ComponentActivity() {
                     },
                 )
 
-                if (showActivityChoices && selectedActivity == null && activityConditions.isNotEmpty()) {
+                if (showActivityChoices && !explicitActivitySelection && activityConditions.isNotEmpty()) {
                     AlertDialog(
                         onDismissRequest = { showActivityChoices = false },
                         title = { Text("今回の一時停止条件を選択") },
                         text = {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("選択すると、一時停止が成功するまでNFCには戻せないよ。")
-                                activityConditions.forEach { condition ->
+                                activityConditions.filter {
+                                    it.id != selectedActivity?.id
+                                }.forEach { condition ->
                                     OutlinedButton(
                                         onClick = { openActivityChallenge(condition) },
                                         modifier = Modifier.fillMaxWidth(),

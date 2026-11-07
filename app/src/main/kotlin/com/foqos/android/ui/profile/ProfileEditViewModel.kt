@@ -406,6 +406,7 @@ class ProfileEditViewModel @Inject constructor(
                 location.clear(id)
             }
             com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore(context).delete(id)
+            com.foqos.android.ui.activitylab.ActivityUnlockStore(context).deleteProfile(id)
             fullScreenStore.delete(id)
             periodicStore.delete(id)
             alarmScheduler.cancelAllForProfile(id)

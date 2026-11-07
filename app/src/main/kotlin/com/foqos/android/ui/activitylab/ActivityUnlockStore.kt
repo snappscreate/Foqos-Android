@@ -83,7 +83,7 @@ class ActivityUnlockStore(context: Context) {
 
     fun hasExplicitSelection(profileId: String, sessionId: String): Boolean {
         val parts = prefs.getString("selected_$profileId", null)?.split("|", limit = 2)
-        return parts?.size == 2 && parts[0] == sessionId
+        return parts != null && parts.size == 2 && parts[0] == sessionId
     }
 
     fun selection(profileId: String, sessionId: String): SelectedActivityUnlock? {
@@ -117,6 +117,11 @@ class ActivityUnlockStore(context: Context) {
 
     fun clearPauseMinutes(sessionId: String) {
         prefs.edit().remove("pause_$sessionId").apply()
+    }
+
+    fun deleteProfile(profileId: String) {
+        prefs.edit().remove("conditions_$profileId").remove("main_$profileId")
+            .remove("selected_$profileId").commit()
     }
 
     fun clear(profileId: String) {

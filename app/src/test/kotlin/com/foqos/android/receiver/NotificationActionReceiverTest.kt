@@ -74,6 +74,7 @@ class NotificationActionReceiverTest {
             ioDispatcher = Dispatchers.Unconfined,
             sessionServiceController = NoOpSessionServiceController(),
             widgetRefresher = NoOpWidgetRefresher(),
+        appContext = context,
         )
     }
 

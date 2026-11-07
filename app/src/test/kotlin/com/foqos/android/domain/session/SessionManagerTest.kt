@@ -8,6 +8,12 @@ import app.cash.turbine.test
 import com.foqos.android.data.datastore.SettingsDataStore
 import com.foqos.android.data.db.AppDatabase
 import com.foqos.android.data.model.BlockedProfile
+import com.foqos.android.data.model.PhysicalUnblockItem
+import com.foqos.android.data.model.PhysicalUnblockType
+import com.foqos.android.ui.activitylab.ProfileUnlockPolicy
+import com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore
+import com.foqos.android.ui.activitylab.ActivityUnlockStore
+import com.foqos.android.ui.activitylab.UnlockMethod
 import com.foqos.android.data.model.BlockedProfileSchedule
 import com.foqos.android.data.model.SoftUnblockStrategyData
 import com.foqos.android.data.model.StrategyPauseTimerData
@@ -125,6 +131,61 @@ class SessionManagerTest {
         val shadow = Shadows.shadowOf(alarmManager)
         return shadow.scheduledAlarms.mapNotNull {
             Shadows.shadowOf(it.operation).savedIntent.getStringExtra(AlarmReceiver.EXTRA_KEY)
+        }
+    }
+
+    @Test
+    fun `independent manual pause cannot be mistaken for QR full stop`() = runTest {
+        val profile = createProfile(strategyId = ManualBlockingStrategy.ID)
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val config = ProfileUnlockPolicyStore(context)
+        config.save(profile.id, ProfileUnlockPolicy(
+            stop = UnlockMethod.QR, pause = UnlockMethod.MANUAL, pauseMinutes = 13))
+        try {
+            profileRepository.updatePhysicalUnblockItems(profile.id) {
+                it + PhysicalUnblockItem(name = "QR stop", type = PhysicalUnblockType.QR_CODE,
+                    codeValue = "foqos://stop/sample")
+            }
+            sessionManager.startProfile(profile.id)
+            assertThat(sessionManager.activeSession.value).isNotNull()
+
+            sessionManager.requestConfiguredPause(profile.id)
+            assertThat(sessionManager.activeSession.value!!.isPauseActive()).isTrue()
+            assertThat(ActivityUnlockStore(context).pauseMinutes(sessionManager.activeSession.value!!.id))
+                .isEqualTo(13)
+
+            // Pause is not a stop, and the wrong code cannot stop the session.
+            assertThat(sessionManager.authorizeConfiguredCode(
+                profile.id, "wrong", PhysicalUnblockType.QR_CODE, forPause = false)).isFalse()
+            assertThat(sessionManager.activeSession.value).isNotNull()
+            assertThat(sessionManager.authorizeConfiguredCode(
+                profile.id, "foqos://stop/sample", PhysicalUnblockType.QR_CODE, forPause = false)).isTrue()
+            assertThat(sessionManager.activeSession.value).isNull()
+        } finally {
+            config.delete(profile.id)
+        }
+    }
+
+    @Test
+    fun `NFC pause does not satisfy QR stop condition`() = runTest {
+        val profile = createProfile(strategyId = ManualBlockingStrategy.ID)
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val config = ProfileUnlockPolicyStore(context)
+        config.save(profile.id, ProfileUnlockPolicy(
+            stop = UnlockMethod.QR, pause = UnlockMethod.NFC, pauseMinutes = 15))
+        try {
+            profileRepository.updatePhysicalUnblockItems(profile.id) {
+                it + PhysicalUnblockItem(name = "NFC pause", type = PhysicalUnblockType.NFC,
+                    codeValue = "nfc-proof")
+            }
+            sessionManager.startProfile(profile.id)
+            assertThat(sessionManager.authorizeConfiguredCode(
+                profile.id, "nfc-proof", PhysicalUnblockType.NFC, forPause = false)).isFalse()
+            assertThat(sessionManager.authorizeConfiguredCode(
+                profile.id, "nfc-proof", PhysicalUnblockType.NFC, forPause = true)).isTrue()
+            assertThat(sessionManager.activeSession.value!!.isPauseActive()).isTrue()
+        } finally {
+            config.delete(profile.id)
         }
     }
 

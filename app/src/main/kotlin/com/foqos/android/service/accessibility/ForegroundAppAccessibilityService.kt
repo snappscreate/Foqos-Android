@@ -250,7 +250,11 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
     private fun applyDecision(decision: BlockDecision) {
         when (decision) {
             BlockDecision.Allow -> Unit
-            is BlockDecision.BlockApp -> maybeLaunchOverlay(decision.packageName, domain = null)
+            is BlockDecision.BlockApp -> {
+                if (LauncherVisibleAppFilter.isEligible(this, decision.packageName, currentLauncherPackageName())) {
+                    maybeLaunchOverlay(decision.packageName, domain = null)
+                }
+            }
             is BlockDecision.BlockDomain -> maybeLaunchOverlay(decision.packageName, domain = decision.domain)
             is BlockDecision.RedirectAway -> performGlobalAction(GLOBAL_ACTION_HOME)
         }

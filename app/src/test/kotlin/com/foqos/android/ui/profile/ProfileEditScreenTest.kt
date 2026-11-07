@@ -89,7 +89,7 @@ class ProfileEditScreenTest {
 
         composeTestRule.onNodeWithText("ブロック開始・解除方法").assertExists()
         composeTestRule.onNodeWithText("アプリ").assertExists()
-        composeTestRule.onNodeWithText("Webサイト").assertExists()
+        composeTestRule.onNodeWithText("許可するWebサイト（両モード共通）").assertExists()
         composeTestRule.onNodeWithText("位置範囲による自動ブロック").assertExists()
         composeTestRule.onNodeWithText("一時停止のサブ条件（AI動画判定）").assertExists()
         composeTestRule.onNodeWithText("ブロック方式").assertExists()
@@ -207,6 +207,6 @@ class ProfileEditScreenTest {
         composeTestRule.onNodeWithText("NFCタグ").assertExists()
         composeTestRule.onNodeWithText("QRコード").assertExists()
         composeTestRule.onNodeWithText("NFC開始・手動停止").assertExists()
-        composeTestRule.onNodeWithText("おすすめ").assertExists()
+        composeTestRule.onAllNodesWithText("おすすめ").assertCountEquals(2)
     }
 }

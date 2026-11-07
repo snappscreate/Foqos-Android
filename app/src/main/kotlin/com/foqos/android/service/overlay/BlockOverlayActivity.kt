@@ -73,6 +73,9 @@ import com.foqos.android.service.session.PeriodicAccessSchedule
 import com.foqos.android.service.session.PeriodicAccessStore
 import com.foqos.android.ui.common.DeveloperUiVisibility
 import com.foqos.android.ui.block.BlockScreenContent
+import com.foqos.android.ui.activitylab.ActivityUnlockStore
+import com.foqos.android.ui.activitylab.ActivityUnlockCondition
+import com.foqos.android.ui.activitylab.ActivityUnlockActivity
 import com.foqos.android.ui.block.FocusShortcut
 import com.foqos.android.ui.block.FullScreenShortcutGrid
 import com.foqos.android.ui.block.SoftUnblockInfo
@@ -140,6 +143,9 @@ class BlockOverlayActivity : ComponentActivity() {
                 val allStates by blockingStateHolder.states.collectAsStateWithLifecycle()
                 val fullScreenStore = remember { FullScreenModeStore(this@BlockOverlayActivity) }
                 val scope = rememberCoroutineScope()
+                val activityUnlockStore = remember { ActivityUnlockStore(this@BlockOverlayActivity) }
+                var showActivityChoices by remember { mutableStateOf(false) }
+                var selectedActivityId by remember { mutableStateOf<String?>(null) }
                 val locationStore = remember { LocationAutomationStore(this@BlockOverlayActivity) }
                 val allLocationStates by remember { locationStore.observeAllStates() }
                     .collectAsStateWithLifecycle(initialValue = locationStore.readAll().associate { rule ->
@@ -365,6 +371,29 @@ class BlockOverlayActivity : ComponentActivity() {
                 ) {
                     value = state?.profileId?.let { profileRepository.getById(it) }
                 }
+                val activityConditions = remember(activeProfile?.id) {
+                    activeProfile?.id?.let(activityUnlockStore::conditions).orEmpty()
+                }
+                val activitySessionId = state?.sessionId.orEmpty()
+                val activityProfileId = state?.profileId.orEmpty()
+                val persistentActivitySelection = remember(activityProfileId, activitySessionId, selectedActivityId) {
+                    activityUnlockStore.selection(activityProfileId, activitySessionId)
+                }
+                val selectedActivity = activityConditions.firstOrNull {
+                    it.id == persistentActivitySelection?.conditionId
+                }
+                fun openActivityChallenge(condition: ActivityUnlockCondition) {
+                    if (activityProfileId.isBlank() || activitySessionId.isBlank()) return
+                    val chosen = activityUnlockStore.select(activityProfileId, activitySessionId, condition.id)
+                    if (!chosen) return
+                    selectedActivityId = condition.id
+                    showActivityChoices = false
+                    startActivity(Intent(this@BlockOverlayActivity, ActivityUnlockActivity::class.java).apply {
+                        putExtra(ActivityUnlockActivity.EXTRA_PROFILE_ID, activityProfileId)
+                        putExtra(ActivityUnlockActivity.EXTRA_SESSION_ID, activitySessionId)
+                        putExtra(ActivityUnlockActivity.EXTRA_CONDITION_ID, condition.id)
+                    })
+                }
                 val nfcReady = activeProfile?.let { profile ->
                     StrategyRegistry.byId(profile.strategyId).usesNfc ||
                         (locationPauseRequest && profile.physicalUnblockItems.any {
@@ -426,6 +455,15 @@ class BlockOverlayActivity : ComponentActivity() {
                             }
                         }
                     }) else null,
+                    onActivityChallenge = if (activityConditions.isNotEmpty() &&
+                        !state.let { it == null || it.pauseActive || it.breakActive }) ({
+                        if (selectedActivity != null) {
+                            openActivityChallenge(selectedActivity)
+                        } else {
+                            showActivityChoices = true
+                        }
+                    }) else null,
+                    selectedActivityLabel = selectedActivity?.description,
                     onGoBack = { finishAndGoHome() },
                     onOpenFoqosHome = { openFoqosHome() },
                     fullScreenMode = fullScreen || locationPauseRequest,
@@ -475,6 +513,30 @@ class BlockOverlayActivity : ComponentActivity() {
                     },
                 )
 
+                if (showActivityChoices && selectedActivity == null && activityConditions.isNotEmpty()) {
+                    AlertDialog(
+                        onDismissRequest = { showActivityChoices = false },
+                        title = { Text("今回の一時停止条件を選択") },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("選択すると、一時停止が成功するまでNFCには戻せないよ。")
+                                activityConditions.forEach { condition ->
+                                    OutlinedButton(
+                                        onClick = { openActivityChallenge(condition) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Text("${condition.description} / ${condition.pauseMinutes}分")
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showActivityChoices = false }) {
+                                Text("キャンセル")
+                            }
+                        },
+                    )
+                }
                 BackHandler { if (!fullScreen) finishAndGoHome() }
             }
         }
@@ -570,6 +632,10 @@ class BlockOverlayActivity : ComponentActivity() {
                 } == true
             }) ?: return
         val profile = profileRepository.getById(session.profileId) ?: return
+        if (ActivityUnlockStore(this).selection(profile.id, session.id) != null) {
+            nfcScanMessage = "動作チャレンジ選択中。NFCへの変更はできないよ"
+            return
+        }
         if (!StrategyRegistry.byId(profile.strategyId).usesNfc &&
             !(intent.getBooleanExtra(EXTRA_LOCATION_PAUSE_REQUEST, false) &&
                 profile.physicalUnblockItems.any { it.type == PhysicalUnblockType.NFC })) return

@@ -88,6 +88,8 @@ fun BlockScreenContent(
     onOpenAllowedApps: (() -> Unit)? = null,
     onOpenAndroidSettings: (() -> Unit)? = null,
     onOpenTemporarily: () -> Unit,
+    onActivityChallenge: (() -> Unit)? = null,
+    selectedActivityLabel: String? = null,
     periodicPauseAvailable: Boolean = false,
     periodicPauseRemainingSeconds: Long = 0L,
     onActivatePeriodicPause: () -> Unit = {},
@@ -223,6 +225,17 @@ fun BlockScreenContent(
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
             ) {
                 Text("Foqosのホームを開く")
+            }
+
+            if (onActivityChallenge != null) {
+                OutlinedButton(
+                    onClick = onActivityChallenge,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(selectedActivityLabel?.let { "動作チャレンジ：$it" }
+                        ?: "サブ条件で一時停止する")
+                }
             }
 
             if (softUnblockInfo != null && softUnblockInfo.remainingOpens > 0) {

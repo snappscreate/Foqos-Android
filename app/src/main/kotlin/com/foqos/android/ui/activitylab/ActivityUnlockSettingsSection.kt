@@ -15,7 +15,6 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
     val context = LocalContext.current
     val store = remember(profileId) { ActivityUnlockStore(context) }
     var conditions by remember(profileId) { mutableStateOf(store.conditions(profileId)) }
-    var mainConditionId by remember(profileId) { mutableStateOf(store.mainConditionId(profileId)) }
     var editingId by remember(profileId) { mutableStateOf<String?>(null) }
     var draft by remember(profileId) { mutableStateOf(ActivityUnlockCondition()) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -25,13 +24,8 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
     }
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("通常は上の解除方式がメイン。ここで登録した動作条件をメインに指定することもできる。", style = MaterialTheme.typography.bodySmall)
-        if (mainConditionId != null) {
-            OutlinedButton(enabled = !editingLocked, onClick = {
-                store.setMainCondition(profileId, null)
-                mainConditionId = null
-            }) { Text("メインを通常の解除方式に戻す") }
-        }
+        Text("サブ条件を追加。動作判定をメインにする場合も、ここで動作を登録してから上のメイン条件で選択してね。",
+            style = MaterialTheme.typography.bodySmall)
         conditions.forEach { condition ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 Column(Modifier.weight(1f)) {
@@ -43,12 +37,7 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
                     draft = condition; editingId = condition.id
                 }) { Text("編集") }
                 OutlinedButton(enabled = !editingLocked, onClick = {
-                    store.setMainCondition(profileId, condition.id)
-                    mainConditionId = condition.id
-                }) { Text(if (mainConditionId == condition.id) "✓メイン" else "メインにする") }
-                OutlinedButton(enabled = !editingLocked, onClick = {
                     saveList(conditions.filterNot { it.id == condition.id })
-                    if (mainConditionId == condition.id) mainConditionId = null
                     if (editingId == condition.id) editingId = null
                 }) { Text("削除") }
             }

@@ -91,6 +91,8 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
     var front by remember { mutableStateOf(saved.frontCamera) }
     var interval by remember { mutableStateOf(saved.intervalMillis) }
     var duration by remember { mutableStateOf(saved.durationSeconds) }
+    var countdownSeconds by remember { mutableStateOf(saved.countdownSeconds) }
+    var countdownRemaining by remember { mutableStateOf<Int?>(null) }
     var useRelay by remember { mutableStateOf(saved.useRelay) }
     val keyStore = remember(context) { ActivityApiKeyStore(context) }
     var apiKey by remember { mutableStateOf(keyStore.load().orEmpty()) }
@@ -110,10 +112,11 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
     var cameraReady by remember { mutableStateOf(false) }
     var captureJob by remember { mutableStateOf<Job?>(null) }
     val photoCount = (duration * 1000L / interval).toInt().coerceIn(1, 40)
-    LaunchedEffect(activity, mode, front, interval, duration, useRelay, geminiModel, endpoint) {
+    LaunchedEffect(activity, mode, front, interval, duration, countdownSeconds, useRelay, geminiModel, endpoint) {
         settingsStore.save(ActivityLabSettingsStore.Settings(
             activity = activity, mode = mode.name, frontCamera = front,
             intervalMillis = interval, durationSeconds = duration,
+            countdownSeconds = countdownSeconds,
             geminiModel = geminiModel, useRelay = useRelay, endpoint = endpoint,
         ))
     }
@@ -159,6 +162,14 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                 Box(modifier = Modifier.fillMaxWidth().height(220.dp).clipToBounds()) {
                     AndroidView(factory = { camera.preview.apply { clipChildren = true; clipToPadding = true } },
                         modifier = Modifier.fillMaxSize().clipToBounds())
+                    countdownRemaining?.let { seconds ->
+                        Text(
+                            text = seconds.toString(),
+                            modifier = Modifier.align(Alignment.Center),
+                            style = MaterialTheme.typography.displayLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                     if (!busy) {
                         OutlinedButton(
                             onClick = { front = !front },
@@ -188,6 +199,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                 OutlinedButton(onClick = {
                     captureJob?.cancel()
                     status = "中止したよ。再度撮影できる。"
+                    countdownRemaining = null
                     busy = false
                 }) { Text("撮影・判定を中止") }
             } else {
@@ -206,6 +218,13 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                             var analysisStarted = SystemClock.elapsedRealtime()
                             val captures = mutableListOf<File>()
                             try {
+                                // Count down before camera capture begins; no files are created yet.
+                                for (seconds in countdownSeconds downTo 1) {
+                                    countdownRemaining = seconds
+                                    status = "撮影開始まであと${seconds}秒"
+                                    delay(1_000L)
+                                }
+                                countdownRemaining = null
                                 val result = if (mode == ActivityMode.VIDEO) {
                                     status = "${duration}秒間の動画を撮影中..."
                                     val video = camera.recordFor(duration * 1000L)
@@ -256,6 +275,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                                 status = "待機中"
                                 showingResult = true
                             } finally {
+                                countdownRemaining = null
                                 busy = false
                             }
                         }
@@ -265,7 +285,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
             }
 
             if (!busy) {
-                Text("方式：${mode.label} / 観察時間：${duration}秒" +
+                Text("方式：${mode.label} / 観察時間：${duration}秒 / 開始前：${countdownSeconds}秒" +
                     (if (mode == ActivityMode.VIDEO) "" else " / 撮影間隔：${interval / 1000.0}秒"),
                     style = MaterialTheme.typography.bodySmall)
                 Text("カメラ：${if (front) "前面" else "背面"}" +
@@ -297,6 +317,15 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                             onClick = { interval = value },
                             label = { Text("${value / 1000.0}秒") })
                     }
+                }
+            }
+            Text("撮影前カウントダウン：${countdownSeconds}秒")
+            Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(0, 3, 5, 10, 15).forEach { seconds ->
+                    FilterChip(selected = countdownSeconds == seconds, enabled = !busy,
+                        onClick = { countdownSeconds = seconds },
+                        label = { Text("${seconds}秒") })
                 }
             }
             Text("観察時間：${duration}秒")

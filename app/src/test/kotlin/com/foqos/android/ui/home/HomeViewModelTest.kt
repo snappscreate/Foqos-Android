@@ -61,6 +61,7 @@ class HomeViewModelTest {
             ioDispatcher = Dispatchers.Unconfined,
             sessionServiceController = NoOpSessionServiceController(),
             widgetRefresher = NoOpWidgetRefresher(),
+        appContext = context,
         )
         viewModel = HomeViewModel(profileRepository, sessionRepository, sessionManager, settingsDataStore, context)
     }

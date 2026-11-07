@@ -104,6 +104,7 @@ fun BlockScreenContent(
     onSimulateNfc: (() -> Unit)? = null,
     distanceDescription: String? = null,
     nfcMessage: String? = null,
+    nfcInstruction: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val message = remember(blockedLabel) { pickFunMessage(blockedLabel) }
@@ -170,7 +171,7 @@ fun BlockScreenContent(
                 Text(distanceDescription, fontSize = 14.sp, color = Color.White, textAlign = TextAlign.Center)
             }
             if (nfcReady) {
-                Text("登録したNFCをかざすと一時停止・解除できます",
+                Text(nfcInstruction ?: "登録したNFCをかざすと一時停止・解除できます",
                     fontSize = 14.sp, color = Color.White, textAlign = TextAlign.Center)
             }
             if (!nfcMessage.isNullOrBlank()) {

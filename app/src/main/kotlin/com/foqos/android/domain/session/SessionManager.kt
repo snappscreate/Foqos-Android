@@ -368,6 +368,11 @@ class SessionManager @Inject constructor(
     /** Explicit home Stop action for a location-configured profile while outside its area. */
     suspend fun stopLocationProfileFromHome(profileId: String) = withContext(ioDispatcher) {
         val current = sessionForProfile(profileId) ?: return@withContext
+        // Leaving the geographic boundary is the exception to locked activity proof.
+        if (locationStoreInside(profileId)) {
+            emitError("位置範囲内では解除条件が必要です")
+            return@withContext
+        }
         if (current.profileId == profileId) endSession(current, Instant.now())
     }
 

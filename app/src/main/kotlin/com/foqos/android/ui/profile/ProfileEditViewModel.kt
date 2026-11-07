@@ -346,6 +346,12 @@ class ProfileEditViewModel @Inject constructor(
             // The legacy Schedule and Breaks controls were removed from the editor.
             // Physical unlock items are edited in a separate repository-backed component.
             // Never overwrite newer NFC/QR registrations with this screen's stale draft.
+            // Activate the independent policy on save, even when the user leaves
+            // the default radio buttons unchanged.
+            val policyStore = com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore(context)
+            if (!policyStore.configured(current.draft.id)) {
+                policyStore.save(current.draft.id, policyStore.forProfile(current.draft))
+            }
             val latestPersisted = if (current.isPersisted) profileRepository.getById(current.draft.id) else null
             val sharedWebsiteHosts = current.fullScreenAllowedUrls.mapNotNull {
                 FullScreenModeStore.normalizeUrl(it)?.removePrefix("https://")
@@ -399,6 +405,7 @@ class ProfileEditViewModel @Inject constructor(
                 GeofenceManager(context).unregister(id)
                 location.clear(id)
             }
+            com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore(context).delete(id)
             fullScreenStore.delete(id)
             periodicStore.delete(id)
             alarmScheduler.cancelAllForProfile(id)

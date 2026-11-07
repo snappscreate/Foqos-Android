@@ -464,6 +464,16 @@ class BlockOverlayActivity : ComponentActivity() {
                     },
                     nfcReady = nfcReady,
                     nfcMessage = nfcScanMessage,
+                    nfcInstruction = independentPolicy?.let { policy ->
+                        when {
+                            configuredStopRequested -> "停止用NFCをかざすとブロックを完全停止"
+                            policy.pause == com.foqos.android.ui.activitylab.UnlockMethod.NFC ->
+                                "NFCをかざすと設定時間だけ一時停止"
+                            policy.stop == com.foqos.android.ui.activitylab.UnlockMethod.NFC ->
+                                "NFCをかざすとブロックを完全停止"
+                            else -> null
+                        }
+                    },
                     distanceDescription = boundaryDistance,
                     onSimulateNfc = if (BuildConfig.DEBUG && DeveloperUiVisibility.showDiagnosticControls && nfcReady) ({
                         lifecycleScope.launch {

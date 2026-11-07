@@ -135,26 +135,27 @@ class ProfileEditViewModelTest {
     }
 
     @Test
-    fun `schedule is persisted and weekly alarms are scheduled on save`() {
+    fun `legacy schedule selection does not silently re-enable removed schedule controls`() {
         runBlocking {
-        val viewModel = newViewModel()
-        awaitLoaded(viewModel)
+            val viewModel = newViewModel()
+            awaitLoaded(viewModel)
 
-        viewModel.updateName("Scheduled Profile")
-        viewModel.setScheduleEnabled(true)
-        viewModel.toggleScheduleDay(Weekday.MONDAY)
-        viewModel.setScheduleStartTime(9, 0)
-        viewModel.setScheduleEndTime(17, 0)
-        viewModel.save()
-        awaitSaved(viewModel)
+            viewModel.updateName("Scheduled Profile")
+            viewModel.setScheduleEnabled(true)
+            viewModel.toggleScheduleDay(Weekday.MONDAY)
+            viewModel.setScheduleStartTime(9, 0)
+            viewModel.setScheduleEndTime(17, 0)
+            viewModel.save()
+            awaitSaved(viewModel)
 
-        val profileId = viewModel.uiState.value.draft.id
-        val stored = profileRepository.getById(profileId)
-        assertThat(stored?.schedule?.isConfigured).isTrue()
-        assertThat(stored?.schedule?.days).containsExactly(Weekday.MONDAY)
-
-        assertThat(alarmScheduler.trackedKeys.any { it.startsWith("ScheduleTimerActivityStart:$profileId") }).isTrue()
-        assertThat(alarmScheduler.trackedKeys.any { it.startsWith("ScheduleTimerActivityEnd:$profileId") }).isTrue()
+            val profileId = viewModel.uiState.value.draft.id
+            val stored = profileRepository.getById(profileId)
+            // Current editor intentionally removes old schedule-based profile controls.
+            assertThat(stored?.schedule).isNull()
+            assertThat(alarmScheduler.trackedKeys.any {
+                it.startsWith("ScheduleTimerActivityStart:$profileId") ||
+                    it.startsWith("ScheduleTimerActivityEnd:$profileId")
+            }).isFalse()
         }
     }
 

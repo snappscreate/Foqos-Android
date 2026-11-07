@@ -59,6 +59,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foqos.android.R
 import com.foqos.android.BuildConfig
 import com.foqos.android.data.model.StrategyPauseTimerData
+import com.foqos.android.ui.activitylab.UnlockMethod
+import com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore
 import com.foqos.android.data.model.PhysicalUnblockType
 import com.foqos.android.service.session.FullScreenModeStore
 import com.foqos.android.service.session.PeriodicAccessStore
@@ -102,6 +104,7 @@ fun HomeScreen(
     val context = LocalContext.current
     val fullScreenStore = remember(context) { FullScreenModeStore(context) }
     val periodicStore = remember(context) { PeriodicAccessStore(context) }
+    val unlockStore = remember(context) { ProfileUnlockPolicyStore(context) }
     var periodicNow by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -230,9 +233,27 @@ fun HomeScreen(
                             else if (session != null) (
                                 PeriodicAccessSchedule.remainingMillis(recurringConfig, anchor, activatedAt, periodicNow) + 999L
                             ) / 1000L else 0L,
+                        independentUnlock = if (unlockStore.configured(profile.id)) unlockStore.read(profile.id) else null,
+                        onStopRequested = { viewModel.stopActiveSession(profile.id) },
                         onCardClick = { onEditProfile(profile.id) },
                         onPlayStop = {
-                            if (session != null) {
+                            if (session != null && unlockStore.configured(profile.id)) {
+                                val policy = unlockStore.read(profile.id)
+                                if (profile.id in uiState.locationStates &&
+                                    uiState.locationStates[profile.id]?.second == false) {
+                                    viewModel.onLocationProfileAction(profile.id)
+                                } else if (policy.pause == UnlockMethod.NFC ||
+                                    policy.pause == UnlockMethod.ACTIVITY) {
+                                    context.startActivity(Intent(context, BlockOverlayActivity::class.java).apply {
+                                        putExtra(BlockOverlayActivity.EXTRA_PACKAGE_NAME,
+                                            BlockOverlayActivity.FULL_SCREEN_HOME_TARGET)
+                                        putExtra(BlockOverlayActivity.EXTRA_LOCATION_PAUSE_REQUEST, true)
+                                        putExtra(BlockOverlayActivity.EXTRA_PROFILE_ID, profile.id)
+                                    })
+                                } else {
+                                    viewModel.requestConfiguredPause(profile.id)
+                                }
+                            } else if (session != null) {
                                 if (recurringEligible) {
                                     viewModel.activatePeriodicAccess(profile.id)
                                 } else if (profile.id in uiState.locationStates) {
@@ -391,6 +412,8 @@ private fun ProfileCard(
     periodicRemainingSeconds: Long = 0L,
     onCardClick: () -> Unit,
     onPlayStop: () -> Unit,
+    independentUnlock: com.foqos.android.ui.activitylab.ProfileUnlockPolicy? = null,
+    onStopRequested: () -> Unit = {},
     onEdit: () -> Unit,
     onInsights: () -> Unit,
     onDuplicate: () -> Unit,
@@ -478,7 +501,11 @@ private fun ProfileCard(
                             delay(1000L)
                         }
                     }
-                    val pauseMinutes = if (profile.strategyId ==
+                    val independentlySavedDuration =
+                        com.foqos.android.ui.activitylab.ActivityUnlockStore(
+                            androidx.compose.ui.platform.LocalContext.current
+                        ).pauseMinutes(activeSession.id)
+                    val pauseMinutes = independentlySavedDuration ?: if (profile.strategyId ==
                         com.foqos.android.domain.strategy.NfcPauseTimerBlockingStrategy.ID
                     ) StrategyPauseTimerData.fromJsonOrNull(profile.strategyDataJson).pauseDurationInMinutes
                     else profile.breakTimeInMinutes.coerceAtLeast(1)
@@ -512,6 +539,14 @@ private fun ProfileCard(
                             else -> stringResource(R.string.home_start_action)
                         },
                     )
+                }
+            }
+
+            if (isActive && independentUnlock != null &&
+                independentUnlock.stop != UnlockMethod.MANUAL) {
+                TextButton(onClick = onStopRequested) {
+                    Text(if (independentUnlock.stop == UnlockMethod.NFC)
+                        "NFCで完全停止" else "QRコードで完全停止")
                 }
             }
 

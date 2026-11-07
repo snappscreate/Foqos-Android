@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -45,6 +46,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -154,9 +156,9 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (granted) {
-                Box(modifier = Modifier.fillMaxWidth().height(220.dp)) {
-                    AndroidView(factory = { camera.preview },
-                        modifier = Modifier.fillMaxSize())
+                Box(modifier = Modifier.fillMaxWidth().height(220.dp).clipToBounds()) {
+                    AndroidView(factory = { camera.preview.apply { clipChildren = true; clipToPadding = true } },
+                        modifier = Modifier.fillMaxSize().clipToBounds())
                     if (!busy) {
                         OutlinedButton(
                             onClick = { front = !front },
@@ -171,6 +173,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                     Text("カメラ使用を許可する")
                 }
             }
+            Spacer(modifier = Modifier.height(12.dp))
             if (!busy) {
                 OutlinedTextField(
                     value = activity,
@@ -257,7 +260,7 @@ fun ActivityRecognitionLabScreen(onBack: () -> Unit) {
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                 ) { Text("撮影・判定を開始") }
             }
 

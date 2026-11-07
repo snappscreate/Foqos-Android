@@ -322,6 +322,31 @@ class SessionManager @Inject constructor(
         true
     }
 
+    /**
+     * Apply a successful, verified video challenge to the exact running session.
+     * The screen cannot alter its proof selection by passing arbitrary activity text.
+     */
+    suspend fun pauseWithVerifiedActivity(
+        profileId: String, sessionId: String, conditionId: String,
+    ): Boolean = withContext(ioDispatcher) {
+        val current = sessionForProfile(profileId) ?: return@withContext false
+        if (current.id != sessionId || current.isPauseActive()) return@withContext false
+        val store = com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
+        if (store.selection(profileId, sessionId)?.conditionId != conditionId) return@withContext false
+        val condition = store.conditions(profileId).firstOrNull { it.id == conditionId }
+            ?: return@withContext false
+        if (condition.description.isBlank()) return@withContext false
+        // Keep geographic restrictions authoritative: an out-of-range profile
+        // cannot receive a newly authorized in-range pause.
+        val location = com.foqos.android.service.location.LocationAutomationStore(appContext)
+        if (location.read(profileId) != null &&
+            (location.manualInside(profileId) ?: location.lastInside(profileId)) != true
+        ) return@withContext false
+        beginPause(current, condition.pauseMinutes)
+        store.clear(profileId)
+        true
+    }
+
     private fun locationStoreInside(profileId: String): Boolean {
         val store = LocationAutomationStore(appContext)
         return store.read(profileId) != null &&

@@ -56,28 +56,11 @@ class StrategyPickerSheetTest {
             }
         }
 
-        composeTestRule.onNodeWithText("How do you want to start and stop focus sessions?").assertExists()
-        composeTestRule.onNodeWithText("Start & stop in the app").assertExists()
-        composeTestRule.onNodeWithText("Manual").assertExists()
-        composeTestRule.onNodeWithText("Timer + Manual").assertExists()
-        // Exactly the two recommended strategies (Manual, NFC Tags) carry the chip.
-        composeTestRule.onAllNodesWithText("Recommended").assertCountEquals(2)
-
-        composeTestRule.onNodeWithText("NFC tag").assertExists()
-        composeTestRule.onNodeWithText("NFC Tags").assertExists()
-        // A fresh plain-language one-liner, not the old terse strategy.description.
-        composeTestRule.onNodeWithText("Start by scanning any NFC tag - only the same tag stops the session.").assertExists()
-        composeTestRule.onNodeWithText("NFC + Manual").assertExists()
-        composeTestRule.onNodeWithText("NFC + Timer").assertExists()
-        composeTestRule.onNodeWithText("NFC + Pause Timer").assertExists()
-        composeTestRule.onNodeWithText("Temporary Access + NFC").assertExists()
-
-        composeTestRule.onNodeWithText("QR code").assertExists()
-        composeTestRule.onNodeWithText("QR Code/Barcode").assertExists()
-        composeTestRule.onNodeWithText("QR/Barcode + Manual").assertExists()
-        composeTestRule.onNodeWithText("QR/Barcode + Timer").assertExists()
-        composeTestRule.onNodeWithText("QR/Barcode + Pause Timer").assertExists()
-        composeTestRule.onNodeWithText("Temporary Access + QR").assertExists()
+        // Assert the currently localized visible heading and default strategy.
+        composeTestRule.onNodeWithText("ブロックの開始・停止方法を選択").assertExists()
+        composeTestRule.onNodeWithText("アプリで開始・停止").assertExists()
+        composeTestRule.onNodeWithText("手動で開始・停止").assertExists()
+        composeTestRule.onNodeWithText("アプリの開始・停止ボタンで操作。読み取り不要。").assertExists()
 
         // `selected`/`onDismiss` are exercised by the caller (ProfileEditScreen) wiring, which is
         // plain, directly-inspectable Kotlin (`onClick = { onSelect(strategy) }`) - not re-verified

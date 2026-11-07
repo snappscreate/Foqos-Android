@@ -255,6 +255,10 @@ class SessionManager @Inject constructor(
      * Outside the area the location suspension is independent of timed NFC pauses.
      */
     suspend fun pauseLocationSessionFromHome(profileId: String) = withContext(ioDispatcher) {
+        if (independentUnlock.configured(profileId)) {
+            requestConfiguredPause(profileId)
+            return@withContext
+        }
         val current = sessionForProfile(profileId) ?: return@withContext
         if (current.profileId != profileId ||
             current.isPauseActive() || !locationStoreInside(profileId)
@@ -455,6 +459,15 @@ class SessionManager @Inject constructor(
 
     /** NFC profile tags pause NFC + Pause Timer sessions instead of acting as forced toggles. */
     suspend fun onProfileNfcScan(profileId: String) {
+        if (independentUnlock.configured(profileId)) {
+            // New profiles start from home, never from an unsolicited NFC tap.
+            val current = sessionForProfile(profileId) ?: return
+            val policy = independentUnlock.read(profileId)
+            val forPause = policy.pause == com.foqos.android.ui.activitylab.UnlockMethod.NFC
+            authorizeConfiguredCode(profileId, "foqos://profile/$profileId",
+                PhysicalUnblockType.NFC, forPause = forPause)
+            return
+        }
         val current = sessionForProfile(profileId) ?: sessionRepository.activeSessionForProfile(profileId)
         if (current?.profileId == profileId) {
             if (com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
@@ -651,6 +664,10 @@ class SessionManager @Inject constructor(
             return
         }
         val currentProfile = profileRepository.getById(profileId)
+        if (independentUnlock.configured(profileId)) {
+            stopProfileSession(profileId, fromBackground)
+            return
+        }
         if (com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
                 .selection(profileId, current.id) != null) {
             emitError("動作チャレンジが解除条件になっています")

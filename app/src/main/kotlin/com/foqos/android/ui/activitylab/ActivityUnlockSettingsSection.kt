@@ -33,7 +33,7 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
             }) { Text("メインを通常の解除方式に戻す") }
         }
         conditions.forEach { condition ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 Column(Modifier.weight(1f)) {
                     Text(condition.description)
                     Text("撮影${condition.recordingSeconds}秒 / 開始前${condition.countdownSeconds}秒 / 一時停止${condition.pauseMinutes}分 / ${if (condition.frontCamera) "前面" else "背面"}",
@@ -91,7 +91,7 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
             Slider(value = draft.pauseMinutes.toFloat(),
                 onValueChange = { draft = draft.copy(pauseMinutes = it.toInt()) },
                 valueRange = 1f..60f, steps = 58, enabled = !editingLocked)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(enabled = draft.description.isNotBlank(), onClick = {
                     context.startActivity(Intent(context, ActivityUnlockActivity::class.java).apply {
                         putExtra(ActivityUnlockActivity.EXTRA_TEST, true)

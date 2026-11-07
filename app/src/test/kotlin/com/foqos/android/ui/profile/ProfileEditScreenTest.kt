@@ -87,7 +87,8 @@ class ProfileEditScreenTest {
             }
         }
 
-        composeTestRule.onNodeWithText("ブロック開始・解除方法").assertExists()
+        composeTestRule.onNodeWithText("停止条件").assertExists()
+        composeTestRule.onNodeWithText("一時停止条件（メイン）").assertExists()
         composeTestRule.onNodeWithText("アプリ").assertExists()
         composeTestRule.onNodeWithText("許可するWebサイト（両モード共通）").assertExists()
         composeTestRule.onNodeWithText("位置範囲による自動ブロック").assertExists()
@@ -200,13 +201,10 @@ class ProfileEditScreenTest {
             }
         }
 
-        composeTestRule.onNodeWithText("手動で開始・停止").performClick()
-
-        composeTestRule.onNodeWithText("ブロックの開始・停止方法を選択").assertExists()
-        composeTestRule.onNodeWithText("アプリで開始・停止").assertExists()
-        composeTestRule.onNodeWithText("NFCタグ").assertExists()
-        composeTestRule.onNodeWithText("QRコード").assertExists()
-        composeTestRule.onNodeWithText("NFC開始・手動停止").assertExists()
-        composeTestRule.onAllNodesWithText("おすすめ").assertCountEquals(2)
+        // The old combined strategy selector has been replaced. Verify the
+        // independently configurable stop/pause sections in edit mode.
+        composeTestRule.onNodeWithText("停止条件").assertExists()
+        composeTestRule.onNodeWithText("一時停止条件（メイン）").assertExists()
+        composeTestRule.onNodeWithText("一時停止のサブ条件（AI動画判定）").assertExists()
     }
 }

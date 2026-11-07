@@ -239,6 +239,8 @@ class SessionManager @Inject constructor(
                 }
             } else reportFullScreenConflict(conflict.name)
         } else {
+            // Leaving the geofence is the deliberate escape hatch for a chosen activity.
+            com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext).clear(profileId)
             if (current?.profileId == profileId && current.tag == LOCATION_SESSION_TAG) {
                 // Do not end the session on EXIT. Keep history, NFC registrations and
                 // timed pause state intact, only suspend enforcement until ENTER.
@@ -258,6 +260,8 @@ class SessionManager @Inject constructor(
             current.isPauseActive() || !locationStoreInside(profileId)
         ) return@withContext
         val profile = profileRepository.getById(profileId) ?: return@withContext
+        if (com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
+                .selection(profileId, current.id) != null) return@withContext
         val strategy = StrategyRegistry.byId(profile.strategyId)
         if (strategy.usesNfc || strategy.usesQr || profile.physicalUnblockItems.isNotEmpty()) {
             emitError("一時停止には登録されたNFCまたはQRの認証が必要です")
@@ -286,6 +290,11 @@ class SessionManager @Inject constructor(
         if (session.profileId != profileId || session.isPauseActive()) return@withContext
         if (!locationStoreInside(profileId)) return@withContext
         val profile = profileRepository.getById(profileId) ?: return@withContext
+        if (com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
+                .selection(profileId, session.id) != null) {
+            emitError("動作チャレンジ選択中です。NFCに戻すことはできません")
+            return@withContext
+        }
         val strategy = StrategyRegistry.byId(profile.strategyId)
         val physical = profile.physicalUnblockItems
         when {
@@ -307,6 +316,8 @@ class SessionManager @Inject constructor(
         if (current.profileId != profileId || current.isPauseActive() ||
             !locationStoreInside(profileId)) return@withContext false
         val profile = profileRepository.getById(profileId) ?: return@withContext false
+        if (com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
+                .selection(profileId, current.id) != null) return@withContext false
         val strategy = StrategyRegistry.byId(profile.strategyId)
         if (type == PhysicalUnblockType.NFC && !strategy.usesNfc &&
             profile.physicalUnblockItems.none { it.type == type }) return@withContext false
@@ -342,6 +353,7 @@ class SessionManager @Inject constructor(
         if (location.read(profileId) != null &&
             (location.manualInside(profileId) ?: location.lastInside(profileId)) != true
         ) return@withContext false
+        store.savePauseMinutes(current.id, condition.pauseMinutes)
         beginPause(current, condition.pauseMinutes)
         store.clear(profileId)
         true
@@ -881,7 +893,9 @@ class SessionManager @Inject constructor(
         }
 
         if (session.isPauseActive(now)) {
-            val pauseDurationMinutes = StrategyPauseTimerData.fromJsonOrNull(profile.strategyDataJson).pauseDurationInMinutes
+            val pauseDurationMinutes = com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
+                .pauseMinutes(session.id)
+                ?: StrategyPauseTimerData.fromJsonOrNull(profile.strategyDataJson).pauseDurationInMinutes
             val pauseEndAt = session.pauseStartTime!!.plusSeconds(pauseDurationMinutes * 60L)
             if (pauseEndAt.isAfter(now)) {
                 alarmScheduler.scheduleExactAt(
@@ -945,6 +959,10 @@ class SessionManager @Inject constructor(
         sessionRepository.endSession(session.id, at)
         alarmScheduler.cancelAllForProfile(session.profileId)
         softUnblockRepository.clearForSession(session.id)
+        com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext).apply {
+            clear(session.profileId)
+            clearPauseMinutes(session.id)
+        }
 
         blockingStateHolder.clearProfile(session.profileId)
         uncacheSession(session.id)
@@ -1120,6 +1138,7 @@ class SessionManager @Inject constructor(
         if (!current.isPauseActive(at)) return
 
         sessionRepository.endPause(current.id, at)
+        com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext).clearPauseMinutes(current.id)
         val resumed = current.copy(pauseEndTime = at)
         cacheSession(resumed)
         blockingStateHolder.updateProfile(profileId) {

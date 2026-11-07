@@ -504,6 +504,16 @@ class SessionManager @Inject constructor(
             return
         }
         if (independentUnlock.configured(profileId)) {
+            val stopMethod = independentUnlock.read(profileId).stop
+            val needed = when (stopMethod) {
+                com.foqos.android.ui.activitylab.UnlockMethod.NFC -> PhysicalUnblockType.NFC
+                com.foqos.android.ui.activitylab.UnlockMethod.QR -> PhysicalUnblockType.QR_CODE
+                else -> null
+            }
+            if (needed != null && profile.physicalUnblockItems.none { it.type == needed }) {
+                emitError("停止に必要なNFC・QRコードが未登録です。先に登録してね")
+                return
+            }
             createSession(profile, tag = ManualBlockingStrategy.ID, forceStarted = false)
             return
         }

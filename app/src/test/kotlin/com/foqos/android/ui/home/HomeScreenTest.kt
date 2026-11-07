@@ -63,6 +63,7 @@ class HomeScreenTest {
             ioDispatcher = Dispatchers.Unconfined,
             sessionServiceController = NoOpSessionServiceController(),
             widgetRefresher = NoOpWidgetRefresher(),
+        appContext = context,
         )
         val viewModel = HomeViewModel(profileRepository, sessionRepository, sessionManager, settingsDataStore, context)
 

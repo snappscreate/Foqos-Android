@@ -284,10 +284,84 @@ class SessionManager @Inject constructor(
         beginPause(current, minutes)
     }
 
+    private val independentUnlock by lazy {
+        com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore(appContext)
+    }
+
+    /** Start a timed pause under the dedicated, independent main condition. */
+    suspend fun requestConfiguredPause(profileId: String) = withContext(ioDispatcher) {
+        val current = sessionForProfile(profileId) ?: return@withContext
+        if (current.isPauseActive() || locationStoreOutside(profileId)) return@withContext
+        val profile = profileRepository.getById(profileId) ?: return@withContext
+        if (!independentUnlock.configured(profileId)) {
+            requestLocationPauseFromHome(profileId)
+            return@withContext
+        }
+        val activity = com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
+        if (activity.selection(profileId, current.id) != null) {
+            emitError("先に選択した動作チャレンジを完了してね")
+            return@withContext
+        }
+        val policy = independentUnlock.read(profileId)
+        when (policy.pause) {
+            com.foqos.android.ui.activitylab.UnlockMethod.MANUAL ->
+                pauseForConfiguredDuration(current, policy.pauseMinutes)
+            com.foqos.android.ui.activitylab.UnlockMethod.NFC ->
+                _uiRequests.emit(StrategyUiRequest.ScanNfc(StrategyUiRequest.Purpose.STOP) to
+                    PendingStrategyAction.LocationPause(current.id))
+            com.foqos.android.ui.activitylab.UnlockMethod.QR ->
+                _uiRequests.emit(StrategyUiRequest.ScanQr(StrategyUiRequest.Purpose.STOP) to
+                    PendingStrategyAction.LocationPause(current.id))
+            com.foqos.android.ui.activitylab.UnlockMethod.ACTIVITY ->
+                emitError("ブロック画面で設定済みの動作判定を完了してね")
+        }
+    }
+
+    private suspend fun pauseForConfiguredDuration(
+        session: BlockedProfileSession, minutes: Int,
+    ) {
+        val activity = com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
+        activity.savePauseMinutes(session.id, minutes)
+        beginPause(session, minutes)
+        activity.clear(session.profileId)
+    }
+
+    /** Validated NFC/QR proof is used by exactly one chosen action: stop OR pause. */
+    suspend fun authorizeConfiguredCode(
+        profileId: String, code: String, type: PhysicalUnblockType,
+        forPause: Boolean,
+    ): Boolean = withContext(ioDispatcher) {
+        if (!independentUnlock.configured(profileId)) return@withContext false
+        val current = sessionForProfile(profileId) ?: return@withContext false
+        val profile = profileRepository.getById(profileId) ?: return@withContext false
+        val policy = independentUnlock.read(profileId)
+        val requested = if (forPause) policy.pause else policy.stop
+        val expected = when (type) {
+            PhysicalUnblockType.NFC -> com.foqos.android.ui.activitylab.UnlockMethod.NFC
+            PhysicalUnblockType.QR_CODE -> com.foqos.android.ui.activitylab.UnlockMethod.QR
+        }
+        if (requested != expected || locationStoreOutside(profileId)) return@withContext false
+        if (profile.physicalUnblockItems.none { it.type == type } ||
+            !profile.canUnblock(code, type)) return@withContext false
+        if (forPause) {
+            if (current.isPauseActive()) return@withContext false
+            val activity = com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
+            if (activity.selection(profileId, current.id) != null) return@withContext false
+            pauseForConfiguredDuration(current, policy.pauseMinutes)
+        } else {
+            endSession(current, Instant.now())
+        }
+        true
+    }
+
     /** Request physical proof before a location-profile pause. */
     suspend fun requestLocationPauseFromHome(profileId: String) = withContext(ioDispatcher) {
         val session = sessionForProfile(profileId) ?: return@withContext
         if (session.profileId != profileId || session.isPauseActive()) return@withContext
+        if (independentUnlock.configured(profileId)) {
+            requestConfiguredPause(profileId)
+            return@withContext
+        }
         if (!locationStoreInside(profileId)) return@withContext
         val profile = profileRepository.getById(profileId) ?: return@withContext
         if (com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
@@ -312,6 +386,9 @@ class SessionManager @Inject constructor(
     suspend fun pauseLocationWithVerifiedCode(
         profileId: String, code: String, type: PhysicalUnblockType,
     ): Boolean = withContext(ioDispatcher) {
+        if (independentUnlock.configured(profileId)) {
+            return@withContext authorizeConfiguredCode(profileId, code, type, forPause = true)
+        }
         val current = sessionForProfile(profileId) ?: return@withContext false
         if (current.profileId != profileId || current.isPauseActive() ||
             !locationStoreInside(profileId)) return@withContext false
@@ -413,6 +490,10 @@ class SessionManager @Inject constructor(
             reportFullScreenConflict(it.name)
             return
         }
+        if (independentUnlock.configured(profileId)) {
+            createSession(profile, tag = ManualBlockingStrategy.ID, forceStarted = false)
+            return
+        }
         val strategy = StrategyRegistry.byId(profile.strategyId)
         val uiRequest = strategy.startRequest(profile)
         if (uiRequest == StrategyUiRequest.None) {
@@ -463,6 +544,14 @@ class SessionManager @Inject constructor(
                     emitError("Failed to find a profile stored locally that matches the tag")
                     return
                 }
+                if (independentUnlock.configured(profile.id)) {
+                    val scanned = input as? StrategyInput.Code ?: return
+                    authorizeConfiguredCode(profile.id, scanned.value,
+                        if (scanned.source == StrategyInput.CodeSource.NFC) PhysicalUnblockType.NFC
+                        else PhysicalUnblockType.QR_CODE,
+                        forPause = false)
+                    return
+                }
                 if (com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
                         .selection(profile.id, session.id) != null) {
                     emitError("動作チャレンジが解除条件になっています")
@@ -491,6 +580,28 @@ class SessionManager @Inject constructor(
         }
         val profile = profileRepository.getById(session.profileId) ?: run {
             emitError("Failed to find a profile stored locally that matches the tag")
+            return
+        }
+        if (independentUnlock.configured(profileId)) {
+            if (locationStoreOutside(profileId)) {
+                endSession(session, Instant.now())
+                return
+            }
+            val stopMethod = independentUnlock.read(profileId).stop
+            when (stopMethod) {
+                com.foqos.android.ui.activitylab.UnlockMethod.MANUAL -> {
+                    if (locationStoreInside(profileId)) {
+                        emitError("ブロック範囲内では停止できません")
+                    } else if (!fromBackground || !globalProtection.readFor(profile).disableBackgroundStops) {
+                        endSession(session, Instant.now())
+                    }
+                }
+                com.foqos.android.ui.activitylab.UnlockMethod.NFC ->
+                    _uiRequests.emit(StrategyUiRequest.ScanNfc(StrategyUiRequest.Purpose.STOP) to PendingStrategyAction.Stop(session.id))
+                com.foqos.android.ui.activitylab.UnlockMethod.QR ->
+                    _uiRequests.emit(StrategyUiRequest.ScanQr(StrategyUiRequest.Purpose.STOP) to PendingStrategyAction.Stop(session.id))
+                else -> Unit
+            }
             return
         }
         if (com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)

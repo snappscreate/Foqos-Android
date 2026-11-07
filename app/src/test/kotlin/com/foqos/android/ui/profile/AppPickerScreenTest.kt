@@ -72,6 +72,6 @@ class AppPickerScreenTest {
             }
         }
 
-        composeTestRule.onNodeWithText("Allow mode").assertExists()
+        composeTestRule.onNodeWithText("ここで選択したアプリのみブロックします").assertExists()
     }
 }

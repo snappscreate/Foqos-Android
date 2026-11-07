@@ -95,8 +95,11 @@ class ActivityUnlockStore(context: Context) {
     /** Refuse to switch a selected condition back to NFC before success. */
     fun select(profileId: String, sessionId: String, conditionId: String): Boolean {
         if (conditions(profileId).none { it.id == conditionId }) return false
-        val existing = selection(profileId, sessionId)
-        if (existing != null) return existing.conditionId == conditionId
+        // An implicit main challenge can be replaced once by a subcondition.
+        // After that selection is explicit and cannot be changed until success.
+        val stored = prefs.getString("selected_$profileId", null)
+        val parts = stored?.split("|", limit = 2)
+        if (parts?.size == 2 && parts[0] == sessionId) return parts[1] == conditionId
         return prefs.edit().putString("selected_$profileId", "$sessionId|$conditionId").commit()
     }
 

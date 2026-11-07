@@ -203,6 +203,18 @@ class HomeViewModel @Inject constructor(
                     store.saveUrls(duplicate.id, store.allowedUrls(profileId))
                     val periodic = PeriodicAccessStore(context)
                     periodic.save(duplicate.id, periodic.read(profileId))
+                    val policy = com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore(context)
+                    if (policy.configured(profileId)) {
+                        policy.save(duplicate.id, policy.read(profileId))
+                    }
+                    val activities = com.foqos.android.ui.activitylab.ActivityUnlockStore(context)
+                    val savedConditions = activities.conditions(profileId)
+                    activities.save(duplicate.id, savedConditions)
+                    activities.mainConditionId(profileId)?.let { mainId ->
+                        if (savedConditions.any { it.id == mainId }) {
+                            activities.setMainCondition(duplicate.id, mainId)
+                        }
+                    }
                 }
             }
         }
@@ -220,6 +232,8 @@ class HomeViewModel @Inject constructor(
                 }
                 FullScreenModeStore(context).delete(profileId)
                 PeriodicAccessStore(context).delete(profileId)
+                com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore(context).delete(profileId)
+                com.foqos.android.ui.activitylab.ActivityUnlockStore(context).deleteProfile(profileId)
             }
         }
     }

@@ -61,6 +61,14 @@ class LocationAutomationStore(context: Context) {
             .putString("rule_profile_ids", JSONArray(all.sorted()).toString()).commit()
     }
 
+    /** A deliberate complete stop must survive geofence EXIT/ENTER and process restarts. */
+    fun manuallyStopped(profileId: String): Boolean =
+        prefs.getBoolean("manually_stopped_$profileId", false)
+
+    fun setManuallyStopped(profileId: String, stopped: Boolean) {
+        prefs.edit().putBoolean("manually_stopped_$profileId", stopped).commit()
+    }
+
     fun manualInside(profileId: String): Boolean? =
         if (prefs.contains("debug_manual_inside_$profileId"))
             prefs.getBoolean("debug_manual_inside_$profileId", false) else null
@@ -70,7 +78,7 @@ class LocationAutomationStore(context: Context) {
     }
 
     fun clearManualInside(profileId: String) {
-        prefs.edit().remove("debug_manual_inside_$profileId").commit()
+        prefs.edit().remove("debug_manual_inside_$profileId").remove("manually_stopped_$profileId").commit()
     }
 
     fun lastInside(profileId: String): Boolean? =

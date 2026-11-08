@@ -71,6 +71,7 @@ class LocationAutomationViewModel @Inject constructor(
         // The receiver must be able to resolve this profile at that point.
         val previous = store.read(profileId)
         store.save(rule)
+        store.setEnabled(profileId, true)
         GeofenceManager(context).register(rule)
             .addOnSuccessListener {
                 status = "このプロファイルの位置範囲を保存しました"
@@ -79,6 +80,31 @@ class LocationAutomationViewModel @Inject constructor(
                 if (previous == null) store.clear(profileId) else store.save(previous)
                 status = "位置範囲を登録できません：${it.message}"
             }
+    }
+
+    fun setAutomationEnabled(profileId: String, enabled: Boolean) {
+        if (isLocked(profileId)) {
+            status = "稼働中はブロック範囲を変更できません"
+            return
+        }
+        val rule = store.read(profileId) ?: run {
+            status = "先にブロック範囲を設定してね"
+            return
+        }
+        if (enabled && !hasPermission()) {
+            status = "正確な位置情報と「常に許可」が必要です"
+            return
+        }
+        val old = store.enabled(profileId)
+        store.setEnabled(profileId, enabled)
+        val task = if (enabled) GeofenceManager(context).register(rule)
+            else GeofenceManager(context).unregister(profileId)
+        task.addOnFailureListener { error ->
+            store.setEnabled(profileId, old)
+            status = "位置連動を切り替えられません：${error.message}"
+        }.addOnSuccessListener {
+            status = if (enabled) "ブロック範囲を有効にしたよ" else "位置連動を無効にしたよ"
+        }
     }
 
     fun disable(profileId: String) {

@@ -91,7 +91,7 @@ class ActivityUnlockActivity : ComponentActivity() {
 }
 
 /** The same capture state machine is used for test and real unlock attempts. */
-private enum class CapturePhase { READY, COUNTDOWN, RECORDING, PAUSED, JUDGING }
+private enum class CapturePhase { READY, COUNTDOWN, RECORDING, PAUSED, RESUME_COUNTDOWN, JUDGING }
 
 @Composable
 private fun ActivityUnlockCapture(
@@ -119,12 +119,17 @@ private fun ActivityUnlockCapture(
     var status by remember { mutableStateOf("撮影待機中") }
     var verdict by remember { mutableStateOf<ActivityVerdict?>(null) }
     var captureJob by remember { mutableStateOf<Job?>(null) }
+    var resumeJob by remember { mutableStateOf<Job?>(null) }
+    var videoBytes by remember { mutableStateOf<Long?>(null) }
+    var judgementMillis by remember { mutableStateOf<Long?>(null) }
+    var verdictCostYen by remember { mutableStateOf<Double?>(null) }
     var video by remember { mutableStateOf<File?>(null) }
     val latestCaptureJob by rememberUpdatedState(captureJob)
+    val latestResumeJob by rememberUpdatedState(resumeJob)
     val latestVideo by rememberUpdatedState(video)
 
     DisposableEffect(camera) {
-        onDispose { latestCaptureJob?.cancel(); camera.close(); latestVideo?.delete() }
+        onDispose { latestResumeJob?.cancel(); latestCaptureJob?.cancel(); camera.close(); latestVideo?.delete() }
     }
     LaunchedEffect(granted, owner) {
         cameraReady = false
@@ -165,6 +170,7 @@ private fun ActivityUnlockCapture(
                     val overlayMessage = when (phase) {
                         CapturePhase.COUNTDOWN -> "撮影開始まで $countdownRemaining"
                         CapturePhase.RECORDING -> "● 録画中  残り $timeLabel"
+                        CapturePhase.RESUME_COUNTDOWN -> "撮影再開まで $countdownRemaining"
                         CapturePhase.PAUSED -> "一時休止中  残り $timeLabel"
                         CapturePhase.JUDGING -> "撮影終了・AI判定中"
                         CapturePhase.READY -> null
@@ -188,9 +194,9 @@ private fun ActivityUnlockCapture(
                 }
             }
             Text("撮影上限 ${seconds}秒 / 開始前 ${countdown}秒 / ${if (frontCamera) "前面" else "背面"}カメラ")
-            if (phase == CapturePhase.RECORDING || phase == CapturePhase.PAUSED) {
+            if (phase == CapturePhase.RECORDING || phase == CapturePhase.PAUSED || phase == CapturePhase.RESUME_COUNTDOWN) {
                 Text("残り撮影時間：$timeLabel" +
-                    if (phase == CapturePhase.PAUSED) "（一時休止中・カウント停止）" else "",
+                    if (phase != CapturePhase.RECORDING) "（カウント停止中）" else "",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold)
             }
@@ -204,6 +210,9 @@ private fun ActivityUnlockCapture(
                     onClick = {
                         captureJob = scope.launch {
                             verdict = null
+                            videoBytes = null
+                            judgementMillis = null
+                            verdictCostYen = null
                             video?.delete()
                             video = null
                             recordingRemainingMs = seconds * 1000L
@@ -219,9 +228,11 @@ private fun ActivityUnlockCapture(
                                 status = "● 撮影開始！"
                                 val recorded = camera.recordFor(seconds * 1000L)
                                 video = recorded
+                                videoBytes = recorded.length()
                                 recordingRemainingMs = 0L
                                 phase = CapturePhase.JUDGING
                                 status = "撮影終了！ Geminiで判定中…"
+                                val judgementStartedAt = android.os.SystemClock.elapsedRealtime()
                                 val result = if (settings.useRelay) {
                                     ActivityGeminiRelay.judge(
                                         settings.endpoint.trim(), credentials.loadRelayToken().orEmpty(),
@@ -231,6 +242,8 @@ private fun ActivityUnlockCapture(
                                         credentials.load().orEmpty(), settings.geminiModel,
                                         description, emptyList(), recorded, 1000L)
                                 }
+                                judgementMillis = android.os.SystemClock.elapsedRealtime() - judgementStartedAt
+                                verdictCostYen = result.estimatedYen
                                 verdict = result
                                 if (result.status == "一致" && !isTest) {
                                     val paused = onVerified()
@@ -248,6 +261,8 @@ private fun ActivityUnlockCapture(
                                 status = "撮影または判定エラー：${e.message}"
                             } finally {
                                 countdownRemaining = 0
+                                resumeJob?.cancel()
+                                resumeJob = null
                                 phase = CapturePhase.READY
                                 video?.delete()
                                 video = null
@@ -272,9 +287,19 @@ private fun ActivityUnlockCapture(
                                 phase = CapturePhase.PAUSED
                                 status = "撮影を一時休止中。再開で続きを録画するよ"
                             } else {
-                                camera.resumeRecording()
-                                phase = CapturePhase.RECORDING
-                                status = "撮影を再開したよ"
+                                phase = CapturePhase.RESUME_COUNTDOWN
+                                resumeJob?.cancel()
+                                resumeJob = scope.launch {
+                                    for (i in countdown downTo 1) {
+                                        countdownRemaining = i
+                                        status = "撮影再開まであと${i}秒"
+                                        delay(1000L)
+                                    }
+                                    countdownRemaining = 0
+                                    camera.resumeRecording()
+                                    phase = CapturePhase.RECORDING
+                                    status = "● 撮影を再開！"
+                                }
                             }
                         }) { Text(if (phase == CapturePhase.PAUSED) "▶ 再開" else "Ⅱ ポーズ") }
                         Button(modifier = Modifier.weight(1f), onClick = {
@@ -283,6 +308,20 @@ private fun ActivityUnlockCapture(
                         }) { Text("■ 撮影終了・判定") }
                     }
                     OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = {
+                        captureJob?.cancel()
+                    }) { Text("撮影を破棄して中止") }
+                }
+
+                CapturePhase.RESUME_COUNTDOWN -> {
+                    OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = {
+                        resumeJob?.cancel()
+                        resumeJob = null
+                        countdownRemaining = 0
+                        phase = CapturePhase.PAUSED
+                        status = "ポーズ中。再開前のカウントダウンを取り消したよ"
+                    }) { Text("再開を取り消す") }
+                    OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = {
+                        resumeJob?.cancel()
                         captureJob?.cancel()
                     }) { Text("撮影を破棄して中止") }
                 }
@@ -302,6 +341,16 @@ private fun ActivityUnlockCapture(
                         if (result.evidence.isNotBlank()) {
                             Text(result.evidence, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                        HorizontalDivider()
+                        Text("動画サイズ：${videoBytes?.let { "%.2f MB".format(it / 1_000_000.0) } ?: "未取得"}",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("AI判定時間：${judgementMillis?.let { "%.2f 秒".format(it / 1000.0) } ?: "未取得"}",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("推定APIコスト：${verdictCostYen?.let { "約 %.4f 円".format(it) } ?: "算出不可"}",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("コストはAPI使用量からの推定。実際の請求額とは異なる場合があるよ。",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }

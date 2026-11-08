@@ -16,7 +16,7 @@ data class ActivityUnlockCondition(
 ) {
     fun normalized() = copy(
         description = description.trim().take(200),
-        recordingSeconds = recordingSeconds.coerceIn(10, 60),
+        recordingSeconds = recordingSeconds.coerceIn(10, 120),
         countdownSeconds = countdownSeconds.coerceIn(0, 30),
         pauseMinutes = pauseMinutes.coerceIn(1, 180),
     )

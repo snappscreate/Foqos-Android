@@ -129,7 +129,7 @@
     <string name="profile_edit_strategy_title">ブロック開始・解除方法</string>
     <string name="profile_edit_timer_duration_label">継続時間：%1$d分</string>
     <string name="profile_edit_hide_stop_button_label">タイマー終了まで停止ボタンを隠す</string>
-    <string name="profile_edit_pause_duration_label">一時停止時間：%1$d分</string>
+    <string name="profile_edit_pause_duration_label">一時休止時間：%1$d分</string>
     <string name="profile_edit_soft_unblock_access_label">一時的に使える時間：%1$d分</string>
     <string name="profile_edit_soft_unblock_max_opens_label">使用可能回数：%1$d回</string>
     <string name="profile_edit_apps_title">アプリ</string>

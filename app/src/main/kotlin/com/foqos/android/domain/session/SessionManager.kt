@@ -1156,6 +1156,9 @@ class SessionManager @Inject constructor(
         val persisted = sessionRepository.getById(session.id)
         if (persisted == null || !persisted.isActive) return@withLock
 
+        // All real end paths are complete stops. A geofence EXIT is never an end;
+        // it only suspends, so ENTER can resume that same still-active session.
+        markCompletelyStopped(session.profileId)
         sessionRepository.endSession(session.id, at)
         alarmScheduler.cancelAllForProfile(session.profileId)
         softUnblockRepository.clearForSession(session.id)

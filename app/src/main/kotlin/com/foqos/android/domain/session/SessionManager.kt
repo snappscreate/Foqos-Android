@@ -531,9 +531,7 @@ class SessionManager @Inject constructor(
             reportFullScreenConflict(it.name)
             return
         }
-        // Explicit user start is the only action that re-arms a completely stopped
-        // location-linked profile.
-        LocationAutomationStore(appContext).setManuallyStopped(profileId, false)
+        // Only a successful explicit start re-arms a completely stopped profile.
         if (independentUnlock.configured(profileId)) {
             val stopMethod = independentUnlock.read(profileId).stop
             val needed = when (stopMethod) {
@@ -546,6 +544,7 @@ class SessionManager @Inject constructor(
                 return
             }
             createSession(profile, tag = ManualBlockingStrategy.ID, forceStarted = false)
+            LocationAutomationStore(appContext).setManuallyStopped(profileId, false)
             return
         }
         val strategy = StrategyRegistry.byId(profile.strategyId)
@@ -553,6 +552,7 @@ class SessionManager @Inject constructor(
         if (uiRequest == StrategyUiRequest.None) {
             try {
                 strategy.onStartInput(profile, StrategyInput.NoInput, this)
+                LocationAutomationStore(appContext).setManuallyStopped(profileId, false)
             } catch (conflict: FullScreenSessionConflict) {
                 reportFullScreenConflict(profileRepository.getById(conflict.runningProfileId)?.name ?: "別のプロファイル")
             }
@@ -576,6 +576,7 @@ class SessionManager @Inject constructor(
                 val strategy = StrategyRegistry.byId(profile.strategyId)
                 try {
                     strategy.onStartInput(profile, input, this)
+                    LocationAutomationStore(appContext).setManuallyStopped(profile.id, false)
                 } catch (conflict: FullScreenSessionConflict) {
                     reportFullScreenConflict(profileRepository.getById(conflict.runningProfileId)?.name ?: "別のプロファイル")
                 }

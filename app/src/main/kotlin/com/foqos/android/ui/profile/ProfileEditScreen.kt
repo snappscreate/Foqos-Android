@@ -142,7 +142,7 @@ fun ProfileEditScreen(
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.profile_edit_write_nfc_tag)) },
                                 leadingIcon = { Icon(Icons.Filled.Nfc, contentDescription = null) },
-                                onClick = { overflowExpanded = false; showWriteNfcSheet = true },
+                                onClick = { overflowExpanded = false; if (uiState.editingLocked) showLockedDialog = true else showWriteNfcSheet = true },
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.profile_edit_show_qr_code)) },

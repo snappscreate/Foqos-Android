@@ -86,6 +86,17 @@ class ProfileRepositoryTest {
     }
 
     @Test
+    fun `rename preserves security settings and registered NFC QR credentials`() = runTest {
+        val original = repository.create(sampleProfile("Before"))
+        val renamed = repository.rename(original.id, "After")
+        assertThat(renamed?.name).isEqualTo("After")
+        assertThat(renamed?.physicalUnblockItems).isEqualTo(original.physicalUnblockItems)
+        assertThat(renamed?.strategyId).isEqualTo(original.strategyId)
+        assertThat(renamed?.blockedPackages).isEqualTo(original.blockedPackages)
+        assertThat(renamed?.domains).isEqualTo(original.domains)
+    }
+
+    @Test
     fun `create assigns increasing sort order`() = runTest {
         val first = repository.create(sampleProfile("First"))
         val second = repository.create(sampleProfile("Second").copy(id = "profile-2"))

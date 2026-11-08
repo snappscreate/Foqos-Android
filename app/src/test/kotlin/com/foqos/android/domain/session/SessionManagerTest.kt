@@ -140,10 +140,11 @@ class SessionManagerTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val config = ProfileUnlockPolicyStore(context)
         config.save(profile.id, ProfileUnlockPolicy(
-            stop = UnlockMethod.QR, pause = UnlockMethod.MANUAL, pauseMinutes = 13))
+            stop = UnlockMethod.QR, pause = UnlockMethod.MANUAL, pauseMinutes = 13,
+            stopCredentialId = "stop-qr-1"))
         try {
             profileRepository.updatePhysicalUnblockItems(profile.id) {
-                it + PhysicalUnblockItem(name = "QR stop", type = PhysicalUnblockType.QR_CODE,
+                it + PhysicalUnblockItem(id = "stop-qr-1", name = "QR stop", type = PhysicalUnblockType.QR_CODE,
                     codeValue = "foqos://stop/sample")
             }
             sessionManager.startProfile(profile.id)
@@ -172,18 +173,23 @@ class SessionManagerTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val config = ProfileUnlockPolicyStore(context)
         config.save(profile.id, ProfileUnlockPolicy(
-            stop = UnlockMethod.QR, pause = UnlockMethod.NFC, pauseMinutes = 15))
+            stop = UnlockMethod.QR, pause = UnlockMethod.NFC, pauseMinutes = 15,
+            stopCredentialId = "stop-qr-2", pauseCredentialId = "pause-nfc-1"))
         try {
             profileRepository.updatePhysicalUnblockItems(profile.id) {
-                it + PhysicalUnblockItem(name = "NFC pause", type = PhysicalUnblockType.NFC,
+                it + PhysicalUnblockItem(id = "pause-nfc-1", name = "NFC pause", type = PhysicalUnblockType.NFC,
                     codeValue = "nfc-proof") +
-                    PhysicalUnblockItem(name = "QR stop", type = PhysicalUnblockType.QR_CODE,
-                        codeValue = "qr-stop-proof")
+                    PhysicalUnblockItem(id = "stop-qr-2", name = "QR stop", type = PhysicalUnblockType.QR_CODE,
+                        codeValue = "qr-stop-proof") +
+                    PhysicalUnblockItem(id = "other-nfc-1", name = "Unselected NFC", type = PhysicalUnblockType.NFC,
+                        codeValue = "unselected-nfc")
             }
             sessionManager.startProfile(profile.id)
             assertThat(sessionManager.activeSession.value).isNotNull()
             assertThat(sessionManager.authorizeConfiguredCode(
                 profile.id, "nfc-proof", PhysicalUnblockType.NFC, forPause = false)).isFalse()
+            assertThat(sessionManager.authorizeConfiguredCode(
+                profile.id, "unselected-nfc", PhysicalUnblockType.NFC, forPause = true)).isFalse()
             assertThat(sessionManager.authorizeConfiguredCode(
                 profile.id, "nfc-proof", PhysicalUnblockType.NFC, forPause = true)).isTrue()
             assertThat(sessionManager.activeSession.value!!.isPauseActive()).isTrue()

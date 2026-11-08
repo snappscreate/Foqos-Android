@@ -66,7 +66,7 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
             Text("撮影時間：${draft.recordingSeconds}秒")
             Slider(value = draft.recordingSeconds.toFloat(),
                 onValueChange = { draft = draft.copy(recordingSeconds = it.toInt()) },
-                valueRange = 10f..60f, steps = 9, enabled = !editingLocked)
+                valueRange = 10f..120f, steps = 10, enabled = !editingLocked)
             Text("カウントダウン：${draft.countdownSeconds}秒")
             Row(modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {

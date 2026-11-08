@@ -42,8 +42,12 @@ fun ProfileUnlockPolicySection(
     val current by profileRepository.observeById(profile.id).collectAsState(initial = null)
     val allProfiles by profileRepository.observeAll().collectAsState(initial = emptyList())
     val currentItems = current?.physicalUnblockItems.orEmpty()
-    val reusableItems = (allProfiles.flatMap { it.physicalUnblockItems } + currentItems)
-        .distinctBy { it.id }
+    val catalog = remember { ReusablePhysicalCatalog(context) }
+    // Import all existing registrations (including old profiles) without deleting
+    // the reusable library when an owner profile is removed.
+    val profileItems = allProfiles.flatMap { it.physicalUnblockItems } + currentItems
+    LaunchedEffect(profileItems) { catalog.remember(profileItems) }
+    val reusableItems = (catalog.items() + profileItems).distinctBy { it.id }
     var policy by remember(profile.id) { mutableStateOf(policies.forProfile(profile)) }
     var areaDialog by remember { mutableStateOf(false) }
     var closeAreaOnSave by remember { mutableStateOf(false) }

@@ -66,6 +66,7 @@ class ProfileEditViewModel @Inject constructor(
         ),
         val isPersisted: Boolean = false,
         val nameError: String? = null,
+        val configurationError: String? = null,
         val domainError: String? = null,
         val saved: Boolean = false,
         val deleted: Boolean = false,
@@ -361,6 +362,13 @@ class ProfileEditViewModel @Inject constructor(
                 policyStore.save(current.draft.id, policyStore.forProfile(current.draft))
             }
             val latestPersisted = if (current.isPersisted) profileRepository.getById(current.draft.id) else null
+            // Never commit an active policy without the specifically selected proof.
+            val validationProfile = latestPersisted ?: current.draft
+            if (!policyStore.isReady(validationProfile)) {
+                _uiState.update { it.copy(configurationError = "停止・一時休止で使用するNFC・QR・動作判定を登録して選択してね") }
+                return@launch
+            }
+            _uiState.update { it.copy(configurationError = null) }
             val sharedWebsiteHosts = current.fullScreenAllowedUrls.mapNotNull {
                 FullScreenModeStore.normalizeUrl(it)?.removePrefix("https://")
             }.distinct()

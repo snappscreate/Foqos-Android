@@ -56,8 +56,10 @@ fun ProfileUnlockPolicySection(
     var error by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(locationState.first, locationStore.enabled(profile.id), closeAreaOnSave) {
-        if (closeAreaOnSave && locationState.first != null && locationStore.enabled(profile.id)) {
+    LaunchedEffect(locationState.first, locationViewModel.status, closeAreaOnSave) {
+        if (closeAreaOnSave && locationState.first != null &&
+            locationStore.enabled(profile.id) &&
+            locationViewModel.status == "このプロファイルの位置範囲を保存しました") {
             areaDialog = false
             closeAreaOnSave = false
         }

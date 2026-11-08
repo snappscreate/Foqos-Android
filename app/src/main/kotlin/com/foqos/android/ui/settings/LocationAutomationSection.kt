@@ -28,6 +28,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 import com.foqos.android.domain.session.SessionManager
 import com.foqos.android.service.location.GeofenceManager
 import com.foqos.android.service.location.LocationAutomationStore
@@ -70,14 +72,19 @@ class LocationAutomationViewModel @Inject constructor(
         // Save before registration: INITIAL_TRIGGER_ENTER/EXIT can arrive immediately.
         // The receiver must be able to resolve this profile at that point.
         val previous = store.read(profileId)
+        val wasEnabled = store.enabled(profileId)
         store.save(rule)
         store.setEnabled(profileId, true)
         GeofenceManager(context).register(rule)
             .addOnSuccessListener {
                 status = "このプロファイルの位置範囲を保存しました"
+                viewModelScope.launch { sessions.refreshActiveProfileConfig(profileId) }
             }
             .addOnFailureListener {
-                if (previous == null) store.clear(profileId) else store.save(previous)
+                if (previous == null) store.clear(profileId) else {
+                    store.save(previous)
+                    store.setEnabled(profileId, wasEnabled)
+                }
                 status = "位置範囲を登録できません：${it.message}"
             }
     }
@@ -104,6 +111,7 @@ class LocationAutomationViewModel @Inject constructor(
             status = "位置連動を切り替えられません：${error.message}"
         }.addOnSuccessListener {
             status = if (enabled) "ブロック範囲を有効にしたよ" else "位置連動を無効にしたよ"
+            viewModelScope.launch { sessions.refreshActiveProfileConfig(profileId) }
         }
     }
 

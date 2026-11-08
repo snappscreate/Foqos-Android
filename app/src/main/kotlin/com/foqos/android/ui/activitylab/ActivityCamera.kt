@@ -44,6 +44,55 @@ class ActivityCamera(private val context: Context) {
     )
     private var provider: ProcessCameraProvider? = null
     private var activeRecording: Recording? = null
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var stopTask: Runnable? = null
+    private var recordingStartedAt = 0L
+    private var remainingMillis = 0L
+    private var paused = false
+
+    val isRecordingPaused: Boolean get() = paused
+    val remainingRecordingMillis: Long get() =
+        if (paused || activeRecording == null) remainingMillis
+        else (remainingMillis - (android.os.SystemClock.elapsedRealtime() - recordingStartedAt))
+            .coerceAtLeast(0L)
+
+    private fun clearStopTimer() {
+        stopTask?.let(handler::removeCallbacks)
+        stopTask = null
+    }
+
+    fun pauseRecording() {
+        val recording = activeRecording ?: return
+        if (paused) return
+        remainingMillis = remainingRecordingMillis
+        clearStopTimer()
+        paused = true
+        recording.pause()
+    }
+
+    fun resumeRecording() {
+        val recording = activeRecording ?: return
+        if (!paused) return
+        paused = false
+        recording.resume()
+        scheduleStop()
+    }
+
+    /** Finalize the currently captured portion and continue to Gemini verdict. */
+    fun finishRecordingNow() {
+        if (activeRecording == null) return
+        clearStopTimer()
+        activeRecording?.stop()
+    }
+
+    private fun scheduleStop() {
+        clearStopTimer()
+        recordingStartedAt = android.os.SystemClock.elapsedRealtime()
+        val task = Runnable { activeRecording?.stop() }
+        stopTask = task
+        handler.postDelayed(task, remainingMillis)
+    }
+
 
     suspend fun bind(owner: LifecycleOwner, front: Boolean, videoMode: Boolean) {
         val cameraProvider = suspendCancellableCoroutine<ProcessCameraProvider> { continuation ->
@@ -85,10 +134,15 @@ class ActivityCamera(private val context: Context) {
         val file = File.createTempFile("activity_video_", ".mp4", context.cacheDir)
         val output = FileOutputOptions.Builder(file).build()
         val pending: PendingRecording = videoCapture.output.prepareRecording(context, output)
+        paused = false
+        remainingMillis = durationMillis
         activeRecording = pending.start(executor) { event ->
             when (event) {
                 is VideoRecordEvent.Finalize -> {
+                    clearStopTimer()
                     activeRecording = null
+                    remainingMillis = 0L
+                    paused = false
                     if (event.hasError()) {
                         file.delete()
                         if (continuation.isActive)
@@ -99,11 +153,9 @@ class ActivityCamera(private val context: Context) {
                 }
             }
         }
-        val handler = android.os.Handler(android.os.Looper.getMainLooper())
-        val stop = Runnable { activeRecording?.stop() }
-        handler.postDelayed(stop, durationMillis)
+        scheduleStop()
         continuation.invokeOnCancellation {
-            handler.removeCallbacks(stop)
+            clearStopTimer()
             activeRecording?.stop()
             activeRecording = null
             file.delete()
@@ -111,6 +163,7 @@ class ActivityCamera(private val context: Context) {
     }
 
     fun close() {
+        clearStopTimer()
         activeRecording?.stop()
         activeRecording = null
         provider?.unbindAll()

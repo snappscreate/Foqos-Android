@@ -141,7 +141,8 @@ class ProfileEditViewModel @Inject constructor(
     // --- Name -----------------------------------------------------------------------------
 
     fun updateName(name: String) {
-        guardedUpdate { it.copy(draft = it.draft.copy(name = name), nameError = null) }
+        // Name is the only field intentionally editable during an active session.
+        _uiState.update { it.copy(draft = it.draft.copy(name = name), nameError = null) }
     }
 
     // --- Strategy ---------------------------------------------------------------------------
@@ -333,7 +334,6 @@ class ProfileEditViewModel @Inject constructor(
     // --- Save / delete ------------------------------------------------------------------------
 
     fun save() {
-        if (isEditingProfileRunning()) return
         val trimmedName = _uiState.value.draft.name.trim()
         if (trimmedName.isBlank()) {
             _uiState.update { it.copy(nameError = "プロファイル名を入力してください") }
@@ -342,7 +342,15 @@ class ProfileEditViewModel @Inject constructor(
 
         viewModelScope.launch {
             val current = _uiState.value
-            if (isEditingProfileRunning()) return@launch
+            if (isEditingProfileRunning()) {
+                // Never write a stale draft over a running profile's security settings.
+                val saved = profileRepository.rename(current.draft.id, trimmedName) ?: return@launch
+                sessionManager.refreshActiveProfileConfig(saved.id)
+                _uiState.update {
+                    it.copy(draft = saved, isPersisted = true, saved = true)
+                }
+                return@launch
+            }
             // The legacy Schedule and Breaks controls were removed from the editor.
             // Physical unlock items are edited in a separate repository-backed component.
             // Never overwrite newer NFC/QR registrations with this screen's stale draft.

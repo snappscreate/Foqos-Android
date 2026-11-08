@@ -61,6 +61,15 @@ class LocationAutomationStore(context: Context) {
             .putString("rule_profile_ids", JSONArray(all.sorted()).toString()).commit()
     }
 
+    /** Disabling location automation preserves the saved area without stopping the profile. */
+    fun enabled(profileId: String): Boolean =
+        read(profileId) != null && prefs.getBoolean("enabled_$profileId", true)
+
+    fun setEnabled(profileId: String, enabled: Boolean) {
+        require(read(profileId) != null)
+        check(prefs.edit().putBoolean("enabled_$profileId", enabled).commit())
+    }
+
     /** A deliberate complete stop must survive geofence EXIT/ENTER and process restarts. */
     fun manuallyStopped(profileId: String): Boolean =
         prefs.getBoolean("manually_stopped_$profileId", false)
@@ -118,7 +127,7 @@ class LocationAutomationStore(context: Context) {
 
     fun observeAllStates(): Flow<Map<String, Pair<LocationRule, Boolean?>>> = callbackFlow {
         val snapshot = {
-            readAll().associate { rule ->
+            readAll().filter { enabled(it.profileId) }.associate { rule ->
                 rule.profileId to (rule to (manualInside(rule.profileId) ?: lastInside(rule.profileId)))
             }
         }
@@ -132,7 +141,7 @@ class LocationAutomationStore(context: Context) {
 
     fun clear(profileId: String) {
         migrateIfNeeded()
-        prefs.edit().remove("rule_$profileId").remove("last_inside_$profileId")
+        prefs.edit().remove("rule_$profileId").remove("enabled_$profileId").remove("last_inside_$profileId")
             .remove("debug_manual_inside_$profileId").remove("manually_stopped_$profileId")
             .putString("rule_profile_ids", JSONArray((ids() - profileId).sorted()).toString()).commit()
     }

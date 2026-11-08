@@ -66,6 +66,16 @@ class ProfileRepository @Inject constructor(
         }
     }
 
+    /** Rename-only write, serialized with all editor and NFC/QR changes. */
+    suspend fun rename(id: String, name: String): BlockedProfile? = withContext(ioDispatcher) {
+        writeMutex.withLock {
+            val existing = dao.getById(id)?.toDomain() ?: return@withLock null
+            val renamed = existing.copy(name = name, updatedAt = Instant.now())
+            dao.upsert(renamed.toEntity())
+            renamed
+        }
+    }
+
     suspend fun updatePhysicalUnblockItems(
         id: String,
         transform: (List<com.foqos.android.data.model.PhysicalUnblockItem>) ->

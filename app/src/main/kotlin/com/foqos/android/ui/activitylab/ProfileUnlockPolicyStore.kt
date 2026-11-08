@@ -2,6 +2,7 @@ package com.foqos.android.ui.activitylab
 
 import android.content.Context
 import com.foqos.android.data.model.BlockedProfile
+import com.foqos.android.data.model.PhysicalUnblockType
 import com.foqos.android.data.model.StrategyPauseTimerData
 import com.foqos.android.domain.strategy.StrategyRegistry
 
@@ -18,6 +19,7 @@ data class ProfileUnlockPolicy(
 
 class ProfileUnlockPolicyStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("profile_unlock_policy_v1", Context.MODE_PRIVATE)
+    private val context = context.applicationContext
 
     fun configured(profileId: String): Boolean = prefs.getBoolean("enabled_$profileId", false)
 
@@ -59,6 +61,30 @@ class ProfileUnlockPolicyStore(context: Context) {
             .apply { if (policy.stopCredentialId == null) remove("stop_credential_$profileId") else putString("stop_credential_$profileId", policy.stopCredentialId) }
             .apply { if (policy.pauseCredentialId == null) remove("pause_credential_$profileId") else putString("pause_credential_$profileId", policy.pauseCredentialId) }
             .commit()) { "解除条件の保存に失敗" }
+    }
+
+    /** Validates each selected credential against the profile actually using it. */
+    fun isReady(profile: BlockedProfile): Boolean {
+        if (!configured(profile.id)) return true // Legacy strategy compatibility.
+        val policy = read(profile.id)
+        fun valid(method: UnlockMethod, id: String?): Boolean {
+            return when (method) {
+                UnlockMethod.MANUAL -> true
+                UnlockMethod.NFC, UnlockMethod.QR -> {
+                    val type = if (method == UnlockMethod.NFC) PhysicalUnblockType.NFC
+                        else PhysicalUnblockType.QR_CODE
+                    id != null && profile.physicalUnblockItems.any {
+                        it.id == id && it.type == type && it.codeValue.isNotBlank()
+                    }
+                }
+                UnlockMethod.ACTIVITY -> ActivityUnlockStore(context).let { activity ->
+                    val mainId = activity.mainConditionId(profile.id)
+                    mainId != null && activity.conditions(profile.id).any { it.id == mainId }
+                }
+            }
+        }
+        return valid(policy.stop, policy.stopCredentialId) &&
+            valid(policy.pause, policy.pauseCredentialId)
     }
 
     fun delete(profileId: String) {

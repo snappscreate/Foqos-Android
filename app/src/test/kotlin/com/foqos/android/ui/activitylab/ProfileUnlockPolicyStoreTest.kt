@@ -1,6 +1,9 @@
 package com.foqos.android.ui.activitylab
 
 import android.content.Context
+import com.foqos.android.data.model.BlockedProfile
+import com.foqos.android.data.model.PhysicalUnblockItem
+import com.foqos.android.data.model.PhysicalUnblockType
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import java.util.UUID
@@ -29,6 +32,40 @@ class ProfileUnlockPolicyStoreTest {
         assertThat(store.read(id).stop).isEqualTo(UnlockMethod.QR)
         store.delete(id)
         assertThat(store.configured(id)).isFalse()
+    }
+
+    @Test fun selectedCredentialMustExistInThatProfile() {
+        val id = uniqueProfile()
+        val store = ProfileUnlockPolicyStore(context)
+        val selected = PhysicalUnblockItem(id = "shared-nfc", name = "机のタグ",
+            type = PhysicalUnblockType.NFC, codeValue = "test-nfc-code")
+        store.save(id, ProfileUnlockPolicy(stop = UnlockMethod.NFC,
+            stopCredentialId = selected.id))
+        try {
+            val profile = BlockedProfile(id = id, name = "Focus", strategyId = "manual")
+            assertThat(store.isReady(profile)).isFalse()
+            assertThat(store.isReady(profile.copy(physicalUnblockItems = listOf(selected)))).isTrue()
+            assertThat(store.isReady(profile.copy(physicalUnblockItems = listOf(selected.copy(
+                type = PhysicalUnblockType.QR_CODE))))).isFalse()
+        } finally {
+            store.delete(id)
+        }
+    }
+
+    @Test fun savedMovementCanBeReusedAfterOriginalProfileIsDeleted() {
+        val first = uniqueProfile()
+        val second = uniqueProfile()
+        val activities = ActivityUnlockStore(context)
+        val item = ActivityUnlockCondition(description = "スクワット30回")
+        activities.save(first, listOf(item))
+        activities.deleteProfile(first)
+        assertThat(activities.reusableConditions().any { it.id == item.id }).isTrue()
+        activities.importCondition(second, item)
+        activities.setMainCondition(second, item.id)
+        ProfileUnlockPolicyStore(context).save(second, ProfileUnlockPolicy(pause = UnlockMethod.ACTIVITY))
+        assertThat(activities.selection(second, "session")?.conditionId).isEqualTo(item.id)
+        activities.deleteProfile(second)
+        ProfileUnlockPolicyStore(context).delete(second)
     }
 
     @Test fun mainVideoOnlyAppliesWhenPauseMethodIsActivity() {

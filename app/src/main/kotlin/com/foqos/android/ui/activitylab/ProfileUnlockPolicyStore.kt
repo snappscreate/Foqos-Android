@@ -12,6 +12,8 @@ data class ProfileUnlockPolicy(
     val stop: UnlockMethod = UnlockMethod.MANUAL,
     val pause: UnlockMethod = UnlockMethod.MANUAL,
     val pauseMinutes: Int = 20,
+    val stopCredentialId: String? = null,
+    val pauseCredentialId: String? = null,
 )
 
 class ProfileUnlockPolicyStore(context: Context) {
@@ -23,6 +25,8 @@ class ProfileUnlockPolicyStore(context: Context) {
         stop = parse(prefs.getString("stop_$profileId", null), UnlockMethod.MANUAL),
         pause = parse(prefs.getString("pause_$profileId", null), UnlockMethod.MANUAL),
         pauseMinutes = prefs.getInt("duration_$profileId", 20).coerceIn(1, 180),
+        stopCredentialId = prefs.getString("stop_credential_$profileId", null),
+        pauseCredentialId = prefs.getString("pause_credential_$profileId", null),
     )
 
     /** Preserve old profiles' behavior until the new settings are explicitly saved. */
@@ -52,12 +56,15 @@ class ProfileUnlockPolicyStore(context: Context) {
             .putString("stop_$profileId", policy.stop.name)
             .putString("pause_$profileId", policy.pause.name)
             .putInt("duration_$profileId", policy.pauseMinutes.coerceIn(1, 180))
+            .apply { if (policy.stopCredentialId == null) remove("stop_credential_$profileId") else putString("stop_credential_$profileId", policy.stopCredentialId) }
+            .apply { if (policy.pauseCredentialId == null) remove("pause_credential_$profileId") else putString("pause_credential_$profileId", policy.pauseCredentialId) }
             .commit()) { "解除条件の保存に失敗" }
     }
 
     fun delete(profileId: String) {
         prefs.edit().remove("enabled_$profileId").remove("stop_$profileId")
-            .remove("pause_$profileId").remove("duration_$profileId").apply()
+            .remove("pause_$profileId").remove("duration_$profileId")
+            .remove("stop_credential_$profileId").remove("pause_credential_$profileId").apply()
     }
 
     private fun parse(value: String?, default: UnlockMethod) =

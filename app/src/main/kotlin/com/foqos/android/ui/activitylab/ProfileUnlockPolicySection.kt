@@ -118,7 +118,7 @@ fun ProfileUnlockPolicySection(
             UnlockMethod.MANUAL to "手動",
             UnlockMethod.NFC to "NFCタグ",
             UnlockMethod.QR to "QRコード",
-        ), !editingLocked, onSelected = {
+        ), !editingLocked && isPersisted, onSelected = {
             savePolicy(policy.copy(stop = it, stopCredentialId = if (it == policy.stop) policy.stopCredentialId else null))
         })
         if (policy.stop == UnlockMethod.NFC || policy.stop == UnlockMethod.QR) {
@@ -132,7 +132,7 @@ fun ProfileUnlockPolicySection(
                         profileRepository.updatePhysicalUnblockItems(profile.id) { old ->
                             if (old.any { it.id == chosen.id }) old else old + chosen
                         }
-                        savePolicy(policy.copy(stopCredentialId = chosen.id))
+                        savePolicy(policies.read(profile.id).copy(stopCredentialId = chosen.id))
                     }
                 },
                 onAdd = { credentialsDialog = true },
@@ -145,7 +145,7 @@ fun ProfileUnlockPolicySection(
             UnlockMethod.NFC to "NFCタグ",
             UnlockMethod.QR to "QRコード",
             UnlockMethod.ACTIVITY to "AI動作判定",
-        ), !editingLocked, onSelected = {
+        ), !editingLocked && isPersisted, onSelected = {
             savePolicy(policy.copy(pause = it, pauseCredentialId = if (it == policy.pause) policy.pauseCredentialId else null))
         })
         when (policy.pause) {
@@ -160,7 +160,7 @@ fun ProfileUnlockPolicySection(
                             profileRepository.updatePhysicalUnblockItems(profile.id) { old ->
                                 if (old.any { it.id == chosen.id }) old else old + chosen
                             }
-                            savePolicy(policy.copy(pauseCredentialId = chosen.id))
+                            savePolicy(policies.read(profile.id).copy(pauseCredentialId = chosen.id))
                         }
                     },
                     onAdd = { credentialsDialog = true },

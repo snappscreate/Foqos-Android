@@ -222,6 +222,7 @@ class SessionManager @Inject constructor(
      * Never replace or stop a session started manually, by NFC, or by a schedule.
      */
     suspend fun onLocationTransition(profileId: String, inside: Boolean) = withContext(ioDispatcher) {
+        if (!LocationAutomationStore(appContext).enabled(profileId)) return@withContext
         val current = sessionForProfile(profileId) ?: sessionRepository.activeSessionForProfile(profileId)
         if (inside) {
             if (LocationAutomationStore(appContext).manuallyStopped(profileId)) {

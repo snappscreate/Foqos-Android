@@ -30,7 +30,7 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 Column(Modifier.weight(1f)) {
                     Text(condition.description)
-                    Text("撮影${condition.recordingSeconds}秒 / 開始前${condition.countdownSeconds}秒 / 一時停止${condition.pauseMinutes}分 / ${if (condition.frontCamera) "前面" else "背面"}",
+                    Text("撮影${condition.recordingSeconds}秒 / 開始前${condition.countdownSeconds}秒 / 一時休止${condition.pauseMinutes}分 / ${if (condition.frontCamera) "前面" else "背面"}",
                         style = MaterialTheme.typography.bodySmall)
                 }
                 OutlinedButton(enabled = !editingLocked, onClick = {
@@ -76,7 +76,7 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
                     }) { Text(if (draft.countdownSeconds == seconds) "✓ ${seconds}秒" else "${seconds}秒") }
                 }
             }
-            Text("成功時の一時停止時間：${draft.pauseMinutes}分")
+            Text("成功時の一時休止時間：${draft.pauseMinutes}分")
             Slider(value = draft.pauseMinutes.toFloat(),
                 onValueChange = { draft = draft.copy(pauseMinutes = it.toInt()) },
                 valueRange = 1f..60f, steps = 58, enabled = !editingLocked)
@@ -97,7 +97,7 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
                 }) { Text("条件を保存") }
                 OutlinedButton(onClick = { editingId = null }) { Text("戻る") }
             }
-            Text("テストは判定結果を表示するだけで一時停止しない。", style = MaterialTheme.typography.bodySmall)
+            Text("テストは判定結果を表示するだけで一時休止しない。", style = MaterialTheme.typography.bodySmall)
         }
         if (error != null) Text("保存エラー：$error", color = MaterialTheme.colorScheme.error)
     }

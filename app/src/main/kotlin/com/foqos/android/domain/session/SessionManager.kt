@@ -287,7 +287,7 @@ class SessionManager @Inject constructor(
                 .selection(profileId, current.id) != null) return@withContext
         val strategy = StrategyRegistry.byId(profile.strategyId)
         if (strategy.usesNfc || strategy.usesQr || profile.physicalUnblockItems.isNotEmpty()) {
-            emitError("一時停止には登録されたNFCまたはQRの認証が必要です")
+            emitError("一時休止には登録されたNFCまたはQRの認証が必要です")
             return@withContext
         }
         pauseLocationAfterAuthorization(current, profile)

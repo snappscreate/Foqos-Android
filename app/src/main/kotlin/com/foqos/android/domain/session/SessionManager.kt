@@ -149,7 +149,7 @@ class SessionManager @Inject constructor(
 
     private fun locationStoreOutside(profileId: String): Boolean {
         val store = LocationAutomationStore(appContext)
-        return store.read(profileId) != null &&
+        return store.enabled(profileId) &&
             (store.manualInside(profileId) ?: store.lastInside(profileId)) == false
     }
 
@@ -238,17 +238,9 @@ class SessionManager @Inject constructor(
                 return@withContext
             }
             val profile = profileRepository.getById(profileId) ?: return@withContext
-            if (independentUnlock.configured(profileId)) {
-                val stopMethod = independentUnlock.read(profileId).stop
-                val required = when (stopMethod) {
-                    com.foqos.android.ui.activitylab.UnlockMethod.NFC -> PhysicalUnblockType.NFC
-                    com.foqos.android.ui.activitylab.UnlockMethod.QR -> PhysicalUnblockType.QR_CODE
-                    else -> null
-                }
-                if (required != null && profile.physicalUnblockItems.none { it.type == required }) {
-                    emitError("自動ブロックを開始できません：停止用NFC・QRが未登録です")
-                    return@withContext
-                }
+            if (!independentUnlock.isReady(profile)) {
+                emitError("ブロック開始不可：停止・一時休止のタグや動作を登録してね")
+                return@withContext
             }
             val conflict = conflictingFullScreenProfile(profileId)
             if (conflict == null) {
@@ -365,8 +357,11 @@ class SessionManager @Inject constructor(
             PhysicalUnblockType.QR_CODE -> com.foqos.android.ui.activitylab.UnlockMethod.QR
         }
         if (requested != expected || locationStoreOutside(profileId)) return@withContext false
-        if (profile.physicalUnblockItems.none { it.type == type } ||
-            !profile.canUnblock(code, type)) return@withContext false
+        val chosenId = if (forPause) policy.pauseCredentialId else policy.stopCredentialId
+        val chosen = profile.physicalUnblockItems.firstOrNull { it.id == chosenId && it.type == type }
+            ?: return@withContext false
+        if (com.foqos.android.data.model.PhysicalUnblockItem.normalizeCodeValue(chosen.codeValue) !=
+            com.foqos.android.data.model.PhysicalUnblockItem.normalizeCodeValue(code)) return@withContext false
         if (forPause) {
             if (current.isPauseActive()) return@withContext false
             val activity = com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
@@ -463,7 +458,7 @@ class SessionManager @Inject constructor(
 
     private fun locationStoreInside(profileId: String): Boolean {
         val store = LocationAutomationStore(appContext)
-        return store.read(profileId) != null &&
+        return store.enabled(profileId) &&
             (store.manualInside(profileId) ?: store.lastInside(profileId)) == true
     }
 
@@ -534,14 +529,8 @@ class SessionManager @Inject constructor(
         }
         // Only a successful explicit start re-arms a completely stopped profile.
         if (independentUnlock.configured(profileId)) {
-            val stopMethod = independentUnlock.read(profileId).stop
-            val needed = when (stopMethod) {
-                com.foqos.android.ui.activitylab.UnlockMethod.NFC -> PhysicalUnblockType.NFC
-                com.foqos.android.ui.activitylab.UnlockMethod.QR -> PhysicalUnblockType.QR_CODE
-                else -> null
-            }
-            if (needed != null && profile.physicalUnblockItems.none { it.type == needed }) {
-                emitError("停止に必要なNFC・QRコードが未登録です。先に登録してね")
+            if (!independentUnlock.isReady(profile)) {
+                emitError("ブロック開始不可：停止・一時休止条件の登録が必要だよ")
                 return
             }
             createSession(profile, tag = ManualBlockingStrategy.ID, forceStarted = false)

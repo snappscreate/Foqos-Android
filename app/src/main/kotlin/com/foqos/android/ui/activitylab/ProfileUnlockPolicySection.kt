@@ -41,36 +41,32 @@ fun ProfileUnlockPolicySection(profile: BlockedProfile, editingLocked: Boolean) 
         }
         Text("停止条件", style = MaterialTheme.typography.titleMedium)
         Text("停止はセッションを終了。一時停止とは別に設定する。", style = MaterialTheme.typography.bodySmall)
-        listOf(
-            UnlockMethod.MANUAL to (if (hasLocation) "ブロック範囲から出る" else "手動"),
-            UnlockMethod.NFC to "NFC",
-            UnlockMethod.QR to "QRコード",
-        ).forEach { (method, label) ->
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                RadioButton(selected = policy.stop == method,
-                    enabled = !editingLocked,
-                    onClick = { update(policy.copy(stop = method)) })
-                Text(label)
-            }
-        }
+        MethodDropdown(
+            selected = policy.stop,
+            choices = listOf(
+                UnlockMethod.MANUAL to (if (hasLocation) "ブロック範囲から出る" else "手動"),
+                UnlockMethod.NFC to "NFC",
+                UnlockMethod.QR to "QRコード",
+            ),
+            enabled = !editingLocked,
+            onSelected = { update(policy.copy(stop = it)) },
+        )
         if (hasLocation) Text("範囲外では自動的にブロックを休止し、戻ると再開する。完全停止とは異なる。",
             style = MaterialTheme.typography.bodySmall)
 
         HorizontalDivider()
         Text("一時停止条件（メイン）", style = MaterialTheme.typography.titleMedium)
-        listOf(
-            UnlockMethod.MANUAL to "手動",
-            UnlockMethod.NFC to "NFC",
-            UnlockMethod.QR to "QRコード",
-            UnlockMethod.ACTIVITY to "動作判定",
-        ).forEach { (method, label) ->
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                RadioButton(selected = policy.pause == method,
-                    enabled = !editingLocked,
-                    onClick = { update(policy.copy(pause = method)) })
-                Text(label)
-            }
-        }
+        MethodDropdown(
+            selected = policy.pause,
+            choices = listOf(
+                UnlockMethod.MANUAL to "手動",
+                UnlockMethod.NFC to "NFC",
+                UnlockMethod.QR to "QRコード",
+                UnlockMethod.ACTIVITY to "動作判定",
+            ),
+            enabled = !editingLocked,
+            onSelected = { update(policy.copy(pause = it)) },
+        )
         if (policy.pause == UnlockMethod.ACTIVITY) {
             val activities = remember(profile.id, refreshActivities) {
                 activityStore.conditions(profile.id)
@@ -84,17 +80,22 @@ fun ProfileUnlockPolicySection(profile: BlockedProfile, editingLocked: Boolean) 
                 Text("下の「一時停止のサブ条件」で動作を登録してから選んでね",
                     color = MaterialTheme.colorScheme.error)
             } else {
-                activities.forEach { condition ->
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        RadioButton(
-                            selected = mainActivity == condition.id,
-                            enabled = !editingLocked,
-                            onClick = {
-                                activityStore.setMainCondition(profile.id, condition.id)
-                                mainActivity = condition.id
-                            },
-                        )
-                        Text(condition.description)
+                var menuExpanded by remember { mutableStateOf(false) }
+                Box {
+                    OutlinedButton(onClick = { menuExpanded = true }, enabled = !editingLocked) {
+                        Text(activities.firstOrNull { it.id == mainActivity }?.description ?: "動作を選択")
+                    }
+                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                        activities.forEach { condition ->
+                            DropdownMenuItem(
+                                text = { Text(condition.description) },
+                                onClick = {
+                                    activityStore.setMainCondition(profile.id, condition.id)
+                                    mainActivity = condition.id
+                                    menuExpanded = false
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -118,5 +119,30 @@ fun ProfileUnlockPolicySection(profile: BlockedProfile, editingLocked: Boolean) 
         Text("NFC・QRを使う場合は、下の「NFC・QRコードによる解除」でタグやコードを登録してね。",
             style = MaterialTheme.typography.bodySmall)
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    }
+}
+
+@Composable
+private fun MethodDropdown(
+    selected: UnlockMethod,
+    choices: List<Pair<UnlockMethod, String>>,
+    enabled: Boolean,
+    onSelected: (UnlockMethod) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(onClick = { expanded = true }, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
+            Text(choices.firstOrNull { it.first == selected }?.second ?: "選択")
+            Spacer(Modifier.weight(1f))
+            Text("▾")
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            choices.forEach { (method, label) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = { onSelected(method); expanded = false },
+                )
+            }
+        }
     }
 }

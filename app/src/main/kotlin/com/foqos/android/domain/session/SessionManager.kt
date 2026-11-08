@@ -689,6 +689,10 @@ class SessionManager @Inject constructor(
                 emitError("Failed to find a profile stored locally that matches the tag")
                 return
             }
+            if (independentUnlock.configured(profileId)) {
+                startProfile(profileId)
+                return
+            }
             conflictingFullScreenProfile(profileId)?.let {
                 reportFullScreenConflict(it.name)
                 return
@@ -1271,6 +1275,11 @@ class SessionManager @Inject constructor(
     private suspend fun handleScheduleStart(profileId: String, at: Instant) {
         val profile = profileRepository.getById(profileId) ?: return
         if (profile.schedule?.isConfigured == true) {
+            if (independentUnlock.configured(profileId) &&
+                !independentUnlock.isReady(profile)) {
+                emitError("スケジュール開始不可：停止・一時休止の認証を登録してね")
+                return
+            }
             if (sessionForProfile(profileId) == null) {
                 val conflict = conflictingFullScreenProfile(profileId)
                 if (conflict == null) {

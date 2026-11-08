@@ -461,11 +461,13 @@ private fun ProfileCard(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
-                Text(
-                    text = strategy.name,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (independentUnlock == null) {
+                    Text(
+                        text = strategy.name,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Text(
                     text = pluralizeBlockedCount(blockedCount),
                     style = MaterialTheme.typography.bodySmall,
@@ -554,14 +556,11 @@ private fun ProfileCard(
             if (isActive && independentUnlock != null &&
                 !(independentUnlock.stop == UnlockMethod.MANUAL &&
                     isLocationProfile && locationInside == true)) {
-                TextButton(onClick = onStopRequested) {
-                    Text(when (independentUnlock.stop) {
-                        UnlockMethod.NFC -> "NFCで完全停止"
-                        UnlockMethod.QR -> "QRコードで完全停止"
-                        else -> "手動で完全停止"
-                    })
+                IconButton(onClick = onStopRequested) {
+                    Icon(Icons.Filled.Stop, contentDescription = "完全停止")
                 }
             }
+
 
             Box {
                 IconButton(onClick = { menuExpanded = true }) {

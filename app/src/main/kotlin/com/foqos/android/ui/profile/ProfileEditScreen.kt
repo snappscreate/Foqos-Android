@@ -174,6 +174,10 @@ fun ProfileEditScreen(
                 ProfileUnlockPolicySection(
                     profile = uiState.draft,
                     editingLocked = uiState.editingLocked,
+                    isPersisted = uiState.isPersisted,
+                    profileRepository = viewModel.profileRepository,
+                    nfcDispatchManager = viewModel.nfcDispatchManager,
+                    locationViewModel = viewModel.locationAutomationViewModel,
                 )
             }
 
@@ -294,36 +298,6 @@ fun ProfileEditScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            }
-
-            if (uiState.isPersisted) {
-                SectionCard(title = stringResource(R.string.profile_edit_physical_unlocks_title)) {
-                    PhysicalUnlockEditor(
-                        profileId = uiState.draft.id,
-                        profileRepository = viewModel.profileRepository,
-                        nfcDispatchManager = viewModel.nfcDispatchManager,
-                        editingLocked = uiState.editingLocked,
-                        onEditBlocked = { showLockedDialog = true },
-                    )
-                }
-            } else {
-                SectionCard(title = stringResource(R.string.profile_edit_physical_unlocks_title)) {
-                    Text(
-                        text = stringResource(R.string.profile_edit_physical_unlocks_save_first),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(16.dp),
-                    )
-                }
-            }
-
-            SectionCard(title = "位置範囲による自動ブロック") {
-                LocationAutomationSection(
-                    profileId = uiState.draft.id,
-                    editingLocked = uiState.editingLocked,
-                    isPersisted = uiState.isPersisted,
-                    viewModel = viewModel.locationAutomationViewModel,
-                )
             }
 
             SectionCard(title = "定期的な使用時間") {

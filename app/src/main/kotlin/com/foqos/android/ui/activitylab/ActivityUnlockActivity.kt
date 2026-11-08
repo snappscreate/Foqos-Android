@@ -65,7 +65,7 @@ class ActivityUnlockActivity : ComponentActivity() {
         val description = if (isTest) intent.getStringExtra(EXTRA_DESCRIPTION).orEmpty()
             else entry!!.description
         val seconds = (if (isTest) intent.getIntExtra(EXTRA_SECONDS, 20)
-            else entry!!.recordingSeconds).coerceIn(10, 60)
+            else entry!!.recordingSeconds).coerceIn(10, 120)
         val countdown = (if (isTest) intent.getIntExtra(EXTRA_COUNTDOWN, 5)
             else entry!!.countdownSeconds).coerceIn(0, 30)
         val frontCamera = if (isTest) intent.getBooleanExtra(EXTRA_FRONT, true)

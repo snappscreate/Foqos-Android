@@ -78,7 +78,7 @@ class LocationAutomationStore(context: Context) {
     }
 
     fun clearManualInside(profileId: String) {
-        prefs.edit().remove("debug_manual_inside_$profileId").remove("manually_stopped_$profileId").commit()
+        prefs.edit().remove("debug_manual_inside_$profileId").commit()
     }
 
     fun lastInside(profileId: String): Boolean? =
@@ -133,7 +133,7 @@ class LocationAutomationStore(context: Context) {
     fun clear(profileId: String) {
         migrateIfNeeded()
         prefs.edit().remove("rule_$profileId").remove("last_inside_$profileId")
-            .remove("debug_manual_inside_$profileId")
+            .remove("debug_manual_inside_$profileId").remove("manually_stopped_$profileId")
             .putString("rule_profile_ids", JSONArray((ids() - profileId).sorted()).toString()).commit()
     }
 

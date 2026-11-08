@@ -87,7 +87,7 @@ class ActivityUnlockStore(context: Context) {
         }
         if (profileId != "__shared_catalog__" && conditions.isNotEmpty()) {
             // Preserve registered movement definitions even after the source profile is deleted.
-            val merged = (conditions("__shared_catalog__") + conditions)
+            val merged = (this.conditions("__shared_catalog__") + conditions)
                 .distinctBy { it.id }
             save("__shared_catalog__", merged)
         }

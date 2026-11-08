@@ -33,7 +33,7 @@ class GeofenceTransitionReceiver : BroadcastReceiver() {
         }
         val store = LocationAutomationStore(context)
         val profileIds = event.triggeringGeofences.orEmpty().map { it.requestId }
-            .filter { store.read(it) != null }.distinct()
+            .filter { store.enabled(it) }.distinct()
         if (profileIds.isEmpty()) return
         val pending = goAsync()
         scope.launch {

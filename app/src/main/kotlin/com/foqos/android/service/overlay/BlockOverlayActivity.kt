@@ -364,7 +364,7 @@ class BlockOverlayActivity : ComponentActivity() {
                 }
 
                 val blockedLabel = when {
-                    locationPauseRequest -> "一時停止の認証"
+                    locationPauseRequest -> "一時休止の認証"
                     targetPackage == FULL_SCREEN_HOME_TARGET -> "集中モード"
                     else -> targetDomain ?: rememberAppLabel(targetPackage)
                 }
@@ -468,7 +468,7 @@ class BlockOverlayActivity : ComponentActivity() {
                         when {
                             configuredStopRequested -> "停止用NFCをかざすとブロックを完全停止"
                             policy.pause == com.foqos.android.ui.activitylab.UnlockMethod.NFC ->
-                                "NFCをかざすと設定時間だけ一時停止"
+                                "NFCをかざすと設定時間だけ一時休止"
                             policy.stop == com.foqos.android.ui.activitylab.UnlockMethod.NFC ->
                                 "NFCをかざすとブロックを完全停止"
                             else -> null
@@ -553,10 +553,10 @@ class BlockOverlayActivity : ComponentActivity() {
                 if (showActivityChoices && !explicitActivitySelection && activityConditions.isNotEmpty()) {
                     AlertDialog(
                         onDismissRequest = { showActivityChoices = false },
-                        title = { Text("今回の一時停止条件を選択") },
+                        title = { Text("今回の一時休止条件を選択") },
                         text = {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("選択すると、一時停止が成功するまでNFCには戻せないよ。")
+                                Text("選択すると、一時休止が成功するまでNFCには戻せないよ。")
                                 activityConditions.filter {
                                     it.id != selectedActivity?.id
                                 }.forEach { condition ->
@@ -681,7 +681,7 @@ class BlockOverlayActivity : ComponentActivity() {
                 profile.id, code, PhysicalUnblockType.NFC, forPause = forPause,
             )
             nfcScanMessage = if (approved) {
-                if (forPause) "一時停止したよ" else "ブロックを停止したよ"
+                if (forPause) "一時休止したよ" else "ブロックを停止したよ"
             } else "このNFCは現在の条件に一致しないよ"
             return
         }
@@ -707,14 +707,14 @@ class BlockOverlayActivity : ComponentActivity() {
             val allowed = sessionManager.pauseLocationWithVerifiedCode(
                 profile.id, code, PhysicalUnblockType.NFC,
             )
-            nfcScanMessage = if (allowed) "一時停止を開始したよ" else "このNFCでは一時停止できません"
+            nfcScanMessage = if (allowed) "一時休止を開始したよ" else "このNFCでは一時休止できません"
             return
         }
         // Existing strategy performs the final NFC permission and pause-only checks.
         when (val outcome = StrategyRegistry.byId(profile.strategyId).onStopInput(
             profile, session, StrategyInput.Code(code, StrategyInput.CodeSource.NFC), sessionManager
         )) {
-            SessionOutcome.Paused -> nfcScanMessage = "一時停止を開始したよ"
+            SessionOutcome.Paused -> nfcScanMessage = "一時休止を開始したよ"
             SessionOutcome.Stopped -> nfcScanMessage = "ブロックを解除したよ"
             is SessionOutcome.Rejected -> nfcScanMessage =
                 if (registered.isNotEmpty()) "このNFCは登録されていません、または現在は使用できません"

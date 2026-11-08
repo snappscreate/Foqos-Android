@@ -224,6 +224,10 @@ class SessionManager @Inject constructor(
     suspend fun onLocationTransition(profileId: String, inside: Boolean) = withContext(ioDispatcher) {
         val current = sessionForProfile(profileId) ?: sessionRepository.activeSessionForProfile(profileId)
         if (inside) {
+            if (LocationAutomationStore(appContext).manuallyStopped(profileId)) {
+                // EXIT/ENTER only resumes a location-suspended session; never undo a full stop.
+                return@withContext
+            }
             if (current != null) {
                 // Restore blocking in the same location-owned session; NFC timed pauses
                 // remain independent and keep their remaining duration.
@@ -368,6 +372,7 @@ class SessionManager @Inject constructor(
             if (activity.selection(profileId, current.id) != null) return@withContext false
             pauseForConfiguredDuration(current, policy.pauseMinutes)
         } else {
+            markCompletelyStopped(profileId)
             endSession(current, Instant.now())
         }
         true
@@ -461,6 +466,11 @@ class SessionManager @Inject constructor(
             (store.manualInside(profileId) ?: store.lastInside(profileId)) == true
     }
 
+    private fun markCompletelyStopped(profileId: String) {
+        val store = LocationAutomationStore(appContext)
+        if (store.read(profileId) != null) store.setManuallyStopped(profileId, true)
+    }
+
     /** Explicit home Stop action for a location-configured profile while outside its area. */
     suspend fun stopLocationProfileFromHome(profileId: String) = withContext(ioDispatcher) {
         val current = sessionForProfile(profileId) ?: return@withContext
@@ -469,7 +479,10 @@ class SessionManager @Inject constructor(
             emitError("位置範囲内では解除条件が必要です")
             return@withContext
         }
-        if (current.profileId == profileId) endSession(current, Instant.now())
+        if (current.profileId == profileId) {
+            markCompletelyStopped(profileId)
+            endSession(current, Instant.now())
+        }
     }
 
     /** NFC profile tags pause NFC + Pause Timer sessions instead of acting as forced toggles. */
@@ -518,6 +531,9 @@ class SessionManager @Inject constructor(
             reportFullScreenConflict(it.name)
             return
         }
+        // Explicit user start is the only action that re-arms a completely stopped
+        // location-linked profile.
+        LocationAutomationStore(appContext).setManuallyStopped(profileId, false)
         if (independentUnlock.configured(profileId)) {
             val stopMethod = independentUnlock.read(profileId).stop
             val needed = when (stopMethod) {
@@ -625,6 +641,7 @@ class SessionManager @Inject constructor(
         }
         if (independentUnlock.configured(profileId)) {
             if (locationStoreOutside(profileId)) {
+                markCompletelyStopped(profileId)
                 endSession(session, Instant.now())
                 return
             }
@@ -634,6 +651,7 @@ class SessionManager @Inject constructor(
                     if (locationStoreInside(profileId)) {
                         emitError("ブロック範囲内では停止できません")
                     } else if (!fromBackground || !globalProtection.readFor(profile).disableBackgroundStops) {
+                        markCompletelyStopped(profileId)
                         endSession(session, Instant.now())
                     }
                 }

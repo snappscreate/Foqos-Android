@@ -48,7 +48,9 @@ class ActivityUnlockStore(context: Context) {
 
     /** A reusable catalog made from previously saved profile challenges. */
     fun reusableConditions(): List<ActivityUnlockCondition> =
-        prefs.all.keys.asSequence().filter { it.startsWith("conditions_") }
+        (sequenceOf("conditions___shared_catalog__") +
+            prefs.all.keys.asSequence().filter { it.startsWith("conditions_") })
+            .distinct()
             .flatMap { key -> conditions(key.removePrefix("conditions_")).asSequence() }
             .distinctBy { it.id }.toList()
 
@@ -82,6 +84,12 @@ class ActivityUnlockStore(context: Context) {
         if (conditions.none { it.id == mainConditionId(profileId) }) setMainCondition(profileId, null)
         check(prefs.edit().putString("conditions_$profileId", array.toString()).commit()) {
             "活動条件を保存できなかった"
+        }
+        if (profileId != "__shared_catalog__" && conditions.isNotEmpty()) {
+            // Preserve registered movement definitions even after the source profile is deleted.
+            val merged = (conditions("__shared_catalog__") + conditions)
+                .distinctBy { it.id }
+            save("__shared_catalog__", merged)
         }
     }
 

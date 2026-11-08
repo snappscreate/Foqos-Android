@@ -47,7 +47,7 @@ fun ProfileUnlockPolicySection(
     // the reusable library when an owner profile is removed.
     val profileItems = allProfiles.flatMap { it.physicalUnblockItems } + currentItems
     LaunchedEffect(profileItems) { catalog.remember(profileItems) }
-    val reusableItems = (catalog.items() + profileItems).distinctBy { it.id }
+    val reusableItems = (profileItems + catalog.items()).distinctBy { it.id }
     var policy by remember(profile.id) { mutableStateOf(policies.forProfile(profile)) }
     var areaDialog by remember { mutableStateOf(false) }
     var closeAreaOnSave by remember { mutableStateOf(false) }

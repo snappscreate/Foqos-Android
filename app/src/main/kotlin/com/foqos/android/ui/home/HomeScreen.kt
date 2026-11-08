@@ -490,7 +490,7 @@ private fun ProfileCard(
                     )
                 }
                 if (isActive && isLocationProfile && locationInside == false) {
-                    Text("範囲外：自動一時停止中", style = MaterialTheme.typography.bodySmall)
+                    Text("範囲外：自動一時休止中", style = MaterialTheme.typography.bodySmall)
                 }
                 if (isActive && (periodicEligible || periodicActive)) {
                     Text(
@@ -520,7 +520,7 @@ private fun ProfileCard(
                     else profile.breakTimeInMinutes.coerceAtLeast(1)
                     val elapsedMs = nowMillis - (activeSession.pauseStartTime?.toEpochMilli() ?: nowMillis)
                     val leftSeconds = ((pauseMinutes * 60_000L - elapsedMs).coerceAtLeast(0L) + 999L) / 1000L
-                    Text("一時停止中：残り ${leftSeconds / 60}分${leftSeconds % 60}秒",
+                    Text("一時休止中：残り ${leftSeconds / 60}分${leftSeconds % 60}秒",
                         style = MaterialTheme.typography.bodySmall)
                 }
                 profile.schedule?.takeIf { it.isConfigured }?.let { schedule ->
@@ -544,8 +544,8 @@ private fun ProfileCard(
                         },
                         contentDescription = when {
                             periodicEligible -> "周期休憩を開始"
-                            isActive && independentUnlock != null -> "一時停止"
-                            isActive && isLocationProfile && locationInside == true -> "一時停止"
+                            isActive && independentUnlock != null -> "一時休止"
+                            isActive && isLocationProfile && locationInside == true -> "一時休止"
                             isActive -> stringResource(R.string.home_stop_action)
                             else -> stringResource(R.string.home_start_action)
                         },

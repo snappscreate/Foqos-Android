@@ -46,6 +46,17 @@ class ActivityUnlockStore(context: Context) {
         }.filter { it.description.isNotBlank() }
     }.getOrDefault(emptyList())
 
+    /** A reusable catalog made from previously saved profile challenges. */
+    fun reusableConditions(): List<ActivityUnlockCondition> =
+        prefs.all.keys.asSequence().filter { it.startsWith("conditions_") }
+            .flatMap { key -> conditions(key.removePrefix("conditions_")).asSequence() }
+            .distinctBy { it.id }.toList()
+
+    fun importCondition(profileId: String, condition: ActivityUnlockCondition) {
+        val old = conditions(profileId)
+        if (old.none { it.id == condition.id }) save(profileId, old + condition)
+    }
+
     fun mainConditionId(profileId: String): String? =
         prefs.getString("main_$profileId", null)
 

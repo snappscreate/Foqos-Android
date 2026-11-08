@@ -170,14 +170,14 @@ fun ProfileEditScreen(
         ) {
             NameSection(name = uiState.draft.name, error = uiState.nameError, onNameChange = viewModel::updateName)
 
-            SectionCard(title = "停止・一時停止の条件") {
+            SectionCard(title = "停止・一時休止の条件") {
                 ProfileUnlockPolicySection(
                     profile = uiState.draft,
                     editingLocked = uiState.editingLocked,
                 )
             }
 
-            SectionCard(title = "一時停止のサブ条件（AI動画判定）") {
+            SectionCard(title = "一時休止のサブ条件（AI動画判定）") {
                 ActivityUnlockSettingsSection(
                     profileId = uiState.draft.id,
                     editingLocked = uiState.editingLocked,
@@ -361,7 +361,7 @@ fun ProfileEditScreen(
                             enabled = !uiState.editingLocked,
                         )
                         Text(
-                            "開始後またはNFCなどの一時停止終了後から数えて、指定時間ブロックし、" +
+                            "開始後またはNFCなどの一時休止終了後から数えて、指定時間ブロックし、" +
                                 "指定時間後に休憩ボタンが現れる。押すと設定時間だけ使用可能になり、終了後にまた待機時間を数える。",
                             style = MaterialTheme.typography.bodySmall,
                         )

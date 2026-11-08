@@ -219,6 +219,41 @@ class SessionManagerTest {
     }
 
     @Test
+    fun `completely stopped location profile stays stopped on reentry until manually restarted`() = runTest {
+        val profile = createProfile(strategyId = ManualBlockingStrategy.ID)
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val location = LocationAutomationStore(context)
+        val policy = ProfileUnlockPolicyStore(context)
+        location.save(LocationRule(profile.id, 33.60, 130.42, 200f))
+        policy.save(profile.id, ProfileUnlockPolicy(
+            stop = UnlockMethod.MANUAL, pause = UnlockMethod.MANUAL))
+        try {
+            location.setLastInside(true)
+            sessionManager.onLocationTransition(profile.id, true)
+            assertThat(sessionManager.activeSession.value).isNotNull()
+
+            // EXIT suspends the existing session. A separate complete Stop ends it.
+            location.setLastInside(false)
+            sessionManager.onLocationTransition(profile.id, false)
+            assertThat(sessionManager.activeSession.value).isNotNull()
+            sessionManager.stopLocationProfileFromHome(profile.id)
+            assertThat(sessionManager.activeSession.value).isNull()
+            assertThat(location.manuallyStopped(profile.id)).isTrue()
+
+            location.setLastInside(true)
+            sessionManager.onLocationTransition(profile.id, true)
+            assertThat(sessionManager.activeSession.value).isNull()
+
+            sessionManager.startProfile(profile.id)
+            assertThat(location.manuallyStopped(profile.id)).isFalse()
+            assertThat(sessionManager.activeSession.value).isNotNull()
+        } finally {
+            location.clear(profile.id)
+            policy.delete(profile.id)
+        }
+    }
+
+    @Test
     fun `manually started linked profile is suspended outside the area too`() = runTest {
         val profile = createProfile(strategyId = ManualBlockingStrategy.ID)
         val context = ApplicationProvider.getApplicationContext<Context>()

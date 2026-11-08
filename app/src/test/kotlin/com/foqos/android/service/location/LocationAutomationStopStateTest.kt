@@ -40,6 +40,26 @@ class LocationAutomationStopStateTest {
     }
 
     @Test
+    fun `disabling automation keeps saved area and complete stop state`() {
+        val profileId = UUID.randomUUID().toString()
+        val store = LocationAutomationStore(context)
+        try {
+            val area = LocationRule(profileId, 33.60, 130.42, 200f)
+            store.save(area)
+            store.setManuallyStopped(profileId, true)
+            assertThat(store.enabled(profileId)).isTrue()
+            store.setEnabled(profileId, false)
+            assertThat(store.enabled(profileId)).isFalse()
+            assertThat(store.read(profileId)).isEqualTo(area)
+            assertThat(store.manuallyStopped(profileId)).isTrue()
+            store.setEnabled(profileId, true)
+            assertThat(store.manuallyStopped(profileId)).isTrue()
+        } finally {
+            store.clear(profileId)
+        }
+    }
+
+    @Test
     fun `clearing a deleted geofence removes its previous stop state`() {
         val profileId = UUID.randomUUID().toString()
         val store = LocationAutomationStore(context)

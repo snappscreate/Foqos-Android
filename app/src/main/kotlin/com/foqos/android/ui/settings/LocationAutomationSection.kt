@@ -69,12 +69,18 @@ class LocationAutomationViewModel @Inject constructor(
             status = "緯度・経度と、100m以上の半径を入力してください"
             return
         }
+        status = ""
         // Save before registration: INITIAL_TRIGGER_ENTER/EXIT can arrive immediately.
         // The receiver must be able to resolve this profile at that point.
         val previous = store.read(profileId)
         val wasEnabled = store.enabled(profileId)
         store.save(rule)
-        store.setEnabled(profileId, true)
+        val shouldEnable = previous == null || wasEnabled
+        store.setEnabled(profileId, shouldEnable)
+        if (!shouldEnable) {
+            status = "ブロック範囲を保存しました（位置連動はOFFのまま）"
+            return
+        }
         GeofenceManager(context).register(rule)
             .addOnSuccessListener {
                 status = "このプロファイルの位置範囲を保存しました"
@@ -103,6 +109,7 @@ class LocationAutomationViewModel @Inject constructor(
             return
         }
         val old = store.enabled(profileId)
+        status = ""
         store.setEnabled(profileId, enabled)
         val task = if (enabled) GeofenceManager(context).register(rule)
             else GeofenceManager(context).unregister(profileId)

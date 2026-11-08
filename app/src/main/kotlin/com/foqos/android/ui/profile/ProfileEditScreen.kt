@@ -169,6 +169,10 @@ fun ProfileEditScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             NameSection(name = uiState.draft.name, error = uiState.nameError, onNameChange = viewModel::updateName)
+            uiState.configurationError?.let { message ->
+                Text(message, color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall)
+            }
 
             SectionCard(title = "停止・一時休止の条件") {
                 ProfileUnlockPolicySection(

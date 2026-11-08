@@ -40,7 +40,7 @@ fun ProfileUnlockPolicySection(profile: BlockedProfile, editingLocked: Boolean) 
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Text("停止条件", style = MaterialTheme.typography.titleMedium)
-        Text("停止はセッションを終了。一時停止とは別に設定する。", style = MaterialTheme.typography.bodySmall)
+        Text("停止はセッションを終了。一時休止とは別に設定する。", style = MaterialTheme.typography.bodySmall)
         MethodDropdown(
             selected = policy.stop,
             choices = listOf(
@@ -55,7 +55,7 @@ fun ProfileUnlockPolicySection(profile: BlockedProfile, editingLocked: Boolean) 
             style = MaterialTheme.typography.bodySmall)
 
         HorizontalDivider()
-        Text("一時停止条件（メイン）", style = MaterialTheme.typography.titleMedium)
+        Text("一時休止条件（メイン）", style = MaterialTheme.typography.titleMedium)
         MethodDropdown(
             selected = policy.pause,
             choices = listOf(
@@ -77,7 +77,7 @@ fun ProfileUnlockPolicySection(profile: BlockedProfile, editingLocked: Boolean) 
                 mainActivity = activityStore.mainConditionId(profile.id)
             }) { Text("登録した動作を再読み込み") }
             if (activities.isEmpty()) {
-                Text("下の「一時停止のサブ条件」で動作を登録してから選んでね",
+                Text("下の「一時休止のサブ条件」で動作を登録してから選んでね",
                     color = MaterialTheme.colorScheme.error)
             } else {
                 var menuExpanded by remember { mutableStateOf(false) }
@@ -100,7 +100,7 @@ fun ProfileUnlockPolicySection(profile: BlockedProfile, editingLocked: Boolean) 
                 }
             }
         } else {
-            Text("一時停止時間：${policy.pauseMinutes}分")
+            Text("一時休止時間：${policy.pauseMinutes}分")
             Slider(
                 value = policy.pauseMinutes.toFloat(),
                 onValueChange = { update(policy.copy(pauseMinutes = it.toInt())) },

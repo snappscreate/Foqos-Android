@@ -168,6 +168,12 @@ fun ProfileEditScreen(
                 .imePadding(),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
+            NameSection(name = uiState.draft.name, error = uiState.nameError, onNameChange = viewModel::updateName)
+            uiState.configurationError?.let { message ->
+                Text(message, color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall)
+            }
+
             // Mutually exclusive blocking modes. Selecting a mode does not reset either
             // mode's saved app selections or the shared website whitelist.
             SectionCard(title = "ブロック方式") {
@@ -280,12 +286,6 @@ fun ProfileEditScreen(
                 }
             }
 
-
-            NameSection(name = uiState.draft.name, error = uiState.nameError, onNameChange = viewModel::updateName)
-            uiState.configurationError?.let { message ->
-                Text(message, color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall)
-            }
 
             SectionCard(title = "停止・一時休止の条件") {
                 ProfileUnlockPolicySection(

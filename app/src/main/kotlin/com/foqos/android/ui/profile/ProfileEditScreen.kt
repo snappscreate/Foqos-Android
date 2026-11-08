@@ -133,7 +133,7 @@ fun ProfileEditScreen(
                     }
                 },
                 actions = {
-                    TextButton(onClick = { if (uiState.editingLocked) showLockedDialog = true else viewModel.save() }) { Text(stringResource(R.string.action_save)) }
+                    TextButton(onClick = viewModel::save) { Text(stringResource(R.string.action_save)) }
                     if (uiState.isPersisted) {
                         IconButton(onClick = { overflowExpanded = true }) {
                             Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.profile_edit_more_actions))
@@ -163,18 +163,6 @@ fun ProfileEditScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .pointerInput(uiState.editingLocked) {
-                    if (uiState.editingLocked) {
-                        awaitEachGesture {
-                            awaitFirstDown(pass = PointerEventPass.Initial)
-                            val up = waitForUpOrCancellation(pass = PointerEventPass.Initial)
-                            if (up != null) {
-                                up.consume()
-                                showLockedDialog = true
-                            }
-                        }
-                    }
-                }
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
                 .imePadding(),
@@ -424,7 +412,7 @@ fun ProfileEditScreen(
         AlertDialog(
             onDismissRequest = { showLockedDialog = false },
             title = { Text("プロファイルは稼働中") },
-            text = { Text("このプロファイルのブロックが稼働している間は編集できません。停止後に変更してください。") },
+            text = { Text("稼働中に変更できるのはプロファイル名だけです。ほかの設定は停止後に変更してください。") },
             confirmButton = {
                 TextButton(onClick = { showLockedDialog = false }) { Text("確認") }
             },

@@ -171,7 +171,7 @@ fun BlockScreenContent(
                 Text(distanceDescription, fontSize = 14.sp, color = Color.White, textAlign = TextAlign.Center)
             }
             if (nfcReady) {
-                Text(nfcInstruction ?: "登録したNFCをかざすと一時停止・解除できます",
+                Text(nfcInstruction ?: "登録したNFCをかざすと一時休止・解除できます",
                     fontSize = 14.sp, color = Color.White, textAlign = TextAlign.Center)
             }
             if (!nfcMessage.isNullOrBlank()) {
@@ -238,7 +238,7 @@ fun BlockScreenContent(
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
                 ) {
-                    Text(if (configuredStopSelected) "停止用NFCを待機中（タップで一時停止に戻す）"
+                    Text(if (configuredStopSelected) "停止用NFCを待機中（タップで一時休止に戻す）"
                          else "NFCでブロックを完全停止する")
                 }
             }
@@ -256,7 +256,7 @@ fun BlockScreenContent(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(selectedActivityLabel?.let { "動作チャレンジ：$it" }
-                        ?: "サブ条件で一時停止する")
+                        ?: "サブ条件で一時休止する")
                 }
             }
 

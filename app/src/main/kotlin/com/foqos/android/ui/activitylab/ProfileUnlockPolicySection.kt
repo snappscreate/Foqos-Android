@@ -72,7 +72,7 @@ fun ProfileUnlockPolicySection(profile: BlockedProfile, editingLocked: Boolean) 
                 activityStore.conditions(profile.id)
             }
             Text("メインの動作判定", style = MaterialTheme.typography.titleSmall)
-            OutlinedButton(onClick = {
+            OutlinedButton(enabled = !editingLocked, onClick = {
                 refreshActivities++
                 mainActivity = activityStore.mainConditionId(profile.id)
             }) { Text("登録した動作を再読み込み") }

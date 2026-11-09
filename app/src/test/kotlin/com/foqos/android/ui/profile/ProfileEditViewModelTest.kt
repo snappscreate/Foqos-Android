@@ -144,6 +144,23 @@ class ProfileEditViewModelTest {
     }
 
     @Test
+    fun `the same normalized URL cannot be both allowed and blocked`() {
+        runBlocking {
+            val vm = newViewModel()
+            awaitLoaded(vm)
+            vm.addFullScreenAllowedUrl("HTTPS://www.example.com/article")
+            vm.addBlockedUrl("example.com")
+            assertThat(vm.uiState.value.blockedUrlError).isNotNull()
+            assertThat(vm.uiState.value.blockedUrls).isEmpty()
+            vm.addBlockedUrl("blocked.example.com")
+            vm.addFullScreenAllowedUrl("https://blocked.example.com")
+            assertThat(vm.uiState.value.blockedUrlError).isNotNull()
+            assertThat(vm.uiState.value.fullScreenAllowedUrls)
+                .doesNotContain("https://blocked.example.com")
+        }
+    }
+
+    @Test
     fun `invalid domain sets an error and does not add it`() {
         runBlocking {
         val viewModel = newViewModel()

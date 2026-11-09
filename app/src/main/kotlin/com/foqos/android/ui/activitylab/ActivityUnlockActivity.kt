@@ -3,6 +3,9 @@ package com.foqos.android.ui.activitylab
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.view.WindowManager
+import android.media.AudioManager
+import android.media.ToneGenerator
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -45,6 +48,7 @@ class ActivityUnlockActivity : ComponentActivity() {
         const val EXTRA_SECONDS = "seconds"
         const val EXTRA_COUNTDOWN = "countdown"
         const val EXTRA_FRONT = "front_camera"
+        const val EXTRA_UNLIMITED = "unlimited_recording"
         const val EXTRA_PROFILE_ID = "profile_id"
         const val EXTRA_SESSION_ID = "session_id"
         const val EXTRA_CONDITION_ID = "condition_id"
@@ -68,13 +72,17 @@ class ActivityUnlockActivity : ComponentActivity() {
             else entry!!.recordingSeconds).coerceIn(10, 120)
         val countdown = (if (isTest) intent.getIntExtra(EXTRA_COUNTDOWN, 5)
             else entry!!.countdownSeconds).coerceIn(0, 30)
+        val unlimited = if (isTest) intent.getBooleanExtra(EXTRA_UNLIMITED, false)
+            else entry!!.unlimitedRecording
         val frontCamera = if (isTest) intent.getBooleanExtra(EXTRA_FRONT, true)
             else entry!!.frontCamera
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
             FoqosTheme {
                 ActivityUnlockCapture(
                     description = description,
                     seconds = seconds,
+                    unlimited = unlimited,
                     countdown = countdown,
                     frontCamera = frontCamera,
                     isTest = isTest,
@@ -97,6 +105,7 @@ private enum class CapturePhase { READY, COUNTDOWN, RECORDING, PAUSED, RESUME_CO
 private fun ActivityUnlockCapture(
     description: String,
     seconds: Int,
+    unlimited: Boolean,
     countdown: Int,
     frontCamera: Boolean,
     isTest: Boolean,
@@ -115,7 +124,7 @@ private fun ActivityUnlockCapture(
     var cameraReady by remember { mutableStateOf(false) }
     var phase by remember { mutableStateOf(CapturePhase.READY) }
     var countdownRemaining by remember { mutableIntStateOf(0) }
-    var recordingRemainingMs by remember { mutableLongStateOf(seconds * 1000L) }
+    var recordingRemainingMs by remember { mutableLongStateOf(if (unlimited) 0L else seconds * 1000L) }
     var status by remember { mutableStateOf("撮影待機中") }
     var verdict by remember { mutableStateOf<ActivityVerdict?>(null) }
     var captureJob by remember { mutableStateOf<Job?>(null) }
@@ -153,7 +162,8 @@ private fun ActivityUnlockCapture(
     val canRequest = if (settings.useRelay) settings.endpoint.startsWith("https://")
         else credentials.hasKey()
     val recordingSecondsLeft = ((recordingRemainingMs + 999L) / 1000L).coerceAtLeast(0L)
-    val timeLabel = "%02d:%02d".format(recordingSecondsLeft / 60L, recordingSecondsLeft % 60L)
+    val timeLabel = if (unlimited) "上限なし（手動終了）" else
+        "%02d:%02d".format(recordingSecondsLeft / 60L, recordingSecondsLeft % 60L)
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -193,7 +203,7 @@ private fun ActivityUnlockCapture(
                     Text("カメラの使用を許可")
                 }
             }
-            Text("撮影上限 ${seconds}秒 / 開始前 ${countdown}秒 / ${if (frontCamera) "前面" else "背面"}カメラ")
+            Text("${if (unlimited) "録画時間制限なし" else "撮影上限 ${seconds}秒"} / 開始前 ${countdown}秒 / ${if (frontCamera) "前面" else "背面"}カメラ")
             if (phase == CapturePhase.RECORDING || phase == CapturePhase.PAUSED || phase == CapturePhase.RESUME_COUNTDOWN) {
                 Text("残り撮影時間：$timeLabel" +
                     if (phase != CapturePhase.RECORDING) "（カウント停止中）" else "",
@@ -215,7 +225,7 @@ private fun ActivityUnlockCapture(
                             verdictCostYen = null
                             video?.delete()
                             video = null
-                            recordingRemainingMs = seconds * 1000L
+                            recordingRemainingMs = if (unlimited) 0L else seconds * 1000L
                             try {
                                 phase = CapturePhase.COUNTDOWN
                                 for (i in countdown downTo 1) {
@@ -226,7 +236,7 @@ private fun ActivityUnlockCapture(
                                 countdownRemaining = 0
                                 phase = CapturePhase.RECORDING
                                 status = "● 撮影開始！"
-                                val recorded = camera.recordFor(seconds * 1000L)
+                                val recorded = camera.recordFor(if (unlimited) 0L else seconds * 1000L)
                                 video = recorded
                                 videoBytes = recorded.length()
                                 recordingRemainingMs = 0L
@@ -258,6 +268,12 @@ private fun ActivityUnlockCapture(
                                 status = "判定せずに中止したよ"
                                 throw e
                             } catch (e: Exception) {
+                                runCatching {
+                                    ToneGenerator(AudioManager.STREAM_NOTIFICATION, 85).apply {
+                                        startTone(ToneGenerator.TONE_PROP_BEEP2, 600)
+                                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ release() }, 750L)
+                                    }
+                                }
                                 status = "撮影または判定エラー：${e.message}"
                             } finally {
                                 countdownRemaining = 0

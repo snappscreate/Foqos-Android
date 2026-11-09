@@ -386,8 +386,14 @@ class BlockOverlayActivity : ComponentActivity() {
                 }
                 val explicitActivitySelection =
                     activityUnlockStore.hasExplicitSelection(activityProfileId, activitySessionId)
+                val retryRemainingMillis = activityProfileId.takeIf { it.isNotBlank() }
+                    ?.let(sessionManager::pauseRetryRemainingMillis) ?: 0L
                 fun openActivityChallenge(condition: ActivityUnlockCondition) {
                     if (activityProfileId.isBlank() || activitySessionId.isBlank()) return
+                    if (sessionManager.pauseRetryRemainingMillis(activityProfileId) > 0L) {
+                        nfcScanMessage = "一時休止の再挑戦は待機時間終了後にできるよ"
+                        return
+                    }
                     val chosen = activityUnlockStore.select(activityProfileId, activitySessionId, condition.id)
                     if (!chosen) return
                     selectedActivityId = condition.id
@@ -464,7 +470,9 @@ class BlockOverlayActivity : ComponentActivity() {
                     },
                     nfcReady = nfcReady,
                     nfcMessage = nfcScanMessage,
-                    nfcInstruction = independentPolicy?.let { policy ->
+                    nfcInstruction = if (retryRemainingMillis > 0L && !configuredStopRequested)
+                        "一時休止の再挑戦まであと${(retryRemainingMillis + 59_999L) / 60_000L}分"
+                    else independentPolicy?.let { policy ->
                         when {
                             configuredStopRequested -> "停止用NFCをかざすとブロックを完全停止"
                             policy.pause == com.foqos.android.ui.activitylab.UnlockMethod.NFC ->
@@ -488,6 +496,7 @@ class BlockOverlayActivity : ComponentActivity() {
                         }
                     }) else null,
                     onActivityChallenge = if (activityConditions.isNotEmpty() &&
+                        retryRemainingMillis == 0L &&
                         !state.let { it == null || it.pauseActive || it.breakActive }) ({
                         if (selectedActivity != null) {
                             openActivityChallenge(selectedActivity)
@@ -564,7 +573,8 @@ class BlockOverlayActivity : ComponentActivity() {
                                         onClick = { openActivityChallenge(condition) },
                                         modifier = Modifier.fillMaxWidth(),
                                     ) {
-                                        Text("${condition.description} / ${condition.pauseMinutes}分")
+                                        val pauseDuration = independentPolicy?.pauseMinutes ?: 20
+                                        Text("${condition.description} / ${pauseDuration}分")
                                     }
                                 }
                             }

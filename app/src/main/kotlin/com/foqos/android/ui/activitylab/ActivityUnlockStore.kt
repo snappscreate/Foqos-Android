@@ -150,7 +150,7 @@ class ActivityUnlockStore(context: Context) {
     fun deleteProfile(profileId: String) {
         val editor = prefs.edit()
         prefs.all.keys.filter { it.startsWith("reward_${profileId}_") }
-            .forEach(editor::remove)
+            .forEach { editor.remove(it) }
         editor.remove("conditions_$profileId").remove("main_$profileId")
             .remove("selected_$profileId").commit()
     }

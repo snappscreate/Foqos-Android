@@ -82,7 +82,13 @@ fun ActivityUnlockSettingsSection(
                             error = null
                         } else error = "削除できなかったよ"
                     } else {
-                        saveList(conditions.filterNot { it.id == condition.id })
+                        val inSets = ActivityChallengeSetStore(context).sets(profileId)
+                            .any { condition.id in it.conditionIds }
+                        if (inSets) {
+                            error = "この動作は達成セットで使用されています。セットから外してから削除してね"
+                        } else {
+                            saveList(conditions.filterNot { it.id == condition.id })
+                        }
                     }
                     if (editingId == condition.id) editingId = null
                 }) { Text("削除") }

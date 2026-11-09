@@ -228,7 +228,10 @@ fun ProfileUnlockPolicySection(
     if (credentialsDialog) {
         Dialog(onDismissRequest = { credentialsDialog = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)) {
-            Surface(Modifier.fillMaxWidth().padding(12.dp), shape = MaterialTheme.shapes.large) {
+            Surface(Modifier.fillMaxWidth().padding(12.dp),
+                shape = MaterialTheme.shapes.large, tonalElevation = 12.dp,
+                shadowElevation = 16.dp,
+                border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.outline)) {
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(12.dp)) {
                     Text("NFC・QRコードを登録", style = MaterialTheme.typography.titleLarge)
                     PhysicalUnlockEditor(profile.id, profileRepository, nfcDispatchManager,
@@ -243,7 +246,10 @@ fun ProfileUnlockPolicySection(
     if (activityDialog) {
         Dialog(onDismissRequest = { activityDialog = false; refresh++ },
             properties = DialogProperties(usePlatformDefaultWidth = false)) {
-            Surface(Modifier.fillMaxWidth().padding(12.dp), shape = MaterialTheme.shapes.large) {
+            Surface(Modifier.fillMaxWidth().padding(12.dp),
+                shape = MaterialTheme.shapes.large, tonalElevation = 12.dp,
+                shadowElevation = 16.dp,
+                border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.outline)) {
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(12.dp)) {
                     Text("動作判定を登録", style = MaterialTheme.typography.titleLarge)
                     ActivityUnlockSettingsSection(profile.id, editingLocked, registrationOnly = true)

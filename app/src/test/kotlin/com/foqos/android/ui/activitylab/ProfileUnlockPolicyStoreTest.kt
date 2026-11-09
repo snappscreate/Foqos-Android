@@ -68,6 +68,27 @@ class ProfileUnlockPolicyStoreTest {
         ProfileUnlockPolicyStore(context).delete(second)
     }
 
+    @Test fun cooldownIsProfileScopedAndSurvivesStoreRecreation() {
+        val first = uniqueProfile()
+        val second = uniqueProfile()
+        val store = ProfileUnlockPolicyStore(context)
+        store.save(first, ProfileUnlockPolicy(retryCooldownMinutes = 90))
+        store.save(second, ProfileUnlockPolicy(retryCooldownMinutes = 20))
+        try {
+            store.markPauseAuthorized(first, nowMillis = 1_000_000L)
+            val fresh = ProfileUnlockPolicyStore(context)
+            assertThat(fresh.pauseRetryRemainingMillis(first, nowMillis = 1_000_000L + 1_000L))
+                .isEqualTo(90 * 60_000L - 1_000L)
+            assertThat(fresh.pauseRetryRemainingMillis(second, nowMillis = 1_000_000L + 1_000L))
+                .isEqualTo(0L)
+            assertThat(fresh.pauseRetryRemainingMillis(first, nowMillis = 1_000_000L + 90 * 60_000L))
+                .isEqualTo(0L)
+        } finally {
+            store.delete(first)
+            store.delete(second)
+        }
+    }
+
     @Test fun mainVideoOnlyAppliesWhenPauseMethodIsActivity() {
         val id = uniqueProfile()
         val activity = ActivityUnlockStore(context)

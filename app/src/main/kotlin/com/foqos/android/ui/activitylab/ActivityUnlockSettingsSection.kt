@@ -30,7 +30,7 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 Column(Modifier.weight(1f)) {
                     Text(condition.description)
-                    Text("撮影${condition.recordingSeconds}秒 / 開始前${condition.countdownSeconds}秒 / 一時休止${condition.pauseMinutes}分 / ${if (condition.frontCamera) "前面" else "背面"}",
+                    Text("${if (condition.unlimitedRecording) "撮影時間は手動終了" else "撮影${condition.recordingSeconds}秒"} / 開始前${condition.countdownSeconds}秒 / ${if (condition.frontCamera) "前面" else "背面"}",
                         style = MaterialTheme.typography.bodySmall)
                 }
                 OutlinedButton(enabled = !editingLocked, onClick = {
@@ -63,8 +63,13 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
                     Text(if (draft.frontCamera) "前面（タップで背面）" else "背面（タップで前面）")
                 }
             }
-            Text("撮影時間：${draft.recordingSeconds}秒")
-            Slider(value = draft.recordingSeconds.toFloat(),
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("撮影時間の上限なし（手動終了）", modifier = Modifier.weight(1f))
+                Switch(checked = draft.unlimitedRecording, enabled = !editingLocked,
+                    onCheckedChange = { draft = draft.copy(unlimitedRecording = it) })
+            }
+            if (!draft.unlimitedRecording) Text("撮影時間：${draft.recordingSeconds}秒")
+            if (!draft.unlimitedRecording) Slider(value = draft.recordingSeconds.toFloat(),
                 onValueChange = { draft = draft.copy(recordingSeconds = it.toInt()) },
                 valueRange = 10f..120f, steps = 10, enabled = !editingLocked)
             Text("カウントダウン：${draft.countdownSeconds}秒")
@@ -76,10 +81,8 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
                     }) { Text(if (draft.countdownSeconds == seconds) "✓ ${seconds}秒" else "${seconds}秒") }
                 }
             }
-            Text("成功時の一時休止時間：${draft.pauseMinutes}分")
-            Slider(value = draft.pauseMinutes.toFloat(),
-                onValueChange = { draft = draft.copy(pauseMinutes = it.toInt()) },
-                valueRange = 1f..60f, steps = 58, enabled = !editingLocked)
+            Text("一時休止時間はプロファイルの一時休止条件で設定するよ。",
+                style = MaterialTheme.typography.bodySmall)
             Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(enabled = draft.description.isNotBlank(), onClick = {
                     context.startActivity(Intent(context, ActivityUnlockActivity::class.java).apply {
@@ -88,6 +91,7 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
                         putExtra(ActivityUnlockActivity.EXTRA_SECONDS, draft.recordingSeconds)
                         putExtra(ActivityUnlockActivity.EXTRA_COUNTDOWN, draft.countdownSeconds)
                         putExtra(ActivityUnlockActivity.EXTRA_FRONT, draft.frontCamera)
+                        putExtra(ActivityUnlockActivity.EXTRA_UNLIMITED, draft.unlimitedRecording)
                     })
                 }) { Text("判定をテスト") }
                 Button(enabled = !editingLocked && draft.description.isNotBlank(), onClick = {

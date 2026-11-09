@@ -199,12 +199,33 @@ fun ProfileUnlockPolicySection(
             }
             else -> Unit
         }
-        if (policy.pause != UnlockMethod.ACTIVITY) {
-            Text("一時休止時間：${policy.pauseMinutes}分")
-            Slider(value = policy.pauseMinutes.toFloat(),
-                onValueChange = { savePolicy(policy.copy(pauseMinutes = it.toInt())) },
-                valueRange = 1f..120f, steps = 118, enabled = !editingLocked)
-        }
+        Text("一時休止時間：${policy.pauseMinutes}分", style = MaterialTheme.typography.titleSmall)
+        Text("メインのNFC・QR・動作判定が成功したときの休止時間。動作自体の保存設定とは独立。",
+            style = MaterialTheme.typography.bodySmall)
+        Slider(value = policy.pauseMinutes.toFloat(),
+            onValueChange = { savePolicy(policy.copy(pauseMinutes = it.toInt())) },
+            valueRange = 1f..180f, steps = 178, enabled = !editingLocked)
+        HorizontalDivider()
+        Text("次に一時休止できるまでの待機時間", style = MaterialTheme.typography.titleMedium)
+        Text("一度条件をクリアして一時休止した時刻から計測。0時間0分なら待機なし。",
+            style = MaterialTheme.typography.bodySmall)
+        Text("${policy.retryCooldownMinutes / 60}時間 ${policy.retryCooldownMinutes % 60}分")
+        Text("時間：${policy.retryCooldownMinutes / 60}時間", style = MaterialTheme.typography.bodySmall)
+        Slider(
+            value = (policy.retryCooldownMinutes / 60).toFloat(),
+            onValueChange = { value ->
+                savePolicy(policy.copy(retryCooldownMinutes =
+                    (value.toInt() * 60 + policy.retryCooldownMinutes % 60).coerceIn(0, 10080)))
+            }, valueRange = 0f..24f, steps = 23, enabled = !editingLocked,
+        )
+        Text("分：${policy.retryCooldownMinutes % 60}分", style = MaterialTheme.typography.bodySmall)
+        Slider(
+            value = (policy.retryCooldownMinutes % 60).toFloat(),
+            onValueChange = { value ->
+                savePolicy(policy.copy(retryCooldownMinutes =
+                    (policy.retryCooldownMinutes / 60 * 60 + value.toInt()).coerceIn(0, 10080)))
+            }, valueRange = 0f..59f, steps = 58, enabled = !editingLocked,
+        )
         if (error != null) Text(error!!, color = MaterialTheme.colorScheme.error)
     }
 

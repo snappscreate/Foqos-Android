@@ -121,6 +121,7 @@ fun ProfileEditScreen(
     var showLockedDialog by remember { mutableStateOf(false) }
     var showFullScreenAllowedPicker by remember { mutableStateOf(false) }
     var newAllowedUrl by remember { mutableStateOf("") }
+    var newBlockedUrl by remember { mutableStateOf("") }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -239,6 +240,51 @@ fun ProfileEditScreen(
                         if (uiState.editingLocked) showLockedDialog = true else onOpenAppPicker()
                     },
                 )
+                SectionCard(title = "ブロックするURL") {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            OutlinedTextField(
+                                value = newBlockedUrl,
+                                onValueChange = { newBlockedUrl = it },
+                                label = { Text("例：example.com") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                                enabled = !uiState.editingLocked,
+                            )
+                            OutlinedButton(
+                                onClick = {
+                                    viewModel.addBlockedUrl(newBlockedUrl)
+                                    newBlockedUrl = ""
+                                },
+                                enabled = !uiState.editingLocked && newBlockedUrl.isNotBlank(),
+                            ) { Text("追加") }
+                        }
+                        uiState.blockedUrlError?.let {
+                            Text(it, color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                        uiState.blockedUrls.sorted().forEach { url ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(url.removePrefix("https://"), modifier = Modifier.weight(1f))
+                                TextButton(
+                                    enabled = !uiState.editingLocked,
+                                    onClick = { viewModel.removeBlockedUrl(url) },
+                                ) { Text("削除") }
+                            }
+                        }
+                        Text(
+                            "このプロファイルが稼働中は、他のプロファイルで許可されていてもブロックする。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
 
             // Same list and backing state in both tabs.

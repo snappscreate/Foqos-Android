@@ -185,7 +185,8 @@ class ProfileEditViewModel @Inject constructor(
         val normalized = FullScreenModeStore.normalizeUrl(value) ?: return
         guardedUpdate {
             if (normalized in it.blockedUrls) {
-                it.copy(blockedUrlError = "このURLはブロック対象にも登録されているよ。どちらかを削除してね")
+                it.copy(blockedUrlError = "このURLはブロック対象にも登録されているよ。どちらかを削除してね",
+                    configurationError = "許可URLとブロックURLに同じドメインは登録できないよ")
             } else it.copy(fullScreenAllowedUrls = it.fullScreenAllowedUrls + normalized,
                 blockedUrlError = null, configurationError = null)
         }

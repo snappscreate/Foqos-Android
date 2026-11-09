@@ -86,6 +86,34 @@ class AccessibilityBlockPolicyTest {
         )).isEqualTo(BlockDecision.BlockDomain("com.android.chrome", "example.com"))
     }
 
+    @Test fun `app mode URL block overrides another focus profile allowed URL`() {
+        val focus = state().copy(
+            profileId = "focus", sessionId = "s-focus",
+            fullScreenMode = true,
+            fullScreenAllowedUrls = setOf("https://example.com"),
+            fullScreenBrowserPackage = "com.android.chrome",
+        )
+        val appBlock = state(blockedDomains = listOf("example.com")).copy(
+            profileId = "app-block", sessionId = "s-app-block",
+        )
+        val browser = "com.android.chrome"
+        val target = "https://sub.example.com/read"
+        assertThat(policy.decideForUrlAcrossProfiles(
+            browser, target, listOf(focus, appBlock),
+        )).isEqualTo(BlockDecision.BlockDomain(browser, "sub.example.com"))
+        // The app-block profile alone suspends its URL restriction during pause.
+        assertThat(policy.decideForUrlAcrossProfiles(
+            browser, target, listOf(focus, appBlock.copy(pauseActive = true)),
+        )).isEqualTo(BlockDecision.Allow)
+        assertThat(policy.decideForUrlAcrossProfiles(
+            browser, target, listOf(focus, appBlock.copy(locationSuspended = true)),
+        )).isEqualTo(BlockDecision.Allow)
+        // The focus profile being paused does NOT cancel another running block.
+        assertThat(policy.decideForUrlAcrossProfiles(
+            browser, target, listOf(focus.copy(pauseActive = true), appBlock),
+        )).isEqualTo(BlockDecision.BlockDomain(browser, "sub.example.com"))
+    }
+
     @Test fun `geofence suspension of one profile does not suspend another`() {
         val outside = state().copy(profileId = "outside", sessionId = "s-outside",
             fullScreenMode = true, locationSuspended = true)

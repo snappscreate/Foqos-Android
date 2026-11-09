@@ -50,6 +50,9 @@ fun ActivityChallengeSetEditor(
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("同じセット内は全て達成（AND）。別々のセットはどれか1つ（OR）。",
             style = MaterialTheme.typography.bodySmall)
+        Text("セットを登録すると、単独メイン・サブ動作の休止時間よりセット単位の休止時間を優先するよ。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (sets.isEmpty()) Text("動作セットは未設定。従来の単独メイン・サブ条件で判定するよ。",
             style = MaterialTheme.typography.bodySmall)
         sets.forEachIndexed { index, group ->

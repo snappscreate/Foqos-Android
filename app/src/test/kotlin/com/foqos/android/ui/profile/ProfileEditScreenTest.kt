@@ -90,6 +90,7 @@ class ProfileEditScreenTest {
         composeTestRule.onNodeWithText("停止条件").assertExists()
         composeTestRule.onNodeWithText("一時休止条件（メイン）").assertExists()
         composeTestRule.onNodeWithText("アプリ").assertExists()
+        composeTestRule.onNodeWithText("ブロックするURL").assertExists()
         composeTestRule.onNodeWithText("許可するWebサイト（両モード共通）").assertExists()
         composeTestRule.onNodeWithText("ブロック範囲を使用").assertExists()
         composeTestRule.onNodeWithText("一時休止のサブ条件（AI動画判定）").assertExists()

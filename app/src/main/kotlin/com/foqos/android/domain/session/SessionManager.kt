@@ -465,7 +465,9 @@ class SessionManager @Inject constructor(
         if (location.read(profileId) != null &&
             (location.manualInside(profileId) ?: location.lastInside(profileId)) != true
         ) return@withContext false
-        val duration = independentUnlock.read(profileId).pauseMinutes
+        val configuredDuration = independentUnlock.read(profileId).pauseMinutes
+        val duration = if (store.mainConditionId(profileId) == conditionId) configuredDuration
+            else store.conditionPauseMinutes(profileId, conditionId, configuredDuration)
         store.savePauseMinutes(current.id, duration)
         beginPause(current, duration)
         store.clear(profileId)

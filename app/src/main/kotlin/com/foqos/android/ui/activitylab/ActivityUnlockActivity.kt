@@ -324,6 +324,7 @@ private fun ActivityUnlockCapture(
                                     }
                                     countdownRemaining = 0
                                     camera.resumeRecording()
+                                    captureSound(start = true)
                                     phase = CapturePhase.RECORDING
                                     status = "● 撮影を再開！"
                                 }

@@ -12,15 +12,22 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.foqos.android.data.model.BlockedProfile
+import com.foqos.android.data.repository.ProfileRepository
 
 @Composable
-fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean, registrationOnly: Boolean = false) {
+fun ActivityUnlockSettingsSection(
+    profileId: String, editingLocked: Boolean, registrationOnly: Boolean = false,
+    profileRepository: ProfileRepository? = null,
+) {
     val context = LocalContext.current
-    val store = remember(profileId) { ActivityUnlockStore(context) }
-    var conditions by remember(profileId) { mutableStateOf(store.conditions(profileId)) }
-    var editingId by remember(profileId, registrationOnly) {
-        mutableStateOf<String?>(if (registrationOnly) "new" else null)
-    }
+    val libraryMode = registrationOnly
+    val storageId = if (libraryMode) "__shared_catalog__" else profileId
+    val store = remember(storageId) { ActivityUnlockStore(context) }
+    val allProfiles by (profileRepository?.observeAll()?.collectAsState(initial = emptyList())
+        ?: remember { mutableStateOf(emptyList<BlockedProfile>()) })
+    var conditions by remember(storageId) { mutableStateOf(store.conditions(storageId)) }
+    var editingId by remember(storageId, registrationOnly) { mutableStateOf<String?>(null) }
     var draft by remember(profileId) { mutableStateOf(ActivityUnlockCondition()) }
     var error by remember { mutableStateOf<String?>(null) }
     var chooseExisting by remember { mutableStateOf(false) }
@@ -28,7 +35,17 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean, reg
     var refresh by remember { mutableIntStateOf(0) }
     var rewardRefresh by remember { mutableIntStateOf(0) }
     fun saveList(items: List<ActivityUnlockCondition>) {
-        try { store.save(profileId, items); conditions = items; error = null }
+        try {
+            if (libraryMode) {
+                items.forEach { store.updateLibraryCondition(it) }
+                // Existing entries deleted separately, with strict reference checks.
+                conditions = store.conditions(storageId)
+            } else {
+                store.save(profileId, items)
+                conditions = store.conditions(profileId)
+            }
+            error = null
+        }
         catch (e: Exception) { error = e.message ?: "保存失敗" }
     }
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -51,7 +68,20 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean, reg
                     }) { Text("編集") }
                 }
                 OutlinedButton(enabled = !editingLocked, onClick = {
-                    saveList(conditions.filterNot { it.id == condition.id })
+                    if (libraryMode) {
+                        val owners = store.attachedProfileIds(condition.id)
+                        if (owners.isNotEmpty()) {
+                            val names = allProfiles.filter { it.id in owners }.map { it.name }
+                            error = if (owners.size == 1) {
+                                "${names.firstOrNull() ?: "別のプロファイル"}で使用されています。削除できないよ"
+                            } else "複数のプロファイルで使用されています。削除できないよ"
+                        } else if (store.deleteLibraryCondition(condition.id)) {
+                            conditions = store.conditions(storageId)
+                            error = null
+                        } else error = "削除できなかったよ"
+                    } else {
+                        saveList(conditions.filterNot { it.id == condition.id })
+                    }
                     if (editingId == condition.id) editingId = null
                 }) { Text("削除") }
             }
@@ -171,7 +201,8 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean, reg
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
                     .padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("動作判定を新しく登録", style = MaterialTheme.typography.titleLarge)
-                    ActivityUnlockSettingsSection(profileId, editingLocked, registrationOnly = true)
+                    ActivityUnlockSettingsSection(profileId, editingLocked, registrationOnly = true,
+                        profileRepository = profileRepository)
                     TextButton(onClick = {
                         registrationDialog = false
                         conditions = store.conditions(profileId)
@@ -181,4 +212,17 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean, reg
             }
         }
     }
+}
+
+/** Manage all reusable movement definitions independently from any profile's reward sets. */
+@Composable
+fun MovementLibrarySection(
+    allProfiles: List<BlockedProfile>,
+    editingLocked: Boolean,
+) {
+    ActivityUnlockSettingsSection(
+        profileId = "__shared_catalog__",
+        editingLocked = editingLocked,
+        registrationOnly = true,
+    )
 }

@@ -72,8 +72,11 @@ fun ProfileUnlockPolicySection(
 
     fun savePolicy(next: ProfileUnlockPolicy) {
         try {
-            policies.save(profile.id, next)
-            policy = next
+            // The cooldown editor is a separate composable; don't overwrite its value
+            // with this composable's older policy snapshot.
+            val merged = next.copy(retryCooldownMinutes = policies.read(profile.id).retryCooldownMinutes)
+            policies.save(profile.id, merged)
+            policy = merged
             error = null
         } catch (e: Exception) { error = e.message ?: "保存に失敗" }
     }
@@ -323,7 +326,7 @@ fun PauseRetryCooldownSection(profileId: String, editingLocked: Boolean) {
     val store = remember(profileId) { ProfileUnlockPolicyStore(context) }
     var policy by remember(profileId) { mutableStateOf(store.read(profileId)) }
     fun save(value: Int) {
-        val updated = policy.copy(retryCooldownMinutes = value.coerceIn(0, 24 * 60 + 59))
+        val updated = store.read(profileId).copy(retryCooldownMinutes = value.coerceIn(0, 24 * 60 + 59))
         store.save(profileId, updated)
         policy = updated
     }

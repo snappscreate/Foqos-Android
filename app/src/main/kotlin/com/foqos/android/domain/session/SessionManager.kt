@@ -253,6 +253,7 @@ class SessionManager @Inject constructor(
         } else {
             // Leaving the geofence is the deliberate escape hatch for a chosen activity.
             com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext).clear(profileId)
+            com.foqos.android.ui.activitylab.ActivityChallengeSetStore(appContext).clearProgress(profileId)
             if (current?.profileId == profileId) {
                 // Do not end the session on EXIT. Keep history, NFC registrations and
                 // timed pause state intact, only suspend enforcement until ENTER.
@@ -448,31 +449,55 @@ class SessionManager @Inject constructor(
      * Apply a successful, verified video challenge to the exact running session.
      * The screen cannot alter its proof selection by passing arbitrary activity text.
      */
-    suspend fun pauseWithVerifiedActivity(
+    suspend fun verifyActivityStep(
         profileId: String, sessionId: String, conditionId: String,
-    ): Boolean = withContext(ioDispatcher) {
-        val current = sessionForProfile(profileId) ?: return@withContext false
+    ): com.foqos.android.ui.activitylab.ActivityProofResult = withContext(ioDispatcher) {
+        val rejected = com.foqos.android.ui.activitylab.ActivityProofResult.REJECTED
+        val current = sessionForProfile(profileId) ?: return@withContext rejected
         if (current.id != sessionId || current.isPauseActive() ||
-            !pauseRetryAllowed(profileId)) return@withContext false
+            !pauseRetryAllowed(profileId)) return@withContext rejected
         val store = com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
-        if (store.selection(profileId, sessionId)?.conditionId != conditionId) return@withContext false
         val condition = store.conditions(profileId).firstOrNull { it.id == conditionId }
-            ?: return@withContext false
-        if (condition.description.isBlank()) return@withContext false
-        // Keep geographic restrictions authoritative: an out-of-range profile
-        // cannot receive a newly authorized in-range pause.
+            ?: return@withContext rejected
+        if (condition.description.isBlank()) return@withContext rejected
         val location = com.foqos.android.service.location.LocationAutomationStore(appContext)
-        if (location.read(profileId) != null &&
+        if (location.enabled(profileId) &&
             (location.manualInside(profileId) ?: location.lastInside(profileId)) != true
-        ) return@withContext false
-        val configuredDuration = independentUnlock.read(profileId).pauseMinutes
-        val duration = if (store.mainConditionId(profileId) == conditionId) configuredDuration
-            else store.conditionPauseMinutes(profileId, conditionId, configuredDuration)
+        ) return@withContext rejected
+
+        val sets = com.foqos.android.ui.activitylab.ActivityChallengeSetStore(appContext)
+        val available = sets.sets(profileId)
+        val duration: Int
+        if (available.isNotEmpty()) {
+            val progress = sets.progress(profileId, sessionId) ?: return@withContext rejected
+            val selectedSet = available.firstOrNull { it.id == progress.setId }
+                ?: return@withContext rejected
+            if (conditionId !in sets.nextConditions(profileId, sessionId))
+                return@withContext rejected
+            val result = sets.complete(profileId, sessionId, conditionId)
+            if (result != com.foqos.android.ui.activitylab.ActivityProofResult.PAUSED)
+                return@withContext result
+            duration = selectedSet.pauseMinutes
+        } else {
+            if (store.selection(profileId, sessionId)?.conditionId != conditionId)
+                return@withContext rejected
+            val configuredDuration = independentUnlock.read(profileId).pauseMinutes
+            duration = if (store.mainConditionId(profileId) == conditionId) configuredDuration
+                else store.conditionPauseMinutes(profileId, conditionId, configuredDuration)
+        }
+
         store.savePauseMinutes(current.id, duration)
         beginPause(current, duration)
         store.clear(profileId)
-        true
+        sets.clearProgress(profileId)
+        com.foqos.android.ui.activitylab.ActivityProofResult.PAUSED
     }
+
+    /** Compatibility for callers that only care whether the whole pause succeeded. */
+    suspend fun pauseWithVerifiedActivity(
+        profileId: String, sessionId: String, conditionId: String,
+    ): Boolean = verifyActivityStep(profileId, sessionId, conditionId) ==
+        com.foqos.android.ui.activitylab.ActivityProofResult.PAUSED
 
     private fun locationStoreInside(profileId: String): Boolean {
         val store = LocationAutomationStore(appContext)

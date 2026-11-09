@@ -205,34 +205,16 @@ fun ProfileUnlockPolicySection(
         Slider(value = policy.pauseMinutes.toFloat(),
             onValueChange = { savePolicy(policy.copy(pauseMinutes = it.toInt())) },
             valueRange = 1f..180f, steps = 178, enabled = !editingLocked)
-        HorizontalDivider()
-        Text("次に一時休止できるまでの待機時間", style = MaterialTheme.typography.titleMedium)
-        Text("一度条件をクリアして一時休止した時刻から計測。0時間0分なら待機なし。",
-            style = MaterialTheme.typography.bodySmall)
-        Text("${policy.retryCooldownMinutes / 60}時間 ${policy.retryCooldownMinutes % 60}分")
-        Text("時間：${policy.retryCooldownMinutes / 60}時間", style = MaterialTheme.typography.bodySmall)
-        Slider(
-            value = (policy.retryCooldownMinutes / 60).toFloat(),
-            onValueChange = { value ->
-                savePolicy(policy.copy(retryCooldownMinutes =
-                    (value.toInt() * 60 + policy.retryCooldownMinutes % 60).coerceIn(0, 10080)))
-            }, valueRange = 0f..24f, steps = 23, enabled = !editingLocked,
-        )
-        Text("分：${policy.retryCooldownMinutes % 60}分", style = MaterialTheme.typography.bodySmall)
-        Slider(
-            value = (policy.retryCooldownMinutes % 60).toFloat(),
-            onValueChange = { value ->
-                savePolicy(policy.copy(retryCooldownMinutes =
-                    (policy.retryCooldownMinutes / 60 * 60 + value.toInt()).coerceIn(0, 10080)))
-            }, valueRange = 0f..59f, steps = 58, enabled = !editingLocked,
-        )
         if (error != null) Text(error!!, color = MaterialTheme.colorScheme.error)
     }
 
     if (areaDialog) {
         Dialog(onDismissRequest = { areaDialog = false; closeAreaOnSave = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)) {
-            Surface(Modifier.fillMaxWidth().padding(12.dp), shape = MaterialTheme.shapes.large) {
+            Surface(Modifier.fillMaxWidth().padding(12.dp),
+                shape = MaterialTheme.shapes.large,
+                tonalElevation = 12.dp, shadowElevation = 16.dp,
+                border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.outline)) {
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("ブロック範囲の設定", style = MaterialTheme.typography.titleLarge)
@@ -264,7 +246,7 @@ fun ProfileUnlockPolicySection(
             Surface(Modifier.fillMaxWidth().padding(12.dp), shape = MaterialTheme.shapes.large) {
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(12.dp)) {
                     Text("動作判定を登録", style = MaterialTheme.typography.titleLarge)
-                    ActivityUnlockSettingsSection(profile.id, editingLocked)
+                    ActivityUnlockSettingsSection(profile.id, editingLocked, registrationOnly = true)
                     TextButton(onClick = { activityDialog = false; refresh++ }) { Text("閉じる") }
                 }
             }
@@ -326,4 +308,31 @@ private fun CredentialDropdown(
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
     }
     OutlinedButton(onClick = onAdd, enabled = enabled) { Text("＋ 新しく登録") }
+}
+
+/** Cooldown settings belong immediately above periodic access, not inside the proof picker. */
+@Composable
+fun PauseRetryCooldownSection(profileId: String, editingLocked: Boolean) {
+    val context = LocalContext.current
+    val store = remember(profileId) { ProfileUnlockPolicyStore(context) }
+    var policy by remember(profileId) { mutableStateOf(store.read(profileId)) }
+    fun save(value: Int) {
+        val updated = policy.copy(retryCooldownMinutes = value.coerceIn(0, 24 * 60 + 59))
+        store.save(profileId, updated)
+        policy = updated
+    }
+    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("一時休止の成功時刻から計測。待機中は再挑戦できない。0時間0分なら制限なし。",
+            style = MaterialTheme.typography.bodySmall)
+        Text("${policy.retryCooldownMinutes / 60}時間 ${policy.retryCooldownMinutes % 60}分",
+            style = MaterialTheme.typography.titleMedium)
+        Text("時間：${policy.retryCooldownMinutes / 60}時間")
+        Slider(value = (policy.retryCooldownMinutes / 60).toFloat(),
+            onValueChange = { save(it.toInt() * 60 + policy.retryCooldownMinutes % 60) },
+            valueRange = 0f..24f, steps = 23, enabled = !editingLocked)
+        Text("分：${policy.retryCooldownMinutes % 60}分")
+        Slider(value = (policy.retryCooldownMinutes % 60).toFloat(),
+            onValueChange = { save((policy.retryCooldownMinutes / 60) * 60 + it.toInt()) },
+            valueRange = 0f..59f, steps = 58, enabled = !editingLocked)
+    }
 }

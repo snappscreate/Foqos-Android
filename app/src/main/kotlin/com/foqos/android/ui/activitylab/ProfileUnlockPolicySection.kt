@@ -192,8 +192,13 @@ fun ProfileUnlockPolicySection(
                         }
                     }
                 }
-                if (mainId == null || existingActivities.none { it.id == mainId }) {
-                    Text("動作が未登録。選択するまでブロックを開始できないよ",
+                val configuredSets = ActivityChallengeSetStore(context).sets(profile.id)
+                if (configuredSets.isNotEmpty()) {
+                    Text("動作セットが${configuredSets.size}件設定されているよ。セット内の全動作達成で一時休止する。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary)
+                } else if (mainId == null || existingActivities.none { it.id == mainId }) {
+                    Text("単独のメイン動作が未設定。下で動作セットを作成するか、ここで選択してね。",
                         color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
                 OutlinedButton(enabled = !editingLocked, onClick = { activityDialog = true }) {

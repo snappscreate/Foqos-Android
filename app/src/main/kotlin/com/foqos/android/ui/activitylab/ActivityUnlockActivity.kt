@@ -89,7 +89,7 @@ class ActivityUnlockActivity : ComponentActivity() {
                     onBack = { finish() },
                     onVerified = {
                         // Rechecks active session + selected condition, not just an old UI snapshot.
-                        sessionManager.pauseWithVerifiedActivity(profileId, sessionId, conditionId)
+                        sessionManager.verifyActivityStep(profileId, sessionId, conditionId)
                     },
                     onFinished = { finish() },
                 )
@@ -119,7 +119,7 @@ private fun ActivityUnlockCapture(
     frontCamera: Boolean,
     isTest: Boolean,
     onBack: () -> Unit,
-    onVerified: suspend () -> Boolean,
+    onVerified: suspend () -> ActivityProofResult,
     onFinished: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -267,10 +267,18 @@ private fun ActivityUnlockCapture(
                                 verdictCostYen = result.estimatedYen
                                 verdict = result
                                 if (result.status == "一致" && !isTest) {
-                                    val paused = onVerified()
-                                    status = if (paused) "判定成功。一時休止を開始したよ。" else
-                                        "判定は一致したけど、セッションが終了・変更されていたため一時休止できなかった。"
-                                    if (paused) onFinished()
+                                    when (onVerified()) {
+                                        ActivityProofResult.PAUSED -> {
+                                            status = "セット達成！ 一時休止を開始したよ。"
+                                            onFinished()
+                                        }
+                                        ActivityProofResult.STEP_COMPLETED -> {
+                                            status = "動作達成！ セット内の残りの動作に挑戦してね。"
+                                            onFinished()
+                                        }
+                                        ActivityProofResult.REJECTED ->
+                                            status = "判定は一致したけど、有効なセッションまたは条件として認証できなかった。"
+                                    }
                                 } else {
                                     status = if (result.status == "一致") "判定成功（テストのため解除なし）"
                                         else "解除しない：${result.status}"

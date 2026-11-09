@@ -94,6 +94,8 @@ class ProfileEditScreenTest {
         composeTestRule.onNodeWithText("許可するWebサイト（両モード共通）").assertExists()
         composeTestRule.onNodeWithText("ブロック範囲を使用").assertExists()
         composeTestRule.onNodeWithText("一時休止のサブ条件（AI動画判定）").assertExists()
+        composeTestRule.onNodeWithText("登録済みの動作を追加", substring = true).assertExists()
+        composeTestRule.onNodeWithText("次に一時休止できるまでの待機時間").assertExists()
         composeTestRule.onNodeWithText("ブロック方式").assertExists()
     }
 

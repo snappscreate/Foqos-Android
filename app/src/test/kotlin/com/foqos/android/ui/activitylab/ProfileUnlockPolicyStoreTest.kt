@@ -89,6 +89,27 @@ class ProfileUnlockPolicyStoreTest {
         }
     }
 
+    @Test fun validMovementSetCanBeStartedWithoutStandaloneMainMovement() {
+        val id = uniqueProfile()
+        val movement = ActivityUnlockCondition(description = "腕立て伏せ30回")
+        val activities = ActivityUnlockStore(context)
+        val sets = ActivityChallengeSetStore(context)
+        val policy = ProfileUnlockPolicyStore(context)
+        try {
+            activities.save(id, listOf(movement))
+            sets.save(id, listOf(ActivityChallengeSet(conditionIds = listOf(movement.id), pauseMinutes = 15)))
+            policy.save(id, ProfileUnlockPolicy(pause = UnlockMethod.ACTIVITY))
+            val profile = BlockedProfile(id = id, name = "Set profile", strategyId = "manual")
+            assertThat(policy.isReady(profile)).isTrue()
+            activities.save(id, emptyList())
+            assertThat(policy.isReady(profile)).isFalse()
+        } finally {
+            sets.deleteProfile(id)
+            activities.deleteProfile(id)
+            policy.delete(id)
+        }
+    }
+
     @Test fun mainVideoOnlyAppliesWhenPauseMethodIsActivity() {
         val id = uniqueProfile()
         val activity = ActivityUnlockStore(context)

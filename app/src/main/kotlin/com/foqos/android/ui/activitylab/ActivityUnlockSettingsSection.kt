@@ -9,15 +9,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 @Composable
-fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
+fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean, registrationOnly: Boolean = false) {
     val context = LocalContext.current
     val store = remember(profileId) { ActivityUnlockStore(context) }
     var conditions by remember(profileId) { mutableStateOf(store.conditions(profileId)) }
     var editingId by remember(profileId) { mutableStateOf<String?>(null) }
     var draft by remember(profileId) { mutableStateOf(ActivityUnlockCondition()) }
     var error by remember { mutableStateOf<String?>(null) }
+    var chooseExisting by remember { mutableStateOf(false) }
+    var registrationDialog by remember { mutableStateOf(false) }
+    var refresh by remember { mutableIntStateOf(0) }
     var rewardRefresh by remember { mutableIntStateOf(0) }
     fun saveList(items: List<ActivityUnlockCondition>) {
         try { store.save(profileId, items); conditions = items; error = null }
@@ -25,7 +30,8 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
     }
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("サブ条件を追加。動作判定をメインにする場合も、ここで動作を登録してから上のメイン条件で選択してね。",
+        Text(if (registrationOnly) "動作の登録・編集を行う画面。休止時間はプロファイルの条件欄で設定するよ。" else
+            "登録済みの動作をサブ条件へ追加するか、新しく動作を登録してね。休止時間はこのプロファイル専用の設定。",
             style = MaterialTheme.typography.bodySmall)
         conditions.forEach { condition ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
@@ -42,7 +48,7 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
                     if (editingId == condition.id) editingId = null
                 }) { Text("削除") }
             }
-            if (editingId == null && condition.id != store.mainConditionId(profileId)) {
+            if (!registrationOnly && editingId == null && condition.id != store.mainConditionId(profileId)) {
                 val defaultMinutes = ProfileUnlockPolicyStore(context).read(profileId).pauseMinutes
                 val rewardMinutes = remember(profileId, condition.id, rewardRefresh) {
                     store.conditionPauseMinutes(profileId, condition.id, defaultMinutes)
@@ -58,9 +64,33 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
             HorizontalDivider()
         }
         if (editingId == null) {
-            OutlinedButton(enabled = !editingLocked, onClick = {
-                draft = ActivityUnlockCondition(); editingId = draft.id
-            }) { Text("＋ 動作条件を追加") }
+            if (registrationOnly) {
+                OutlinedButton(enabled = !editingLocked, onClick = {
+                    draft = ActivityUnlockCondition(); editingId = draft.id
+                }) { Text("＋ 新しく対象動作を登録") }
+            } else {
+                Box {
+                    OutlinedButton(enabled = !editingLocked, onClick = {
+                        refresh++
+                        chooseExisting = true
+                    }) { Text("＋ 登録済みの動作を追加") }
+                    DropdownMenu(expanded = chooseExisting, onDismissRequest = { chooseExisting = false }) {
+                        store.reusableConditions().filter { candidate ->
+                            conditions.none { it.id == candidate.id }
+                        }.forEach { candidate ->
+                            DropdownMenuItem(text = { Text(candidate.description) }, onClick = {
+                                store.importCondition(profileId, candidate)
+                                conditions = store.conditions(profileId)
+                                chooseExisting = false
+                                refresh++
+                            })
+                        }
+                    }
+                }
+                OutlinedButton(enabled = !editingLocked, onClick = { registrationDialog = true }) {
+                    Text("＋ 動作判定を新しく登録")
+                }
+            }
         } else {
             Text("動作条件の編集", style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(
@@ -118,5 +148,30 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
             Text("テストは判定結果を表示するだけで一時休止しない。", style = MaterialTheme.typography.bodySmall)
         }
         if (error != null) Text("保存エラー：$error", color = MaterialTheme.colorScheme.error)
+    }
+    if (registrationDialog && !registrationOnly) {
+        Dialog(onDismissRequest = {
+            registrationDialog = false
+            conditions = store.conditions(profileId)
+            refresh++
+        }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            Surface(modifier = Modifier.fillMaxWidth().padding(12.dp),
+                shape = MaterialTheme.shapes.large,
+                tonalElevation = 12.dp,
+                shadowElevation = 16.dp,
+                border = androidx.compose.foundation.BorderStroke(
+                    2.dp, MaterialTheme.colorScheme.outline)) {
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                    .padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("動作判定を新しく登録", style = MaterialTheme.typography.titleLarge)
+                    ActivityUnlockSettingsSection(profileId, editingLocked, registrationOnly = true)
+                    TextButton(onClick = {
+                        registrationDialog = false
+                        conditions = store.conditions(profileId)
+                        refresh++
+                    }) { Text("閉じる") }
+                }
+            }
+        }
     }
 }

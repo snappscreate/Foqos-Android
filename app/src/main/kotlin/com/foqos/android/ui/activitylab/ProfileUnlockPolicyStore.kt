@@ -81,8 +81,11 @@ class ProfileUnlockPolicyStore(context: Context) {
                     }
                 }
                 UnlockMethod.ACTIVITY -> ActivityUnlockStore(context).let { activity ->
-                    val mainId = activity.mainConditionId(profile.id)
-                    mainId != null && activity.conditions(profile.id).any { it.id == mainId }
+                    val registered = activity.conditions(profile.id).map { it.id }.toSet()
+                    val sets = ActivityChallengeSetStore(context).sets(profile.id)
+                    if (sets.isNotEmpty()) sets.all { set ->
+                        set.conditionIds.isNotEmpty() && set.conditionIds.all { it in registered }
+                    } else activity.mainConditionId(profile.id) in registered
                 }
             }
         }

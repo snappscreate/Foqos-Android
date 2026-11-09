@@ -202,6 +202,10 @@ fun ProfileUnlockPolicySection(
             }
             else -> Unit
         }
+        if (policy.pause == UnlockMethod.ACTIVITY) {
+            Text("複数動作を組み合わせる場合は、下の「動作条件セット」で設定してね。",
+                style = MaterialTheme.typography.bodySmall)
+        }
         Text("一時休止時間：${policy.pauseMinutes}分", style = MaterialTheme.typography.titleSmall)
         Text("メインのNFC・QR・動作判定が成功したときの休止時間。動作自体の保存設定とは独立。",
             style = MaterialTheme.typography.bodySmall)
@@ -255,7 +259,7 @@ fun ProfileUnlockPolicySection(
                 border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.outline)) {
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(12.dp)) {
                     Text("動作判定を登録", style = MaterialTheme.typography.titleLarge)
-                    ActivityUnlockSettingsSection(profile.id, editingLocked, registrationOnly = true)
+                    MovementLibrarySection(allProfiles, editingLocked)
                     TextButton(onClick = { activityDialog = false; refresh++ }) { Text("閉じる") }
                 }
             }

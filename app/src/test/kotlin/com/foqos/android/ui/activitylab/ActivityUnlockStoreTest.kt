@@ -15,11 +15,11 @@ class ActivityUnlockStoreTest {
     private fun fresh() = ActivityUnlockStore(ApplicationProvider.getApplicationContext<Context>())
     private fun profileId() = UUID.randomUUID().toString()
 
-    @Test fun savesMultipleConditionsAndIndependentPauseDurations() {
+    @Test fun savesReusableMovementConditionsWithoutPauseDurations() {
         val store = fresh()
         val id = profileId()
-        val pushups = ActivityUnlockCondition(description = "腕立て伏せ30回", pauseMinutes = 15, frontCamera = true)
-        val cleaning = ActivityUnlockCondition(description = "部屋掃除", pauseMinutes = 10, frontCamera = false)
+        val pushups = ActivityUnlockCondition(description = "腕立て伏せ30回", frontCamera = true)
+        val cleaning = ActivityUnlockCondition(description = "部屋掃除", frontCamera = false)
         store.save(id, listOf(pushups, cleaning))
         assertThat(fresh().conditions(id)).containsExactly(pushups, cleaning).inOrder()
     }

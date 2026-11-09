@@ -573,7 +573,11 @@ class BlockOverlayActivity : ComponentActivity() {
                                         onClick = { openActivityChallenge(condition) },
                                         modifier = Modifier.fillMaxWidth(),
                                     ) {
-                                        val pauseDuration = independentPolicy?.pauseMinutes ?: 20
+                                        val policyMinutes = independentPolicy?.pauseMinutes ?: 20
+                                        val pauseDuration = if (activityUnlockStore.mainConditionId(activityProfileId) == condition.id)
+                                            policyMinutes
+                                        else activityUnlockStore.conditionPauseMinutes(
+                                            activityProfileId, condition.id, policyMinutes)
                                         Text("${condition.description} / ${pauseDuration}分")
                                     }
                                 }

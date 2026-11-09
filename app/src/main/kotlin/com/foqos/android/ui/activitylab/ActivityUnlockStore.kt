@@ -11,14 +11,13 @@ data class ActivityUnlockCondition(
     val description: String = "",
     val recordingSeconds: Int = 20,
     val countdownSeconds: Int = 5,
-    val pauseMinutes: Int = 10,
+    val unlimitedRecording: Boolean = false,
     val frontCamera: Boolean = true,
 ) {
     fun normalized() = copy(
         description = description.trim().take(200),
         recordingSeconds = recordingSeconds.coerceIn(10, 120),
         countdownSeconds = countdownSeconds.coerceIn(0, 30),
-        pauseMinutes = pauseMinutes.coerceIn(1, 180),
     )
 }
 
@@ -40,7 +39,7 @@ class ActivityUnlockStore(context: Context) {
                 description = json.optString("description"),
                 recordingSeconds = json.optInt("recordingSeconds", 20),
                 countdownSeconds = json.optInt("countdownSeconds", 5),
-                pauseMinutes = json.optInt("pauseMinutes", 10),
+                unlimitedRecording = json.optBoolean("unlimitedRecording", false),
                 frontCamera = json.optBoolean("frontCamera", true),
             ).normalized()
         }.filter { it.description.isNotBlank() }
@@ -78,7 +77,7 @@ class ActivityUnlockStore(context: Context) {
                 .put("description", value.description)
                 .put("recordingSeconds", value.recordingSeconds)
                 .put("countdownSeconds", value.countdownSeconds)
-                .put("pauseMinutes", value.pauseMinutes)
+                .put("unlimitedRecording", value.unlimitedRecording)
                 .put("frontCamera", value.frontCamera))
         }
         if (conditions.none { it.id == mainConditionId(profileId) }) setMainCondition(profileId, null)

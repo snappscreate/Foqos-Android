@@ -18,6 +18,7 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
     var editingId by remember(profileId) { mutableStateOf<String?>(null) }
     var draft by remember(profileId) { mutableStateOf(ActivityUnlockCondition()) }
     var error by remember { mutableStateOf<String?>(null) }
+    var rewardRefresh by remember { mutableIntStateOf(0) }
     fun saveList(items: List<ActivityUnlockCondition>) {
         try { store.save(profileId, items); conditions = items; error = null }
         catch (e: Exception) { error = e.message ?: "保存失敗" }
@@ -40,6 +41,19 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean) {
                     saveList(conditions.filterNot { it.id == condition.id })
                     if (editingId == condition.id) editingId = null
                 }) { Text("削除") }
+            }
+            if (editingId == null && condition.id != store.mainConditionId(profileId)) {
+                val defaultMinutes = ProfileUnlockPolicyStore(context).read(profileId).pauseMinutes
+                val rewardMinutes = remember(profileId, condition.id, rewardRefresh) {
+                    store.conditionPauseMinutes(profileId, condition.id, defaultMinutes)
+                }
+                Text("このプロファイルのサブ条件として成功した場合：${rewardMinutes}分休止",
+                    style = MaterialTheme.typography.bodySmall)
+                Slider(value = rewardMinutes.toFloat(), enabled = !editingLocked,
+                    onValueChange = { minutes ->
+                        store.setConditionPauseMinutes(profileId, condition.id, minutes.toInt())
+                        rewardRefresh++
+                    }, valueRange = 1f..180f, steps = 178)
             }
             HorizontalDivider()
         }

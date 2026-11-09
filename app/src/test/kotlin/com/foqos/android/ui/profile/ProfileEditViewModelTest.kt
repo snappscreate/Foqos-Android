@@ -109,6 +109,41 @@ class ProfileEditViewModelTest {
     }
 
     @Test
+    fun `app blocked URLs save separately from focus mode allowed URLs`() {
+        runBlocking {
+            val vm = newViewModel()
+            awaitLoaded(vm)
+            vm.updateName("Web Control")
+            vm.addFullScreenAllowedUrl("allowed.example.com")
+            vm.addBlockedUrl("blocked.example.com")
+            vm.save()
+            awaitSaved(vm)
+            val id = vm.uiState.value.draft.id
+            val saved = profileRepository.getById(id)
+            assertThat(saved?.domains).containsExactly("blocked.example.com")
+            assertThat(saved?.allowModeDomains).isFalse()
+            assertThat(com.foqos.android.service.session.FullScreenModeStore(context).allowedUrls(id))
+                .containsExactly("https://allowed.example.com")
+        }
+    }
+
+    @Test
+    fun `legacy focus allowlist never becomes a blocked URL on edit`() {
+        runBlocking {
+            val existing = profileRepository.create(
+                com.foqos.android.data.model.BlockedProfile(
+                    id = "legacy-focus-test", name = "Focus",
+                    strategyId = ManualBlockingStrategy.ID,
+                    domains = listOf("old-allowed.example.com"), allowModeDomains = true,
+                ),
+            )
+            val vm = newViewModel(profileId = existing.id)
+            awaitLoaded(vm)
+            assertThat(vm.uiState.value.blockedUrls).isEmpty()
+        }
+    }
+
+    @Test
     fun `invalid domain sets an error and does not add it`() {
         runBlocking {
         val viewModel = newViewModel()

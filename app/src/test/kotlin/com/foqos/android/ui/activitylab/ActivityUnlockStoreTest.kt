@@ -41,6 +41,25 @@ class ActivityUnlockStoreTest {
         store.deleteProfile(second)
     }
 
+    @Test fun libraryCannotDeleteReferencedMovementAndEditsReachAllProfiles() {
+        val store = fresh()
+        val first = profileId()
+        val second = profileId()
+        val item = ActivityUnlockCondition(description = "腕立て伏せ20回")
+        store.updateLibraryCondition(item)
+        store.importCondition(first, item)
+        store.importCondition(second, item)
+        assertThat(store.deleteLibraryCondition(item.id)).isFalse()
+        assertThat(store.attachedProfileIds(item.id)).containsExactly(first, second)
+        store.updateLibraryCondition(item.copy(description = "腕立て伏せ30回"))
+        assertThat(fresh().conditions(first).single().description).isEqualTo("腕立て伏せ30回")
+        assertThat(fresh().conditions(second).single().description).isEqualTo("腕立て伏せ30回")
+        store.deleteProfile(first)
+        assertThat(store.deleteLibraryCondition(item.id)).isFalse()
+        store.deleteProfile(second)
+        assertThat(store.deleteLibraryCondition(item.id)).isTrue()
+    }
+
     @Test fun cannotChangeSelectedSubConditionWithinSession() {
         val store = fresh()
         val profile = profileId()

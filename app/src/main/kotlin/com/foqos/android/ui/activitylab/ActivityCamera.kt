@@ -90,7 +90,7 @@ class ActivityCamera(private val context: Context) {
         recordingStartedAt = android.os.SystemClock.elapsedRealtime()
         val task = Runnable { activeRecording?.stop() }
         stopTask = task
-        handler.postDelayed(task, remainingMillis)
+        if (remainingMillis > 0L) handler.postDelayed(task, remainingMillis)
     }
 
 
@@ -138,6 +138,13 @@ class ActivityCamera(private val context: Context) {
         remainingMillis = durationMillis
         activeRecording = pending.start(executor) { event ->
             when (event) {
+                is VideoRecordEvent.Status -> {
+                    // Gemini inline uploads cannot exceed 14 MB. Stop before the limit
+                    // even when the user selected unlimited *time*.
+                    if (event.recordingStats.numBytesRecorded >= 12_000_000L) {
+                        finishRecordingNow()
+                    }
+                }
                 is VideoRecordEvent.Finalize -> {
                     clearStopTimer()
                     activeRecording = null

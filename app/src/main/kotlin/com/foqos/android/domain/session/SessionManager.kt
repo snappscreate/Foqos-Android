@@ -304,10 +304,23 @@ class SessionManager @Inject constructor(
         com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore(appContext)
     }
 
+    /** One authoritative retry guard for manual, NFC, QR and verified AI paths. */
+    fun pauseRetryRemainingMillis(profileId: String): Long =
+        independentUnlock.pauseRetryRemainingMillis(profileId)
+
+    private fun pauseRetryAllowed(profileId: String): Boolean {
+        val remaining = pauseRetryRemainingMillis(profileId)
+        if (remaining == 0L) return true
+        val minutes = (remaining + 59_999L) / 60_000L
+        emitError("一時休止の再挑戦まであと${minutes / 60}時間${minutes % 60}分")
+        return false
+    }
+
     /** Start a timed pause under the dedicated, independent main condition. */
     suspend fun requestConfiguredPause(profileId: String): Unit = withContext(ioDispatcher) {
         val current = sessionForProfile(profileId) ?: return@withContext
         if (current.isPauseActive() || locationStoreOutside(profileId)) return@withContext
+        if (!pauseRetryAllowed(profileId)) return@withContext
         val profile = profileRepository.getById(profileId) ?: return@withContext
         if (!independentUnlock.configured(profileId)) {
             requestLocationPauseFromHome(profileId)
@@ -336,6 +349,7 @@ class SessionManager @Inject constructor(
     private suspend fun pauseForConfiguredDuration(
         session: BlockedProfileSession, minutes: Int,
     ) {
+        if (!pauseRetryAllowed(session.profileId)) return
         val activity = com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
         activity.savePauseMinutes(session.id, minutes)
         beginPause(session, minutes)
@@ -363,7 +377,7 @@ class SessionManager @Inject constructor(
         if (com.foqos.android.data.model.PhysicalUnblockItem.normalizeCodeValue(chosen.codeValue) !=
             com.foqos.android.data.model.PhysicalUnblockItem.normalizeCodeValue(code)) return@withContext false
         if (forPause) {
-            if (current.isPauseActive()) return@withContext false
+            if (current.isPauseActive() || !pauseRetryAllowed(profileId)) return@withContext false
             val activity = com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
             if (activity.selection(profileId, current.id) != null) return@withContext false
             pauseForConfiguredDuration(current, policy.pauseMinutes)
@@ -438,7 +452,8 @@ class SessionManager @Inject constructor(
         profileId: String, sessionId: String, conditionId: String,
     ): Boolean = withContext(ioDispatcher) {
         val current = sessionForProfile(profileId) ?: return@withContext false
-        if (current.id != sessionId || current.isPauseActive()) return@withContext false
+        if (current.id != sessionId || current.isPauseActive() ||
+            !pauseRetryAllowed(profileId)) return@withContext false
         val store = com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
         if (store.selection(profileId, sessionId)?.conditionId != conditionId) return@withContext false
         val condition = store.conditions(profileId).firstOrNull { it.id == conditionId }
@@ -450,8 +465,9 @@ class SessionManager @Inject constructor(
         if (location.read(profileId) != null &&
             (location.manualInside(profileId) ?: location.lastInside(profileId)) != true
         ) return@withContext false
-        store.savePauseMinutes(current.id, condition.pauseMinutes)
-        beginPause(current, condition.pauseMinutes)
+        val duration = independentUnlock.read(profileId).pauseMinutes
+        store.savePauseMinutes(current.id, duration)
+        beginPause(current, duration)
         store.clear(profileId)
         true
     }
@@ -1181,7 +1197,10 @@ class SessionManager @Inject constructor(
     }
 
     override suspend fun beginPause(session: BlockedProfileSession, durationMinutes: Int) {
+        // Covers legacy strategy paths as well as the new independently configured conditions.
+        if (!pauseRetryAllowed(session.profileId)) return
         val now = Instant.now()
+        independentUnlock.markPauseAuthorized(session.profileId, now.toEpochMilli())
         sessionRepository.startPause(session.id, now)
         blockingStateHolder.updateProfile(session.profileId) { it.copy(pauseActive = true) }
         alarmScheduler.scheduleExactAt(

@@ -98,6 +98,15 @@ class ActivityUnlockActivity : ComponentActivity() {
     }
 }
 
+/** A quiet, short cue. The notification stream respects the device's current sound policy. */
+private fun captureSound(start: Boolean) {
+    runCatching {
+        val tone = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 30)
+        tone.startTone(if (start) ToneGenerator.TONE_PROP_ACK else ToneGenerator.TONE_PROP_BEEP, 120)
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ tone.release() }, 220L)
+    }
+}
+
 /** The same capture state machine is used for test and real unlock attempts. */
 private enum class CapturePhase { READY, COUNTDOWN, RECORDING, PAUSED, RESUME_COUNTDOWN, JUDGING }
 
@@ -236,7 +245,9 @@ private fun ActivityUnlockCapture(
                                 countdownRemaining = 0
                                 phase = CapturePhase.RECORDING
                                 status = "● 撮影開始！"
+                                captureSound(start = true)
                                 val recorded = camera.recordFor(if (unlimited) 0L else seconds * 1000L)
+                                captureSound(start = false)
                                 video = recorded
                                 videoBytes = recorded.length()
                                 recordingRemainingMs = 0L

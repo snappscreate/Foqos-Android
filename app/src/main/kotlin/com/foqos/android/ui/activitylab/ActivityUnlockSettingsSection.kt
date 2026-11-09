@@ -33,16 +33,19 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean, reg
         Text(if (registrationOnly) "動作の登録・編集を行う画面。休止時間はプロファイルの条件欄で設定するよ。" else
             "登録済みの動作をサブ条件へ追加するか、新しく動作を登録してね。休止時間はこのプロファイル専用の設定。",
             style = MaterialTheme.typography.bodySmall)
-        conditions.forEach { condition ->
+        conditions.filter { registrationOnly || it.id != store.mainConditionId(profileId) }
+            .forEach { condition ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 Column(Modifier.weight(1f)) {
                     Text(condition.description)
                     Text("${if (condition.unlimitedRecording) "撮影時間は手動終了" else "撮影${condition.recordingSeconds}秒"} / 開始前${condition.countdownSeconds}秒 / ${if (condition.frontCamera) "前面" else "背面"}",
                         style = MaterialTheme.typography.bodySmall)
                 }
-                OutlinedButton(enabled = !editingLocked, onClick = {
-                    draft = condition; editingId = condition.id
-                }) { Text("編集") }
+                if (registrationOnly) {
+                    OutlinedButton(enabled = !editingLocked, onClick = {
+                        draft = condition; editingId = condition.id
+                    }) { Text("編集") }
+                }
                 OutlinedButton(enabled = !editingLocked, onClick = {
                     saveList(conditions.filterNot { it.id == condition.id })
                     if (editingId == condition.id) editingId = null

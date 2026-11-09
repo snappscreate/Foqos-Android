@@ -19,13 +19,15 @@ import com.foqos.android.data.repository.ProfileRepository
 fun ActivityUnlockSettingsSection(
     profileId: String, editingLocked: Boolean, registrationOnly: Boolean = false,
     profileRepository: ProfileRepository? = null,
+    knownProfiles: List<BlockedProfile> = emptyList(),
 ) {
     val context = LocalContext.current
     val libraryMode = registrationOnly
     val storageId = if (libraryMode) "__shared_catalog__" else profileId
     val store = remember(storageId) { ActivityUnlockStore(context) }
-    val allProfiles by (profileRepository?.observeAll()?.collectAsState(initial = emptyList())
+    val observedProfiles by (profileRepository?.observeAll()?.collectAsState(initial = emptyList())
         ?: remember { mutableStateOf(emptyList<BlockedProfile>()) })
+    val allProfiles = if (knownProfiles.isNotEmpty()) knownProfiles else observedProfiles
     var conditions by remember(storageId) { mutableStateOf(store.conditions(storageId)) }
     var editingId by remember(storageId, registrationOnly) { mutableStateOf<String?>(null) }
     var draft by remember(profileId) { mutableStateOf(ActivityUnlockCondition()) }
@@ -224,5 +226,6 @@ fun MovementLibrarySection(
         profileId = "__shared_catalog__",
         editingLocked = editingLocked,
         registrationOnly = true,
+        knownProfiles = allProfiles,
     )
 }

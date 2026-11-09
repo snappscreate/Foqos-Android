@@ -17,7 +17,9 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean, reg
     val context = LocalContext.current
     val store = remember(profileId) { ActivityUnlockStore(context) }
     var conditions by remember(profileId) { mutableStateOf(store.conditions(profileId)) }
-    var editingId by remember(profileId) { mutableStateOf<String?>(null) }
+    var editingId by remember(profileId, registrationOnly) {
+        mutableStateOf<String?>(if (registrationOnly) "new" else null)
+    }
     var draft by remember(profileId) { mutableStateOf(ActivityUnlockCondition()) }
     var error by remember { mutableStateOf<String?>(null) }
     var chooseExisting by remember { mutableStateOf(false) }
@@ -33,7 +35,8 @@ fun ActivityUnlockSettingsSection(profileId: String, editingLocked: Boolean, reg
         Text(if (registrationOnly) "動作の登録・編集を行う画面。休止時間はプロファイルの条件欄で設定するよ。" else
             "登録済みの動作をサブ条件へ追加するか、新しく動作を登録してね。休止時間はこのプロファイル専用の設定。",
             style = MaterialTheme.typography.bodySmall)
-        conditions.filter { registrationOnly || it.id != store.mainConditionId(profileId) }
+        conditions.filter { (registrationOnly && editingId == null) ||
+            (!registrationOnly && it.id != store.mainConditionId(profileId)) }
             .forEach { condition ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 Column(Modifier.weight(1f)) {

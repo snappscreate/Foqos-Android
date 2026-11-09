@@ -53,6 +53,39 @@ class ActivityUnlockStore(context: Context) {
             .flatMap { key -> conditions(key.removePrefix("conditions_")).asSequence() }
             .distinctBy { it.id }.toList()
 
+    /** All persisted per-profile references, excluding the shared library. */
+    fun attachedProfileIds(conditionId: String): Set<String> =
+        prefs.all.keys.asSequence().filter {
+            it.startsWith("conditions_") && it != "conditions___shared_catalog__"
+        }.map { it.removePrefix("conditions_") }
+            .filter { profileId -> conditions(profileId).any { it.id == conditionId } }
+            .toSet()
+
+    /** Global edit propagates to all currently attached profiles by immutable ID. */
+    fun updateLibraryCondition(condition: ActivityUnlockCondition) {
+        val value = condition.normalized()
+        require(value.description.isNotBlank())
+        val catalog = conditions("__shared_catalog__")
+        val replacement = if (catalog.any { it.id == value.id }) {
+            catalog.map { if (it.id == value.id) value else it }
+        } else catalog + value
+        save("__shared_catalog__", replacement)
+        attachedProfileIds(value.id).forEach { profileId ->
+            save(profileId, conditions(profileId).map {
+                if (it.id == value.id) value else it
+            })
+        }
+    }
+
+    /** Never delete a registered condition still attached to ANY saved profile. */
+    fun deleteLibraryCondition(conditionId: String): Boolean {
+        if (attachedProfileIds(conditionId).isNotEmpty()) return false
+        val current = conditions("__shared_catalog__")
+        if (current.none { it.id == conditionId }) return false
+        save("__shared_catalog__", current.filterNot { it.id == conditionId })
+        return true
+    }
+
     fun importCondition(profileId: String, condition: ActivityUnlockCondition) {
         val old = conditions(profileId)
         if (old.none { it.id == condition.id }) save(profileId, old + condition)

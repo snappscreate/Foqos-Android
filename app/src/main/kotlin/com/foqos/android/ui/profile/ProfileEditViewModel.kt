@@ -184,7 +184,10 @@ class ProfileEditViewModel @Inject constructor(
     fun addFullScreenAllowedUrl(value: String) {
         val normalized = FullScreenModeStore.normalizeUrl(value) ?: return
         guardedUpdate {
-            it.copy(fullScreenAllowedUrls = it.fullScreenAllowedUrls + normalized)
+            if (normalized in it.blockedUrls) {
+                it.copy(blockedUrlError = "このURLはブロック対象にも登録されているよ。どちらかを削除してね")
+            } else it.copy(fullScreenAllowedUrls = it.fullScreenAllowedUrls + normalized,
+                blockedUrlError = null, configurationError = null)
         }
     }
 
@@ -194,7 +197,12 @@ class ProfileEditViewModel @Inject constructor(
             guardedUpdate { it.copy(blockedUrlError = "有効なURLかドメインを入力してね") }
             return
         }
-        guardedUpdate { it.copy(blockedUrls = it.blockedUrls + normalized, blockedUrlError = null) }
+        guardedUpdate {
+            if (normalized in it.fullScreenAllowedUrls) {
+                it.copy(blockedUrlError = "このURLは許可URLにも登録されているよ。どちらかを削除してね")
+            } else it.copy(blockedUrls = it.blockedUrls + normalized,
+                blockedUrlError = null, configurationError = null)
+        }
     }
 
     fun removeBlockedUrl(value: String) {
@@ -362,6 +370,14 @@ class ProfileEditViewModel @Inject constructor(
 
         viewModelScope.launch {
             val current = _uiState.value
+            val duplicated = current.blockedUrls.intersect(current.fullScreenAllowedUrls)
+            if (duplicated.isNotEmpty()) {
+                _uiState.update {
+                    it.copy(configurationError = "許可URLとブロックURLが重複しているよ：${duplicated.joinToString()}",
+                        blockedUrlError = "重複しているドメインをどちらかから削除してね")
+                }
+                return@launch
+            }
             if (isEditingProfileRunning()) {
                 // Never write a stale draft over a running profile's security settings.
                 val saved = profileRepository.rename(current.draft.id, trimmedName) ?: return@launch

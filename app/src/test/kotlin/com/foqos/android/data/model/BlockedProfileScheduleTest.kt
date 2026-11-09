@@ -117,12 +117,15 @@ class BlockedProfileScheduleTest {
     }
 
     @Test
-    fun `nextStartDateTime returns null if the only scheduled day is more than 7 days away`() {
-        // Only Monday is scheduled; once today's slot is inside the buffer window, the next
-        // Monday is 7 days out - outside the (0..6 days ahead) lookahead - so there is no result.
+    fun `nextStartDateTime schedules the same weekday one week later after today's cutoff`() {
+        // A weekly recurrence must remain schedulable even after today's 09:00 slot.
+        // The former 0..6-day search silently dropped the next Monday.
         val schedule = schedule(listOf(Weekday.MONDAY), 9, 0, 17, 0)
         val now = LocalDateTime.of(2026, 7, 20, 8, 50)
-        assertThat(schedule.nextStartDateTime(now)).isNull()
+        assertThat(schedule.nextStartDateTime(now))
+            .isEqualTo(LocalDateTime.of(2026, 7, 27, 9, 0))
+        assertThat(schedule.nextStartDateTime(LocalDateTime.of(2026, 7, 20, 14, 0)))
+            .isEqualTo(LocalDateTime.of(2026, 7, 27, 9, 0))
     }
 
     @Test

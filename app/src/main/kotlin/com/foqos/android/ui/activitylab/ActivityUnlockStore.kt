@@ -126,6 +126,16 @@ class ActivityUnlockStore(context: Context) {
         return prefs.edit().putString("selected_$profileId", "$sessionId|$conditionId").commit()
     }
 
+    /** Per-profile reward settings. Never stored in the reusable activity definition. */
+    fun conditionPauseMinutes(profileId: String, conditionId: String, defaultMinutes: Int): Int =
+        prefs.getInt("reward_${profileId}_$conditionId", defaultMinutes).coerceIn(1, 180)
+
+    fun setConditionPauseMinutes(profileId: String, conditionId: String, minutes: Int) {
+        require(conditions(profileId).any { it.id == conditionId })
+        check(prefs.edit().putInt("reward_${profileId}_$conditionId",
+            minutes.coerceIn(1, 180)).commit())
+    }
+
     fun savePauseMinutes(sessionId: String, minutes: Int) {
         prefs.edit().putInt("pause_$sessionId", minutes.coerceIn(1, 180)).commit()
     }
@@ -138,7 +148,10 @@ class ActivityUnlockStore(context: Context) {
     }
 
     fun deleteProfile(profileId: String) {
-        prefs.edit().remove("conditions_$profileId").remove("main_$profileId")
+        val editor = prefs.edit()
+        prefs.all.keys.filter { it.startsWith("reward_${profileId}_") }
+            .forEach(editor::remove)
+        editor.remove("conditions_$profileId").remove("main_$profileId")
             .remove("selected_$profileId").commit()
     }
 

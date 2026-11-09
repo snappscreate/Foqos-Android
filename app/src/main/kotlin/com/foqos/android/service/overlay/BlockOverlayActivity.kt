@@ -146,6 +146,7 @@ class BlockOverlayActivity : ComponentActivity() {
                 val fullScreenStore = remember { FullScreenModeStore(this@BlockOverlayActivity) }
                 val scope = rememberCoroutineScope()
                 val activityUnlockStore = remember { ActivityUnlockStore(this@BlockOverlayActivity) }
+                val challengeSetStore = remember { com.foqos.android.ui.activitylab.ActivityChallengeSetStore(this@BlockOverlayActivity) }
                 var showActivityChoices by remember { mutableStateOf(false) }
                 var selectedActivityId by remember { mutableStateOf<String?>(null) }
                 val locationStore = remember { LocationAutomationStore(this@BlockOverlayActivity) }
@@ -378,6 +379,8 @@ class BlockOverlayActivity : ComponentActivity() {
                 }
                 val activitySessionId = state?.sessionId.orEmpty()
                 val activityProfileId = state?.profileId.orEmpty()
+                val configuredChallengeSets = challengeSetStore.sets(activityProfileId)
+                val challengeProgress = challengeSetStore.progress(activityProfileId, activitySessionId)
                 val persistentActivitySelection = remember(activityProfileId, activitySessionId, selectedActivityId) {
                     activityUnlockStore.selection(activityProfileId, activitySessionId)
                 }
@@ -394,7 +397,11 @@ class BlockOverlayActivity : ComponentActivity() {
                         nfcScanMessage = "一時休止の再挑戦は待機時間終了後にできるよ"
                         return
                     }
-                    val chosen = activityUnlockStore.select(activityProfileId, activitySessionId, condition.id)
+                    val chosen = if (configuredChallengeSets.isEmpty()) {
+                        activityUnlockStore.select(activityProfileId, activitySessionId, condition.id)
+                    } else {
+                        condition.id in challengeSetStore.nextConditions(activityProfileId, activitySessionId)
+                    }
                     if (!chosen) return
                     selectedActivityId = condition.id
                     showActivityChoices = false
@@ -498,7 +505,9 @@ class BlockOverlayActivity : ComponentActivity() {
                     onActivityChallenge = if (activityConditions.isNotEmpty() &&
                         retryRemainingMillis == 0L &&
                         !state.let { it == null || it.pauseActive || it.breakActive }) ({
-                        if (selectedActivity != null) {
+                        if (configuredChallengeSets.isNotEmpty()) {
+                            showActivityChoices = true
+                        } else if (selectedActivity != null) {
                             openActivityChallenge(selectedActivity)
                         } else {
                             showActivityChoices = true
@@ -559,12 +568,38 @@ class BlockOverlayActivity : ComponentActivity() {
                     },
                 )
 
-                if (showActivityChoices && !explicitActivitySelection && activityConditions.isNotEmpty()) {
+                if (showActivityChoices && (configuredChallengeSets.isNotEmpty() || !explicitActivitySelection) && activityConditions.isNotEmpty()) {
                     AlertDialog(
                         onDismissRequest = { showActivityChoices = false },
                         title = { Text("今回の一時休止条件を選択") },
                         text = {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (configuredChallengeSets.isNotEmpty()) {
+                                    Text("セット内の動作はすべて達成。セットを選び、残りの動作を進めてね。")
+                                    configuredChallengeSets.forEachIndexed { index, group ->
+                                        val completed = if (challengeProgress?.setId == group.id)
+                                            challengeProgress.completedIds else emptySet()
+                                        Text("セット ${index+1}：${completed.size}/${group.conditionIds.size}達成 / 全達成で${group.pauseMinutes}分休止",
+                                            style = MaterialTheme.typography.titleSmall)
+                                        if (challengeProgress?.setId != group.id) {
+                                            OutlinedButton(onClick = {
+                                                challengeSetStore.chooseSet(activityProfileId, activitySessionId, group.id)
+                                                selectedActivityId = group.id
+                                                showActivityChoices = false
+                                                showActivityChoices = true
+                                            }) { Text("このセットを選択") }
+                                        } else {
+                                            group.conditionIds.filterNot { it in completed }.forEach { id ->
+                                                activityConditions.firstOrNull { it.id == id }?.let { move ->
+                                                    Button(onClick = { openActivityChallenge(move) },
+                                                        modifier = Modifier.fillMaxWidth()) {
+                                                        Text("挑戦：${move.description}")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
                                 Text("選択すると、一時休止が成功するまでNFCには戻せないよ。")
                                 activityConditions.filter {
                                     it.id != selectedActivity?.id
@@ -580,6 +615,7 @@ class BlockOverlayActivity : ComponentActivity() {
                                             activityProfileId, condition.id, policyMinutes)
                                         Text("${condition.description} / ${pauseDuration}分")
                                     }
+                                }
                                 }
                             }
                         },

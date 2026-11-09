@@ -13,6 +13,7 @@ data class ProfileUnlockPolicy(
     val stop: UnlockMethod = UnlockMethod.MANUAL,
     val pause: UnlockMethod = UnlockMethod.MANUAL,
     val pauseMinutes: Int = 20,
+    val retryCooldownMinutes: Int = 0,
     val stopCredentialId: String? = null,
     val pauseCredentialId: String? = null,
 )
@@ -27,6 +28,7 @@ class ProfileUnlockPolicyStore(context: Context) {
         stop = parse(prefs.getString("stop_$profileId", null), UnlockMethod.MANUAL),
         pause = parse(prefs.getString("pause_$profileId", null), UnlockMethod.MANUAL),
         pauseMinutes = prefs.getInt("duration_$profileId", 20).coerceIn(1, 180),
+        retryCooldownMinutes = prefs.getInt("cooldown_$profileId", 0).coerceIn(0, 10080),
         stopCredentialId = prefs.getString("stop_credential_$profileId", null),
         pauseCredentialId = prefs.getString("pause_credential_$profileId", null),
     )
@@ -58,6 +60,7 @@ class ProfileUnlockPolicyStore(context: Context) {
             .putString("stop_$profileId", policy.stop.name)
             .putString("pause_$profileId", policy.pause.name)
             .putInt("duration_$profileId", policy.pauseMinutes.coerceIn(1, 180))
+            .putInt("cooldown_$profileId", policy.retryCooldownMinutes.coerceIn(0, 10080))
             .apply { if (policy.stopCredentialId == null) remove("stop_credential_$profileId") else putString("stop_credential_$profileId", policy.stopCredentialId) }
             .apply { if (policy.pauseCredentialId == null) remove("pause_credential_$profileId") else putString("pause_credential_$profileId", policy.pauseCredentialId) }
             .commit()) { "解除条件の保存に失敗" }
@@ -87,9 +90,24 @@ class ProfileUnlockPolicyStore(context: Context) {
             valid(policy.pause, policy.pauseCredentialId)
     }
 
+    /** The lock begins when a successful timed pause starts, not after it expires. */
+    fun pauseRetryRemainingMillis(profileId: String, nowMillis: Long = System.currentTimeMillis()): Long {
+        val since = prefs.getLong("last_pause_at_$profileId", 0L)
+        if (since <= 0L) return 0L
+        val interval = read(profileId).retryCooldownMinutes * 60_000L
+        return (since + interval - nowMillis).coerceAtLeast(0L)
+    }
+
+    fun markPauseAuthorized(profileId: String, nowMillis: Long = System.currentTimeMillis()) {
+        check(prefs.edit().putLong("last_pause_at_$profileId", nowMillis).commit()) {
+            "一時休止の待機時間を保存できなかった"
+        }
+    }
+
     fun delete(profileId: String) {
         prefs.edit().remove("enabled_$profileId").remove("stop_$profileId")
             .remove("pause_$profileId").remove("duration_$profileId")
+            .remove("cooldown_$profileId").remove("last_pause_at_$profileId")
             .remove("stop_credential_$profileId").remove("pause_credential_$profileId").apply()
     }
 

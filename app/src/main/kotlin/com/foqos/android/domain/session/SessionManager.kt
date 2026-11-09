@@ -1200,8 +1200,8 @@ class SessionManager @Inject constructor(
         // Covers legacy strategy paths as well as the new independently configured conditions.
         if (!pauseRetryAllowed(session.profileId)) return
         val now = Instant.now()
-        independentUnlock.markPauseAuthorized(session.profileId, now.toEpochMilli())
         sessionRepository.startPause(session.id, now)
+        independentUnlock.markPauseAuthorized(session.profileId, now.toEpochMilli())
         blockingStateHolder.updateProfile(session.profileId) { it.copy(pauseActive = true) }
         alarmScheduler.scheduleExactAt(
             AlarmActivityType.PAUSE_END,

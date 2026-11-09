@@ -88,6 +88,7 @@ import com.foqos.android.ui.common.strategyEmoji
 import com.foqos.android.ui.common.strategyDisplayName
 import com.foqos.android.ui.common.strategyOneLiner
 import com.foqos.android.ui.activitylab.ActivityUnlockSettingsSection
+import com.foqos.android.ui.activitylab.PauseRetryCooldownSection
 import com.foqos.android.ui.activitylab.ProfileUnlockPolicySection
 import com.foqos.android.ui.physicalunlock.PhysicalUnlockEditor
 import com.foqos.android.ui.settings.LocationAutomationSection
@@ -346,6 +347,13 @@ fun ProfileEditScreen(
 
             SectionCard(title = "一時休止のサブ条件（AI動画判定）") {
                 ActivityUnlockSettingsSection(
+                    profileId = uiState.draft.id,
+                    editingLocked = uiState.editingLocked,
+                )
+            }
+
+            SectionCard(title = "次に一時休止できるまでの待機時間") {
+                PauseRetryCooldownSection(
                     profileId = uiState.draft.id,
                     editingLocked = uiState.editingLocked,
                 )

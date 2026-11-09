@@ -66,7 +66,7 @@ data class BlockedProfileSchedule(
     }
 
     /**
-     * The next date/time (within the next 7 days) at which this schedule's window starts, at
+     * The next date/time (up to one full week ahead) at which this schedule's window starts, at
      * least [bufferMinutes] after [now]. Returns null if no day is configured or no matching day
      * is found in the next week.
      */
@@ -75,7 +75,9 @@ data class BlockedProfileSchedule(
 
         val bufferTime = now.plusMinutes(bufferMinutes)
 
-        for (daysAhead in 0 until 7) {
+        // Check day 7 too: once today's start passes, the next occurrence
+        // of the same weekday is exactly seven days ahead.
+        for (daysAhead in 0..7) {
             val candidateDate = bufferTime.toLocalDate().plusDays(daysAhead.toLong())
             val candidateWeekday = Weekday.fromJavaDayOfWeek(candidateDate.dayOfWeek)
             if (!isScheduledOn(candidateWeekday)) continue

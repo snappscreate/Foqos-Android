@@ -24,6 +24,23 @@ class ActivityUnlockStoreTest {
         assertThat(fresh().conditions(id)).containsExactly(pushups, cleaning).inOrder()
     }
 
+    @Test fun subchallengeRewardIsPerProfileNotPartOfMovementDefinition() {
+        val store = fresh()
+        val first = profileId()
+        val second = profileId()
+        val movement = ActivityUnlockCondition(description = "スクワット50回")
+        store.save(first, listOf(movement))
+        store.save(second, listOf(movement))
+        store.setConditionPauseMinutes(first, movement.id, 15)
+        store.setConditionPauseMinutes(second, movement.id, 30)
+        assertThat(fresh().conditionPauseMinutes(first, movement.id, 10)).isEqualTo(15)
+        assertThat(fresh().conditionPauseMinutes(second, movement.id, 10)).isEqualTo(30)
+        assertThat(fresh().conditions(first)).containsExactly(movement)
+        assertThat(fresh().conditions(second)).containsExactly(movement)
+        store.deleteProfile(first)
+        store.deleteProfile(second)
+    }
+
     @Test fun cannotChangeSelectedSubConditionWithinSession() {
         val store = fresh()
         val profile = profileId()

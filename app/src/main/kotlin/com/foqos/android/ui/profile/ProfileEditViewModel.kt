@@ -113,7 +113,9 @@ class ProfileEditViewModel @Inject constructor(
                         periodicWaitMinutes = periodicStore.read(existing.id).waitMinutes.takeIf { it > 0 } ?: 60,
                         periodicAccessMinutes = periodicStore.read(existing.id).accessMinutes.takeIf { it > 0 } ?: 5,
                         fullScreenEnabled = fullScreenStore.enabled(existing.id),
-                        blockedUrls = if (fullScreenStore.enabled(existing.id)) emptySet()
+                        // Old releases stored the focus allowlist in domains with
+                        // allowModeDomains=true. Never reinterpret those as blocked sites.
+                        blockedUrls = if (existing.allowModeDomains) emptySet()
                             else existing.domains.mapNotNull { FullScreenModeStore.normalizeUrl(it) }.toSet(),
                         fullScreenAllowedPackages = fullScreenStore.allowedPackages(existing.id),
                         // One shared website whitelist across both modes. Prefer the persisted

@@ -77,6 +77,8 @@ class ProfileEditViewModel @Inject constructor(
         val fullScreenEnabled: Boolean = false,
         val fullScreenAllowedPackages: Set<String> = emptySet(),
         val fullScreenAllowedUrls: Set<String> = emptySet(),
+        val blockedUrls: Set<String> = emptySet(),
+        val blockedUrlError: String? = null,
         val periodicAccessEnabled: Boolean = false,
         val periodicWaitMinutes: Int = 60,
         val periodicAccessMinutes: Int = 5,
@@ -111,6 +113,8 @@ class ProfileEditViewModel @Inject constructor(
                         periodicWaitMinutes = periodicStore.read(existing.id).waitMinutes.takeIf { it > 0 } ?: 60,
                         periodicAccessMinutes = periodicStore.read(existing.id).accessMinutes.takeIf { it > 0 } ?: 5,
                         fullScreenEnabled = fullScreenStore.enabled(existing.id),
+                        blockedUrls = if (fullScreenStore.enabled(existing.id)) emptySet()
+                            else existing.domains.mapNotNull { FullScreenModeStore.normalizeUrl(it) }.toSet(),
                         fullScreenAllowedPackages = fullScreenStore.allowedPackages(existing.id),
                         // One shared website whitelist across both modes. Prefer the persisted
                         // fullscreen list; fall back to legacy website allow-mode entries.
@@ -180,6 +184,19 @@ class ProfileEditViewModel @Inject constructor(
         guardedUpdate {
             it.copy(fullScreenAllowedUrls = it.fullScreenAllowedUrls + normalized)
         }
+    }
+
+    fun addBlockedUrl(value: String) {
+        val normalized = FullScreenModeStore.normalizeUrl(value)
+        if (normalized == null) {
+            guardedUpdate { it.copy(blockedUrlError = "有効なURLかドメインを入力してね") }
+            return
+        }
+        guardedUpdate { it.copy(blockedUrls = it.blockedUrls + normalized, blockedUrlError = null) }
+    }
+
+    fun removeBlockedUrl(value: String) {
+        guardedUpdate { it.copy(blockedUrls = it.blockedUrls - value, blockedUrlError = null) }
     }
 
     fun removeFullScreenAllowedUrl(value: String) {
@@ -369,7 +386,9 @@ class ProfileEditViewModel @Inject constructor(
                 return@launch
             }
             _uiState.update { it.copy(configurationError = null) }
-            val sharedWebsiteHosts = current.fullScreenAllowedUrls.mapNotNull {
+            // The app-block domain denylist is deliberately independent of
+            // full-screen focus mode's URL allowlist.
+            val blockedWebsiteHosts = current.blockedUrls.mapNotNull {
                 FullScreenModeStore.normalizeUrl(it)?.removePrefix("https://")
             }.distinct()
             val toSave = current.draft.copy(
@@ -383,9 +402,9 @@ class ProfileEditViewModel @Inject constructor(
                 enableBreaks = false,
                 allowMultipleBreaks = false,
                 allowModeEnabled = false,
-                // The shared website whitelist also drives app-block-mode URL policy.
-                domains = sharedWebsiteHosts,
-                allowModeDomains = true,
+                // Never write the focus-mode allowlist into the app-block denylist.
+                domains = blockedWebsiteHosts,
+                allowModeDomains = false,
                 physicalUnblockItems = latestPersisted?.physicalUnblockItems
                     ?: current.draft.physicalUnblockItems,
                 updatedAt = Instant.now(),

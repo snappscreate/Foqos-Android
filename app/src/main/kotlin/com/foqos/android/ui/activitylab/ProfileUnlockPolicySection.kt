@@ -66,9 +66,7 @@ fun ProfileUnlockPolicySection(
             closeAreaOnSave = false
         }
     }
-    val reusableActivities = remember(profile.id, refresh, activityDialog) {
-        activityStore.reusableConditions()
-    }
+    val reusableActivities = editor.library
     val existingActivities = editor.activities
     val mainId = editor.mainConditionId
 

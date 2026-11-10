@@ -343,15 +343,19 @@ fun ProfileEditScreen(
                     profileRepository = viewModel.profileRepository,
                     nfcDispatchManager = viewModel.nfcDispatchManager,
                     locationViewModel = viewModel.locationAutomationViewModel,
+                    editor = viewModel.pending,
                 )
             }
 
-            SectionCard(title = "動作判定の達成セット（AND・OR）") {
-                ActivityChallengeSetEditor(
-                    profileId = uiState.draft.id,
-                    editingLocked = uiState.editingLocked || !uiState.isPersisted,
-                    repository = viewModel.profileRepository,
-                )
+            if (viewModel.pending.policy.pause == com.foqos.android.ui.activitylab.UnlockMethod.ACTIVITY) {
+                SectionCard(title = "動作判定の達成セット（AND・OR）") {
+                    ActivityChallengeSetEditor(
+                        profileId = uiState.draft.id,
+                        editingLocked = uiState.editingLocked || !uiState.isPersisted,
+                        repository = viewModel.profileRepository,
+                        editor = viewModel.pending,
+                    )
+                }
             }
 
             SectionCard(title = "一時休止のサブ条件（AI動画判定）") {
@@ -359,6 +363,7 @@ fun ProfileEditScreen(
                     profileId = uiState.draft.id,
                     editingLocked = uiState.editingLocked,
                     profileRepository = viewModel.profileRepository,
+                    editor = viewModel.pending,
                 )
             }
 
@@ -366,6 +371,7 @@ fun ProfileEditScreen(
                 PauseRetryCooldownSection(
                     profileId = uiState.draft.id,
                     editingLocked = uiState.editingLocked,
+                    editor = viewModel.pending,
                 )
             }
 

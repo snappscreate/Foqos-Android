@@ -1311,6 +1311,11 @@ class SessionManager @Inject constructor(
     private suspend fun handleScheduleStart(profileId: String, at: Instant) {
         val profile = profileRepository.getById(profileId) ?: return
         if (profile.schedule?.isConfigured == true) {
+            if (LocationAutomationStore(appContext).manuallyStopped(profileId)) {
+                // Complete Stop is authoritative even against previously scheduled timers.
+                alarmScheduler.rearmScheduleStart(profile)
+                return
+            }
             if (independentUnlock.configured(profileId) &&
                 !independentUnlock.isReady(profile)) {
                 emitError("スケジュール開始不可：停止・一時休止の認証を登録してね")

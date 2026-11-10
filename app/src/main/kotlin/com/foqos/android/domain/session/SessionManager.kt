@@ -237,19 +237,9 @@ class SessionManager @Inject constructor(
                 }
                 return@withContext
             }
-            val profile = profileRepository.getById(profileId) ?: return@withContext
-            if (!independentUnlock.isReady(profile)) {
-                emitError("ブロック開始不可：停止・一時休止のタグや動作を登録してね")
-                return@withContext
-            }
-            val conflict = conflictingFullScreenProfile(profileId)
-            if (conflict == null) {
-                try {
-                    createSession(profile, tag = LOCATION_SESSION_TAG, forceStarted = false)
-                } catch (collision: FullScreenSessionConflict) {
-                    reportFullScreenConflict(profileRepository.getById(collision.runningProfileId)?.name ?: "別のプロファイル")
-                }
-            } else reportFullScreenConflict(conflict.name)
+            // A location transition can only resume an existing session.
+            // A fully stopped (no active session) profile requires the explicit Play action.
+            return@withContext
         } else {
             // Leaving the geofence is the deliberate escape hatch for a chosen activity.
             com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext).clear(profileId)

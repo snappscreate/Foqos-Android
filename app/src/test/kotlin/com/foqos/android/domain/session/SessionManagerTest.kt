@@ -207,6 +207,9 @@ class SessionManagerTest {
         try {
             location.setLastInside(true)
             sessionManager.onLocationTransition(profile.id, true)
+            assertThat(sessionManager.activeSession.value).isNull()
+            // Geofence ENTER must never start a fully stopped profile.
+            sessionManager.startProfile(profile.id)
             val originalId = sessionManager.activeSession.value!!.id
             assertThat(blockingStateHolder.state.value?.locationSuspended).isFalse()
 
@@ -236,6 +239,8 @@ class SessionManagerTest {
         try {
             location.setLastInside(true)
             sessionManager.onLocationTransition(profile.id, true)
+            assertThat(sessionManager.activeSession.value).isNull()
+            sessionManager.startProfile(profile.id)
             assertThat(sessionManager.activeSession.value).isNotNull()
 
             // EXIT suspends the existing session. A separate complete Stop ends it.
@@ -290,6 +295,9 @@ class SessionManagerTest {
         try {
             location.setLastInside(true)
             sessionManager.onLocationTransition(profile.id, true)
+            assertThat(sessionManager.activeSession.value).isNull()
+            // Geofence ENTER must never start a fully stopped profile.
+            sessionManager.startProfile(profile.id)
             val originalId = sessionManager.activeSession.value!!.id
 
             // An unverified tap must never start a pause.

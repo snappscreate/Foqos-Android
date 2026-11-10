@@ -241,7 +241,7 @@ fun ProfileUnlockPolicySection(
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(12.dp)) {
                     Text("NFC・QRコードを登録", style = MaterialTheme.typography.titleLarge)
                     PhysicalUnlockEditor(profile.id, profileRepository, nfcDispatchManager,
-                        editingLocked = editingLocked)
+                        editingLocked = editingLocked, editor = editor)
                     Text("登録したらここを閉じ、条件の選択欄からタグ・コードを選んでね",
                         style = MaterialTheme.typography.bodySmall)
                     TextButton(onClick = { credentialsDialog = false }) { Text("閉じる") }

@@ -19,6 +19,7 @@ import com.foqos.android.service.nfc.NfcForegroundDispatchManager
 import com.foqos.android.ui.physicalunlock.PhysicalUnlockEditor
 import com.foqos.android.ui.settings.LocationAutomationSection
 import com.foqos.android.ui.settings.LocationAutomationViewModel
+import com.foqos.android.ui.profile.ProfileEditPending
 import kotlinx.coroutines.launch
 
 /** A single location toggle, and independent stop / pause authentication selectors. */
@@ -30,6 +31,7 @@ fun ProfileUnlockPolicySection(
     profileRepository: ProfileRepository,
     nfcDispatchManager: NfcForegroundDispatchManager,
     locationViewModel: LocationAutomationViewModel,
+    editor: ProfileEditPending,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -38,17 +40,17 @@ fun ProfileUnlockPolicySection(
     val locationStore = remember(profile.id) { LocationAutomationStore(context) }
     val locationState by remember(profile.id) { locationStore.observeState(profile.id) }
         .collectAsState(initial = null to null)
-    val activeArea = locationState.first != null && locationStore.enabled(profile.id)
+    val activeArea = editor.locationRule != null && editor.locationEnabled
     val current by profileRepository.observeById(profile.id).collectAsState(initial = null)
     val allProfiles by profileRepository.observeAll().collectAsState(initial = emptyList())
-    val currentItems = current?.physicalUnblockItems.orEmpty()
+    val currentItems = editor.linkedPhysicalItems
     val catalog = remember { ReusablePhysicalCatalog(context) }
     // Import all existing registrations (including old profiles) without deleting
     // the reusable library when an owner profile is removed.
     val profileItems = allProfiles.flatMap { it.physicalUnblockItems } + currentItems
     LaunchedEffect(profileItems) { catalog.remember(profileItems) }
     val reusableItems = (profileItems + catalog.items()).distinctBy { it.id }
-    var policy by remember(profile.id) { mutableStateOf(policies.forProfile(profile)) }
+    val policy = editor.policy
     var areaDialog by remember { mutableStateOf(false) }
     var closeAreaOnSave by remember { mutableStateOf(false) }
     var credentialsDialog by remember { mutableStateOf(false) }
@@ -67,18 +69,12 @@ fun ProfileUnlockPolicySection(
     val reusableActivities = remember(profile.id, refresh, activityDialog) {
         activityStore.reusableConditions()
     }
-    val existingActivities = activityStore.conditions(profile.id)
-    val mainId = activityStore.mainConditionId(profile.id)
+    val existingActivities = editor.activities
+    val mainId = editor.mainConditionId
 
     fun savePolicy(next: ProfileUnlockPolicy) {
-        try {
-            // The cooldown editor is a separate composable; don't overwrite its value
-            // with this composable's older policy snapshot.
-            val merged = next.copy(retryCooldownMinutes = policies.read(profile.id).retryCooldownMinutes)
-            policies.save(profile.id, merged)
-            policy = merged
-            error = null
-        } catch (e: Exception) { error = e.message ?: "保存に失敗" }
+        editor.policy = next
+        error = null
     }
 
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -92,20 +88,20 @@ fun ProfileUnlockPolicySection(
                 checked = activeArea,
                 enabled = !editingLocked && isPersisted,
                 onCheckedChange = { enabled ->
-                    if (enabled && locationState.first == null) {
+                    if (enabled && editor.locationRule == null) {
                         closeAreaOnSave = true
                         areaDialog = true
                     } else {
-                        locationViewModel.setAutomationEnabled(profile.id, enabled)
+                        editor.locationEnabled = enabled
                     }
                 },
             )
         }
         if (!isPersisted) Text("位置範囲やタグを設定するには、まずプロファイルを保存してね",
             style = MaterialTheme.typography.bodySmall)
-        if (locationState.first != null) {
+        if (editor.locationRule != null) {
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("登録済み：半径 ${locationState.first!!.radiusMeters.toInt()}m",
+                Text("設定中：半径 ${editor.locationRule!!.radiusMeters.toInt()}m",
                     modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                 TextButton(enabled = !editingLocked, onClick = {
                     closeAreaOnSave = false
@@ -113,10 +109,8 @@ fun ProfileUnlockPolicySection(
                 }) { Text("範囲を編集") }
             }
         }
-        if (locationViewModel.status.isNotEmpty()) {
-            Text(locationViewModel.status, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall)
-        }
+        Text("位置範囲の変更も上部の保存ボタンを押すまで反映されないよ。",
+            style = MaterialTheme.typography.bodySmall)
         HorizontalDivider()
         Text("停止条件", style = MaterialTheme.typography.titleMedium)
         UnlockDropdown(policy.stop, listOf(
@@ -133,12 +127,10 @@ fun ProfileUnlockPolicySection(
                 items = reusableItems.filter { it.type == kind }, selectedId = policy.stopCredentialId,
                 enabled = !editingLocked,
                 onSelect = { chosen ->
-                    scope.launch {
-                        profileRepository.updatePhysicalUnblockItems(profile.id) { old ->
-                            if (old.any { it.id == chosen.id }) old else old + chosen
-                        }
-                        savePolicy(policies.read(profile.id).copy(stopCredentialId = chosen.id))
+                    editor.linkedPhysicalItems = editor.linkedPhysicalItems.let { old ->
+                        if (old.any { it.id == chosen.id }) old else old + chosen
                     }
+                    savePolicy(editor.policy.copy(stopCredentialId = chosen.id))
                 },
                 onAdd = { credentialsDialog = true },
             )
@@ -161,12 +153,10 @@ fun ProfileUnlockPolicySection(
                     items = reusableItems.filter { it.type == kind }, selectedId = policy.pauseCredentialId,
                     enabled = !editingLocked,
                     onSelect = { chosen ->
-                        scope.launch {
-                            profileRepository.updatePhysicalUnblockItems(profile.id) { old ->
-                                if (old.any { it.id == chosen.id }) old else old + chosen
-                            }
-                            savePolicy(policies.read(profile.id).copy(pauseCredentialId = chosen.id))
-                        }
+                        editor.linkedPhysicalItems = editor.linkedPhysicalItems.let { old ->
+                        if (old.any { it.id == chosen.id }) old else old + chosen
+                    }
+                    savePolicy(editor.policy.copy(pauseCredentialId = chosen.id))
                     },
                     onAdd = { credentialsDialog = true },
                 )
@@ -184,15 +174,15 @@ fun ProfileUnlockPolicySection(
                     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                         reusableActivities.forEach { candidate ->
                             DropdownMenuItem(text = { Text(candidate.description) }, onClick = {
-                                activityStore.importCondition(profile.id, candidate)
-                                activityStore.setMainCondition(profile.id, candidate.id)
+                                editor.addActivity(candidate)
+                                editor.mainConditionId = candidate.id
                                 refresh++
                                 expanded = false
                             })
                         }
                     }
                 }
-                val configuredSets = ActivityChallengeSetStore(context).sets(profile.id)
+                val configuredSets = editor.sets
                 if (configuredSets.isNotEmpty()) {
                     Text("動作セットが${configuredSets.size}件設定されているよ。セット内の全動作達成で一時休止する。",
                         style = MaterialTheme.typography.bodySmall,
@@ -211,12 +201,16 @@ fun ProfileUnlockPolicySection(
             Text("複数動作を組み合わせる場合は、下の「動作条件セット」で設定してね。",
                 style = MaterialTheme.typography.bodySmall)
         }
-        Text("一時休止時間：${policy.pauseMinutes}分", style = MaterialTheme.typography.titleSmall)
-        Text("メインのNFC・QR・動作判定が成功したときの休止時間。動作自体の保存設定とは独立。",
-            style = MaterialTheme.typography.bodySmall)
-        Slider(value = policy.pauseMinutes.toFloat(),
-            onValueChange = { savePolicy(policy.copy(pauseMinutes = it.toInt())) },
-            valueRange = 1f..180f, steps = 178, enabled = !editingLocked)
+        if (policy.pause != UnlockMethod.ACTIVITY) {
+            Text("一時休止時間：${policy.pauseMinutes}分", style = MaterialTheme.typography.titleSmall)
+            Slider(value = policy.pauseMinutes.toFloat(),
+                onValueChange = { savePolicy(policy.copy(pauseMinutes = it.toInt())) },
+                valueRange = 1f..180f, steps = 178, enabled = !editingLocked)
+        } else {
+            Text("動作判定の休止時間は各達成セットで設定するよ。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary)
+        }
         if (error != null) Text(error!!, color = MaterialTheme.colorScheme.error)
     }
 
@@ -230,7 +224,7 @@ fun ProfileUnlockPolicySection(
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("ブロック範囲の設定", style = MaterialTheme.typography.titleLarge)
-                    LocationAutomationSection(profile.id, editingLocked, isPersisted, locationViewModel)
+                    LocationAutomationSection(profile.id, editingLocked, isPersisted, locationViewModel, editor)
                     TextButton(onClick = { areaDialog = false; closeAreaOnSave = false }) { Text("閉じる") }
                 }
             }
@@ -330,15 +324,9 @@ private fun CredentialDropdown(
 
 /** Cooldown settings belong immediately above periodic access, not inside the proof picker. */
 @Composable
-fun PauseRetryCooldownSection(profileId: String, editingLocked: Boolean) {
-    val context = LocalContext.current
-    val store = remember(profileId) { ProfileUnlockPolicyStore(context) }
-    var policy by remember(profileId) { mutableStateOf(store.read(profileId)) }
-    fun save(value: Int) {
-        val updated = store.read(profileId).copy(retryCooldownMinutes = value.coerceIn(0, 24 * 60 + 59))
-        store.save(profileId, updated)
-        policy = updated
-    }
+fun PauseRetryCooldownSection(profileId: String, editingLocked: Boolean, editor: ProfileEditPending) {
+    val policy = editor.policy.copy(retryCooldownMinutes = editor.cooldownMinutes)
+    fun save(value: Int) { editor.cooldownMinutes = value.coerceIn(0, 24 * 60 + 59) }
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("一時休止の成功時刻から計測。待機中は再挑戦できない。0時間0分なら制限なし。",
             style = MaterialTheme.typography.bodySmall)

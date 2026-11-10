@@ -906,15 +906,14 @@ class SessionManagerTest {
     // --- Schedule alarms -----------------------------------------------------------------------
 
     @Test
-    fun `onAlarm SCHEDULE_START creates a session and rearms the next occurrence`() = runTest {
+    fun `onAlarm SCHEDULE_START never starts a stopped profile but rearms next occurrence`() = runTest {
         val schedule = BlockedProfileSchedule(days = listOf(Weekday.MONDAY), startHour = 9, startMinute = 0, endHour = 17, endMinute = 0)
         val profile = createProfile(strategyId = ManualBlockingStrategy.ID, schedule = schedule)
 
         sessionManager.onAlarm(AlarmActivityType.SCHEDULE_START, profile.id, emptyMap(), Instant.now())
 
         val active = sessionManager.activeSession.value
-        assertThat(active).isNotNull()
-        assertThat(active!!.tag).isEqualTo(AlarmActivityType.SCHEDULE_START.key)
+        assertThat(active).isNull()
         assertThat(alarmScheduler.trackedKeys).contains("ScheduleTimerActivityStart:${profile.id}")
     }
 

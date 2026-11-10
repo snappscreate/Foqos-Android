@@ -62,7 +62,11 @@ class ProfileEditPending(context: Context, profile: BlockedProfile) {
 
     fun ready(): Boolean {
         val ids = activities.map { it.id }.toSet()
-        return sets.all { it.conditionIds.isNotEmpty() && it.conditionIds.all(ids::contains) } &&
+        val safeDeletes = removedLibraryIds.all { id ->
+            id !in ids && activityStore.attachedProfileIds(id).all { it == profileId }
+        }
+        return safeDeletes &&
+            sets.all { it.conditionIds.isNotEmpty() && it.conditionIds.all(ids::contains) } &&
             (policy.pause != com.foqos.android.ui.activitylab.UnlockMethod.ACTIVITY ||
                 (sets.isNotEmpty() || mainConditionId?.let(ids::contains) == true))
     }

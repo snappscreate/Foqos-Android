@@ -34,6 +34,7 @@ import com.foqos.android.domain.session.SessionManager
 import com.foqos.android.service.location.GeofenceManager
 import com.foqos.android.service.location.LocationAutomationStore
 import com.foqos.android.service.location.LocationRule
+import com.foqos.android.ui.profile.ProfileEditPending
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -144,9 +145,10 @@ fun LocationAutomationSection(
     editingLocked: Boolean,
     isPersisted: Boolean,
     viewModel: LocationAutomationViewModel = hiltViewModel(),
+    editor: ProfileEditPending? = null,
 ) {
     val context = LocalContext.current
-    val original = remember(profileId) { viewModel.savedRule(profileId) }
+    val original = remember(profileId) { editor?.locationRule ?: viewModel.savedRule(profileId) }
     var lat by remember(profileId) { mutableStateOf(original?.latitude?.toString().orEmpty()) }
     var lon by remember(profileId) { mutableStateOf(original?.longitude?.toString().orEmpty()) }
     var radius by remember(profileId) {
@@ -200,7 +202,7 @@ fun LocationAutomationSection(
             }
         }) { Text("現在位置を入力") }
         OutlinedButton(onClick = {
-            val rule = viewModel.savedRule(profileId)
+            val rule = editor?.locationRule ?: viewModel.savedRule(profileId)
             if (rule == null) {
                 distanceText = "このプロファイルに位置範囲は登録されていません"
             } else if (!viewModel.hasPermission()) {
@@ -223,10 +225,24 @@ fun LocationAutomationSection(
         }) { Text("登録済みの範囲までの距離") }
         if (distanceText != null) Text(distanceText!!, style = MaterialTheme.typography.bodySmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(enabled = canEdit, onClick = { viewModel.save(profileId, lat, lon, radius) }) {
+            Button(enabled = canEdit, onClick = {
+                if (editor != null) {
+                    try {
+                        editor.locationRule = LocationRule(profileId, lat.toDouble(), lon.toDouble(), radius.toFloat())
+                        editor.locationEnabled = true
+                        message = "位置範囲を下書きに設定したよ。上部の保存ボタンで確定してね"
+                    } catch (e: Exception) { message = "位置範囲が不正だよ：${e.message}" }
+                } else viewModel.save(profileId, lat, lon, radius)
+            }) {
                 Text("位置範囲を保存")
             }
-            OutlinedButton(enabled = canEdit, onClick = { viewModel.disable(profileId) }) {
+            OutlinedButton(enabled = canEdit, onClick = {
+                if (editor != null) {
+                    editor.locationRule = null
+                    editor.locationEnabled = false
+                    message = "位置範囲の削除を下書きに設定したよ。上部の保存ボタンで確定してね"
+                } else viewModel.disable(profileId)
+            }) {
                 Text("位置範囲を削除")
             }
         }

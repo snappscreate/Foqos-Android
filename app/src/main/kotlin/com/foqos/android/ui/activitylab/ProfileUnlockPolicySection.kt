@@ -87,7 +87,7 @@ fun ProfileUnlockPolicySection(
             }
             Switch(
                 checked = activeArea,
-                enabled = !editingLocked && isPersisted,
+                enabled = !editingLocked,
                 onCheckedChange = { enabled ->
                     if (enabled && editor.locationRule == null) {
                         closeAreaOnSave = true
@@ -98,7 +98,7 @@ fun ProfileUnlockPolicySection(
                 },
             )
         }
-        if (!isPersisted) Text("位置範囲やタグを設定するには、まずプロファイルを保存してね",
+        if (!isPersisted) Text("新規プロファイルの位置範囲・タグも下書きとして設定できるよ。保存で確定する。",
             style = MaterialTheme.typography.bodySmall)
         if (editor.locationRule != null) {
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -118,7 +118,7 @@ fun ProfileUnlockPolicySection(
             UnlockMethod.MANUAL to "手動",
             UnlockMethod.NFC to "NFCタグ",
             UnlockMethod.QR to "QRコード",
-        ), !editingLocked && isPersisted, onSelected = {
+        ), !editingLocked, onSelected = {
             savePolicy(policy.copy(stop = it, stopCredentialId = if (it == policy.stop) policy.stopCredentialId else null))
         })
         if (policy.stop == UnlockMethod.NFC || policy.stop == UnlockMethod.QR) {

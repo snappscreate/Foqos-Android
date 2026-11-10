@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.foqos.android.ui.profile.ProfileEditPending
 import com.foqos.android.data.model.BlockedProfile
 import com.foqos.android.data.repository.ProfileRepository
 import java.util.UUID
@@ -20,16 +21,17 @@ fun ActivityChallengeSetEditor(
     profileId: String,
     editingLocked: Boolean,
     repository: ProfileRepository,
+    editor: ProfileEditPending,
 ) {
     val context = LocalContext.current
     val store = remember(profileId) { ActivityChallengeSetStore(context) }
     val activities = remember(profileId) { ActivityUnlockStore(context) }
-    var sets by remember(profileId) { mutableStateOf(store.sets(profileId)) }
+    val sets = editor.sets
     var changeToken by remember { mutableIntStateOf(0) }
     var libraryDialog by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val allProfiles by repository.observeAll().collectAsState(initial = emptyList())
-    val catalog = remember(libraryDialog, changeToken) { activities.reusableConditions() }
+    val catalog = editor.library
     fun persist(value: List<ActivityChallengeSet>) {
         try {
             // Never save a set with nonexistent reusable activity IDs.
@@ -37,12 +39,9 @@ fun ActivityChallengeSetEditor(
                 catalog.any { it.id == id }
             } }) { "保存されていない動作が含まれているよ" }
             value.flatMap { it.conditionIds }.distinct().forEach { id ->
-                catalog.firstOrNull { it.id == id }?.let {
-                    activities.importCondition(profileId, it)
-                }
+                catalog.firstOrNull { it.id == id }?.let { editor.addActivity(it) }
             }
-            store.save(profileId, value)
-            sets = value
+            editor.sets = value
             error = null
         } catch (e: Exception) { error = e.message ?: "セットを保存できなかった" }
     }
@@ -149,7 +148,7 @@ fun ActivityChallengeSetEditor(
                 border = androidx.compose.foundation.BorderStroke(
                     2.dp, MaterialTheme.colorScheme.outline)) {
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(12.dp)) {
-                    MovementLibrarySection(allProfiles, editingLocked)
+                    MovementLibrarySection(allProfiles, editingLocked, editor)
                     TextButton(onClick = { libraryDialog = false; changeToken++ }) {
                         Text("閉じる")
                     }

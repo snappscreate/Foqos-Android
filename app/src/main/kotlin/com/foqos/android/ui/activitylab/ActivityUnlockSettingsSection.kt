@@ -220,7 +220,7 @@ fun ActivityUnlockSettingsSection(
     if (registrationDialog && !registrationOnly) {
         Dialog(onDismissRequest = {
             registrationDialog = false
-            updateConditions(store.conditions(profileId))
+            if (editor == null) updateConditions(store.conditions(profileId))
             refresh++
         }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Surface(modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -236,7 +236,7 @@ fun ActivityUnlockSettingsSection(
                         profileRepository = profileRepository, editor = editor)
                     TextButton(onClick = {
                         registrationDialog = false
-                        updateConditions(store.conditions(profileId))
+                        if (editor == null) updateConditions(store.conditions(profileId))
                         refresh++
                     }) { Text("閉じる") }
                 }

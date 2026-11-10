@@ -444,7 +444,13 @@ class ProfileEditViewModel @Inject constructor(
             val saved = if (!current.isPersisted) profileRepository.create(toSave) else profileRepository.saveEditorDraft(toSave)
             fullScreenStore.save(saved.id, current.fullScreenEnabled, current.fullScreenAllowedPackages)
             fullScreenStore.saveUrls(saved.id, current.fullScreenAllowedUrls)
-            edits.commit()
+            try {
+                edits.commit()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(configurationError =
+                    "保存中に設定の反映に失敗したよ：${e.message ?: "不明なエラー"}") }
+                return@launch
+            }
             val locationStore = LocationAutomationStore(context)
             val oldRule = locationStore.read(saved.id)
             val oldEnabled = locationStore.enabled(saved.id)

@@ -2,6 +2,7 @@ package com.foqos.android.ui.profile
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -89,6 +90,7 @@ class ProfileEditScreenTest {
 
         composeTestRule.onNodeWithText("停止条件").assertExists()
         composeTestRule.onNodeWithText("一時休止条件（メイン）").assertExists()
+        composeTestRule.onNodeWithText("動作判定の達成セット（AND・OR）").assertDoesNotExist()
         composeTestRule.onNodeWithText("アプリ").assertExists()
         composeTestRule.onNodeWithText("ブロックするURL").assertExists()
         composeTestRule.onNodeWithText("許可するWebサイト（両モード共通）").assertExists()

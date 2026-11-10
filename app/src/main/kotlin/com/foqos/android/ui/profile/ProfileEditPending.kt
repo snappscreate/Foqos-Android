@@ -71,15 +71,16 @@ class ProfileEditPending(context: Context, profile: BlockedProfile) {
     fun commit() {
         val merged = policy.copy(retryCooldownMinutes = cooldownMinutes)
         val prior = startingLibrary.associateBy { it.id }
+        // Save this profile's new associations first, then validate global deletions.
+        activityStore.save(profileId, activities.map { item ->
+            library.firstOrNull { it.id == item.id } ?: item
+        })
         library.filter { prior[it.id] != it }.forEach(activityStore::updateLibraryCondition)
         removedLibraryIds.forEach { id ->
             check(activityStore.deleteLibraryCondition(id)) {
                 "この動作は他のプロファイルで使用されています。削除できないよ"
             }
         }
-        activityStore.save(profileId, activities.map { item ->
-            library.firstOrNull { it.id == item.id } ?: item
-        })
         activityStore.setMainCondition(profileId, mainConditionId?.takeIf { id ->
             activities.any { it.id == id }
         })

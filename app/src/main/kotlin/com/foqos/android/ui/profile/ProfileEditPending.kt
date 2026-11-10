@@ -64,7 +64,7 @@ class ProfileEditPending(context: Context, profile: BlockedProfile) {
         val ids = activities.map { it.id }.toSet()
         return sets.all { it.conditionIds.isNotEmpty() && it.conditionIds.all(ids::contains) } &&
             (policy.pause != com.foqos.android.ui.activitylab.UnlockMethod.ACTIVITY ||
-                (sets.isNotEmpty() || mainConditionId in ids))
+                (sets.isNotEmpty() || mainConditionId?.let(ids::contains) == true))
     }
 
     /** Persist only after profile has passed validation and its Save button was pressed. */

@@ -258,7 +258,7 @@ fun ProfileUnlockPolicySection(
                 border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.outline)) {
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(12.dp)) {
                     Text("動作判定を登録", style = MaterialTheme.typography.titleLarge)
-                    MovementLibrarySection(allProfiles, editingLocked)
+                    MovementLibrarySection(allProfiles, editingLocked, editor)
                     TextButton(onClick = { activityDialog = false; refresh++ }) { Text("閉じる") }
                 }
             }

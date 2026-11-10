@@ -156,7 +156,7 @@ fun LocationAutomationSection(
     }
     var message by remember { mutableStateOf("") }
     var distanceText by remember { mutableStateOf<String?>(null) }
-    val canEdit = !editingLocked && isPersisted
+    val canEdit = !editingLocked
     val foregroundRequest = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
@@ -169,7 +169,7 @@ fun LocationAutomationSection(
         Text("このプロファイルにだけ適用する位置範囲を設定。範囲外ではこのプロファイルのブロックを停止し、範囲内では再開する。",
             style = MaterialTheme.typography.bodySmall)
         if (!isPersisted) {
-            Text("位置範囲を設定するには、まずプロファイルを保存してください")
+            Text("位置範囲は下書きに設定できるよ。上部の保存ボタンで確定する。")
         }
         OutlinedTextField(value = lat, onValueChange = { lat = it },
             label = { Text("緯度") }, modifier = Modifier.fillMaxWidth(), enabled = canEdit)

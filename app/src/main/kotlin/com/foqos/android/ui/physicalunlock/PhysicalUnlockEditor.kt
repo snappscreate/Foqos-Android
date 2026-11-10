@@ -35,6 +35,7 @@ import com.foqos.android.data.model.PhysicalUnblockType
 import com.foqos.android.data.repository.ProfileRepository
 import com.foqos.android.service.nfc.NfcForegroundDispatchManager
 import com.foqos.android.ui.qr.QrScannerScreen
+import com.foqos.android.ui.profile.ProfileEditPending
 import com.foqos.android.ui.theme.FoqosTheme
 import java.time.Instant
 import androidx.compose.ui.window.Dialog
@@ -59,6 +60,7 @@ fun PhysicalUnlockEditor(
     modifier: Modifier = Modifier,
     editingLocked: Boolean = false,
     onEditBlocked: () -> Unit = {},
+    editor: ProfileEditPending? = null,
 ) {
     val profile by profileRepository.observeById(profileId).collectAsStateWithLifecycle(initialValue = null)
     val scope = rememberCoroutineScope()
@@ -66,14 +68,16 @@ fun PhysicalUnlockEditor(
     var activeScan by remember { mutableStateOf<ScanMode?>(null) }
     var renamingItem by remember { mutableStateOf<PhysicalUnblockItem?>(null) }
 
-    val items = profile?.physicalUnblockItems.orEmpty()
+    val items = editor?.linkedPhysicalItems ?: profile?.physicalUnblockItems.orEmpty()
 
     PhysicalUnlockEditorContent(
         items = items,
         onAddNfc = { if (editingLocked) onEditBlocked() else activeScan = ScanMode.NFC },
         onAddQr = { if (editingLocked) onEditBlocked() else activeScan = ScanMode.QR },
         onDelete = { item ->
-            if (editingLocked) { onEditBlocked() } else scope.launch { updateItems(profileRepository, profileId) { current -> current.filterNot { it.id == item.id } } }
+            if (editingLocked) { onEditBlocked() } else if (editor != null) {
+                editor.linkedPhysicalItems = items.filterNot { it.id == item.id }
+            } else scope.launch { updateItems(profileRepository, profileId) { current -> current.filterNot { it.id == item.id } } }
         },
         onRenameRequested = { item -> if (editingLocked) onEditBlocked() else renamingItem = item },
         modifier = modifier,
@@ -83,7 +87,9 @@ fun PhysicalUnlockEditor(
         ScanMode.NFC -> NfcAddSheet(
             nfcDispatchManager = nfcDispatchManager,
             onScanned = { value ->
-                scope.launch {
+                if (editor != null) editor.linkedPhysicalItems =
+                    items + newItem(items, PhysicalUnblockType.NFC, value)
+                else scope.launch {
                     updateItems(profileRepository, profileId) { current ->
                         current + newItem(current, PhysicalUnblockType.NFC, value)
                     }
@@ -94,7 +100,9 @@ fun PhysicalUnlockEditor(
         )
         ScanMode.QR -> QrAddSheet(
             onScanned = { value ->
-                scope.launch {
+                if (editor != null) editor.linkedPhysicalItems =
+                    items + newItem(items, PhysicalUnblockType.QR_CODE, value)
+                else scope.launch {
                     updateItems(profileRepository, profileId) { current ->
                         current + newItem(current, PhysicalUnblockType.QR_CODE, value)
                     }
@@ -110,7 +118,9 @@ fun PhysicalUnlockEditor(
         RenameDialog(
             item = item,
             onConfirm = { newName ->
-                scope.launch {
+                if (editor != null) editor.linkedPhysicalItems = items.map {
+                    if (it.id == item.id) it.copy(name = newName) else it
+                } else scope.launch {
                     updateItems(profileRepository, profileId) { current ->
                         current.map { if (it.id == item.id) it.copy(name = newName) else it }
                     }

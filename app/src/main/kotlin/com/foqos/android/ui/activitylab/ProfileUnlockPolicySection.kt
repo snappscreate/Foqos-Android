@@ -48,7 +48,10 @@ fun ProfileUnlockPolicySection(
     // Import all existing registrations (including old profiles) without deleting
     // the reusable library when an owner profile is removed.
     val profileItems = allProfiles.flatMap { it.physicalUnblockItems } + currentItems
-    LaunchedEffect(profileItems) { catalog.remember(profileItems) }
+    // Only committed registrations may enter the shared reusable catalog.
+    // Unsaved editor additions stay in currentItems until the parent Save.
+    val savedPhysicalItems = allProfiles.flatMap { it.physicalUnblockItems }
+    LaunchedEffect(savedPhysicalItems) { catalog.remember(savedPhysicalItems) }
     val reusableItems = (profileItems + catalog.items()).distinctBy { it.id }
     val policy = editor.policy
     var areaDialog by remember { mutableStateOf(false) }

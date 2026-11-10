@@ -397,6 +397,12 @@ class ProfileEditViewModel @Inject constructor(
                 _uiState.update { it.copy(configurationError = "動作セット内の動作が未登録、またはメイン動作が未選択だよ") }
                 return@launch
             }
+            if (edits.locationRule != null && edits.locationEnabled &&
+                !GeofenceManager(context).hasRequiredPermissions()) {
+                _uiState.update { it.copy(configurationError =
+                    "位置連動を保存するには、正確な位置情報とバックグラウンド位置情報の許可が必要だよ") }
+                return@launch
+            }
             val validationProfile = current.draft.copy(physicalUnblockItems = edits.linkedPhysicalItems)
             fun chosenCredentialValid(method: com.foqos.android.ui.activitylab.UnlockMethod, id: String?): Boolean {
                 if (method != com.foqos.android.ui.activitylab.UnlockMethod.NFC &&
@@ -416,7 +422,6 @@ class ProfileEditViewModel @Inject constructor(
             _uiState.update { it.copy(configurationError = null) }
             // The app-block domain denylist is deliberately independent of
             // full-screen focus mode's URL allowlist.
-            val latestPersisted = if (current.isPersisted) profileRepository.getById(current.draft.id) else null
             val blockedWebsiteHosts = current.blockedUrls.mapNotNull {
                 FullScreenModeStore.normalizeUrl(it)?.removePrefix("https://")
             }.distinct()

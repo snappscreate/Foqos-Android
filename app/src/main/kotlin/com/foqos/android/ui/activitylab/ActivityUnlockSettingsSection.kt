@@ -67,7 +67,7 @@ fun ActivityUnlockSettingsSection(
             "登録済みの動作をサブ条件へ追加するか、新しく動作を登録してね。休止時間はこのプロファイル専用の設定。",
             style = MaterialTheme.typography.bodySmall)
         conditions.filter { (registrationOnly && editingId == null) ||
-            (!registrationOnly && it.id != store.mainConditionId(profileId)) }
+            (!registrationOnly && it.id != (editor?.mainConditionId ?: store.mainConditionId(profileId))) }
             .forEach { condition ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 Column(Modifier.weight(1f)) {
@@ -83,7 +83,7 @@ fun ActivityUnlockSettingsSection(
                 OutlinedButton(enabled = !editingLocked, onClick = {
                     if (libraryMode) {
                         val owners = store.attachedProfileIds(condition.id).filterNot {
-                            it == editor?.profileId && editor.activities.none { a -> a.id == condition.id }
+                            it == editor?.profileId && editor?.activities?.none { a -> a.id == condition.id } == true
                         }.toSet()
                         if (owners.isNotEmpty()) {
                             val names = allProfiles.filter { it.id in owners }.map { it.name }
@@ -110,7 +110,7 @@ fun ActivityUnlockSettingsSection(
                     if (editingId == condition.id) editingId = null
                 }) { Text("削除") }
             }
-            if (!registrationOnly && editingId == null && condition.id != store.mainConditionId(profileId)) {
+            if (!registrationOnly && editingId == null && condition.id != (editor?.mainConditionId ?: store.mainConditionId(profileId))) {
                 val defaultMinutes = ProfileUnlockPolicyStore(context).read(profileId).pauseMinutes
                 val rewardMinutes = remember(profileId, condition.id, rewardRefresh) {
                     editor?.activityRewards?.get(condition.id)

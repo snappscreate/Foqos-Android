@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.foqos.android.ui.profile.ProfileEditPending
 import com.foqos.android.data.model.BlockedProfile
 import com.foqos.android.data.repository.ProfileRepository
 
@@ -20,6 +21,7 @@ fun ActivityUnlockSettingsSection(
     profileId: String, editingLocked: Boolean, registrationOnly: Boolean = false,
     profileRepository: ProfileRepository? = null,
     knownProfiles: List<BlockedProfile> = emptyList(),
+    editor: ProfileEditPending? = null,
 ) {
     val context = LocalContext.current
     val libraryMode = registrationOnly
@@ -28,7 +30,15 @@ fun ActivityUnlockSettingsSection(
     val observedProfiles by (profileRepository?.observeAll()?.collectAsState(initial = emptyList())
         ?: remember { mutableStateOf(emptyList<BlockedProfile>()) })
     val allProfiles = if (knownProfiles.isNotEmpty()) knownProfiles else observedProfiles
-    var conditions by remember(storageId) { mutableStateOf(store.conditions(storageId)) }
+    var fallbackConditions by remember(storageId) { mutableStateOf(store.conditions(storageId)) }
+    val conditions = if (editor != null) {
+        if (libraryMode) editor.library else editor.activities
+    } else fallbackConditions
+    fun updateConditions(value: List<ActivityUnlockCondition>) {
+        if (editor == null) fallbackConditions = value
+        else if (libraryMode) editor.library = value
+        else editor.activities = value
+    }
     var editingId by remember(storageId, registrationOnly) { mutableStateOf<String?>(null) }
     var draft by remember(profileId) { mutableStateOf(ActivityUnlockCondition()) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -38,17 +48,18 @@ fun ActivityUnlockSettingsSection(
     var rewardRefresh by remember { mutableIntStateOf(0) }
     fun saveList(items: List<ActivityUnlockCondition>) {
         try {
-            if (libraryMode) {
-                items.forEach { store.updateLibraryCondition(it) }
-                // Existing entries deleted separately, with strict reference checks.
-                conditions = store.conditions(storageId)
+            if (editor != null) {
+                if (libraryMode) items.forEach(editor::editLibrary)
+                else updateConditions(items)
+            } else if (libraryMode) {
+                items.forEach(store::updateLibraryCondition)
+                updateConditions(store.conditions(storageId))
             } else {
                 store.save(profileId, items)
-                conditions = store.conditions(profileId)
+                updateConditions(store.conditions(profileId))
             }
             error = null
-        }
-        catch (e: Exception) { error = e.message ?: "保存失敗" }
+        } catch (e: Exception) { error = e.message ?: "保存失敗" }
     }
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -71,23 +82,29 @@ fun ActivityUnlockSettingsSection(
                 }
                 OutlinedButton(enabled = !editingLocked, onClick = {
                     if (libraryMode) {
-                        val owners = store.attachedProfileIds(condition.id)
+                        val owners = store.attachedProfileIds(condition.id).filterNot {
+                            it == editor?.profileId && editor.activities.none { a -> a.id == condition.id }
+                        }.toSet()
                         if (owners.isNotEmpty()) {
                             val names = allProfiles.filter { it.id in owners }.map { it.name }
                             error = if (owners.size == 1) {
                                 "${names.firstOrNull() ?: "別のプロファイル"}で使用されています。削除できないよ"
                             } else "複数のプロファイルで使用されています。削除できないよ"
+                        } else if (editor != null) {
+                            editor.removeFromLibrary(condition.id)
+                            error = null
                         } else if (store.deleteLibraryCondition(condition.id)) {
-                            conditions = store.conditions(storageId)
+                            updateConditions(store.conditions(storageId))
                             error = null
                         } else error = "削除できなかったよ"
                     } else {
-                        val inSets = ActivityChallengeSetStore(context).sets(profileId)
+                        val inSets = (editor?.sets ?: ActivityChallengeSetStore(context).sets(profileId))
                             .any { condition.id in it.conditionIds }
                         if (inSets) {
                             error = "この動作は達成セットで使用されています。セットから外してから削除してね"
                         } else {
-                            saveList(conditions.filterNot { it.id == condition.id })
+                            if (editor != null) editor.removeActivity(condition.id)
+                            else saveList(conditions.filterNot { it.id == condition.id })
                         }
                     }
                     if (editingId == condition.id) editingId = null
@@ -120,12 +137,15 @@ fun ActivityUnlockSettingsSection(
                         chooseExisting = true
                     }) { Text("＋ 登録済みの動作を追加") }
                     DropdownMenu(expanded = chooseExisting, onDismissRequest = { chooseExisting = false }) {
-                        store.reusableConditions().filter { candidate ->
+                        (editor?.library ?: store.reusableConditions()).filter { candidate ->
                             conditions.none { it.id == candidate.id }
                         }.forEach { candidate ->
                             DropdownMenuItem(text = { Text(candidate.description) }, onClick = {
-                                store.importCondition(profileId, candidate)
-                                conditions = store.conditions(profileId)
+                                if (editor != null) editor.addActivity(candidate)
+                                else {
+                                    store.importCondition(profileId, candidate)
+                                    updateConditions(store.conditions(profileId))
+                                }
                                 chooseExisting = false
                                 refresh++
                             })
@@ -197,7 +217,7 @@ fun ActivityUnlockSettingsSection(
     if (registrationDialog && !registrationOnly) {
         Dialog(onDismissRequest = {
             registrationDialog = false
-            conditions = store.conditions(profileId)
+            updateConditions(store.conditions(profileId))
             refresh++
         }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Surface(modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -210,10 +230,10 @@ fun ActivityUnlockSettingsSection(
                     .padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("動作判定を新しく登録", style = MaterialTheme.typography.titleLarge)
                     ActivityUnlockSettingsSection(profileId, editingLocked, registrationOnly = true,
-                        profileRepository = profileRepository)
+                        profileRepository = profileRepository, editor = editor)
                     TextButton(onClick = {
                         registrationDialog = false
-                        conditions = store.conditions(profileId)
+                        updateConditions(store.conditions(profileId))
                         refresh++
                     }) { Text("閉じる") }
                 }
@@ -227,11 +247,13 @@ fun ActivityUnlockSettingsSection(
 fun MovementLibrarySection(
     allProfiles: List<BlockedProfile>,
     editingLocked: Boolean,
+    editor: ProfileEditPending? = null,
 ) {
     ActivityUnlockSettingsSection(
         profileId = "__shared_catalog__",
         editingLocked = editingLocked,
         registrationOnly = true,
         knownProfiles = allProfiles,
+        editor = editor,
     )
 }

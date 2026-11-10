@@ -113,14 +113,17 @@ fun ActivityUnlockSettingsSection(
             if (!registrationOnly && editingId == null && condition.id != store.mainConditionId(profileId)) {
                 val defaultMinutes = ProfileUnlockPolicyStore(context).read(profileId).pauseMinutes
                 val rewardMinutes = remember(profileId, condition.id, rewardRefresh) {
-                    store.conditionPauseMinutes(profileId, condition.id, defaultMinutes)
+                    editor?.activityRewards?.get(condition.id)
+                        ?: store.conditionPauseMinutes(profileId, condition.id, defaultMinutes)
                 }
                 Text("このプロファイルのサブ条件として成功した場合：${rewardMinutes}分休止",
                     style = MaterialTheme.typography.bodySmall)
                 Slider(value = rewardMinutes.toFloat(), enabled = !editingLocked,
                     onValueChange = { minutes ->
-                        store.setConditionPauseMinutes(profileId, condition.id, minutes.toInt())
-                        rewardRefresh++
+                        if (editor != null) editor.activityRewards =
+                        editor.activityRewards + (condition.id to minutes.toInt())
+                    else store.setConditionPauseMinutes(profileId, condition.id, minutes.toInt())
+                    rewardRefresh++
                     }, valueRange = 1f..180f, steps = 178)
             }
             HorizontalDivider()

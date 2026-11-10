@@ -67,7 +67,7 @@ fun ActivityUnlockSettingsSection(
             "登録済みの動作をサブ条件へ追加するか、新しく動作を登録してね。休止時間はこのプロファイル専用の設定。",
             style = MaterialTheme.typography.bodySmall)
         conditions.filter { (registrationOnly && editingId == null) ||
-            (!registrationOnly && it.id != (editor?.mainConditionId ?: store.mainConditionId(profileId))) }
+            (!registrationOnly && it.id != (if (editor != null) editor.mainConditionId else store.mainConditionId(profileId))) }
             .forEach { condition ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 Column(Modifier.weight(1f)) {

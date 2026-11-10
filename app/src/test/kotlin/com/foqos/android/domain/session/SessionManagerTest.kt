@@ -298,6 +298,10 @@ class SessionManagerTest {
             assertThat(sessionManager.activeSession.value).isNull()
             // Geofence ENTER must never start a fully stopped profile.
             sessionManager.startProfile(profile.id)
+            sessionManager.deliverInput(
+                PendingStrategyAction.Start(profile.id),
+                StrategyInput.PauseData(StrategyPauseTimerData(pauseDurationInMinutes = 20)),
+            )
             val originalId = sessionManager.activeSession.value!!.id
 
             // An unverified tap must never start a pause.

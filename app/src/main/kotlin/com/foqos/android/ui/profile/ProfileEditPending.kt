@@ -28,6 +28,9 @@ class ProfileEditPending(context: Context, profile: BlockedProfile) {
     var policy by mutableStateOf(policyStore.forProfile(profile))
     var mainConditionId by mutableStateOf(activityStore.mainConditionId(profile.id))
     var activities by mutableStateOf(activityStore.conditions(profile.id))
+    private val startingLibrary = activityStore.reusableConditions()
+    var library by mutableStateOf(startingLibrary)
+    var removedLibraryIds by mutableStateOf(emptySet<String>())
     var sets by mutableStateOf(setStore.sets(profile.id))
     var locationRule: LocationRule? by mutableStateOf(locationStore.read(profile.id))
     var locationEnabled by mutableStateOf(locationStore.enabled(profile.id))
@@ -36,6 +39,15 @@ class ProfileEditPending(context: Context, profile: BlockedProfile) {
     var activityRewards by mutableStateOf(
         activities.associate { it.id to activityStore.conditionPauseMinutes(profile.id, it.id, policy.pauseMinutes) }
     )
+
+    fun editLibrary(item: ActivityUnlockCondition) {
+        library = library.filterNot { it.id == item.id } + item.normalized()
+    }
+
+    fun removeFromLibrary(id: String) {
+        removedLibraryIds = removedLibraryIds + id
+        library = library.filterNot { it.id == id }
+    }
 
     fun addActivity(activity: ActivityUnlockCondition) {
         if (activities.none { it.id == activity.id }) activities = activities + activity
@@ -58,7 +70,16 @@ class ProfileEditPending(context: Context, profile: BlockedProfile) {
     /** Persist only after profile has passed validation and its Save button was pressed. */
     fun commit() {
         val merged = policy.copy(retryCooldownMinutes = cooldownMinutes)
-        activityStore.save(profileId, activities)
+        val prior = startingLibrary.associateBy { it.id }
+        library.filter { prior[it.id] != it }.forEach(activityStore::updateLibraryCondition)
+        removedLibraryIds.forEach { id ->
+            check(activityStore.deleteLibraryCondition(id)) {
+                "この動作は他のプロファイルで使用されています。削除できないよ"
+            }
+        }
+        activityStore.save(profileId, activities.map { item ->
+            library.firstOrNull { it.id == item.id } ?: item
+        })
         activityStore.setMainCondition(profileId, mainConditionId?.takeIf { id ->
             activities.any { it.id == id }
         })

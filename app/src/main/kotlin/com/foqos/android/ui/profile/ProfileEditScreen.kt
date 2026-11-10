@@ -351,7 +351,7 @@ fun ProfileEditScreen(
                 SectionCard(title = "動作判定の達成セット（AND・OR）") {
                     ActivityChallengeSetEditor(
                         profileId = uiState.draft.id,
-                        editingLocked = uiState.editingLocked || !uiState.isPersisted,
+                        editingLocked = uiState.editingLocked,
                         repository = viewModel.profileRepository,
                         editor = viewModel.pending,
                     )

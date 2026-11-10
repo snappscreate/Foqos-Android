@@ -85,6 +85,8 @@ class ProfileEditViewModel @Inject constructor(
     )
 
     val locationAutomationViewModel = com.foqos.android.ui.settings.LocationAutomationViewModel(sessionManager, context)
+    lateinit var pending: ProfileEditPending
+        private set
 
     private val fullScreenStore = FullScreenModeStore(context)
     private val periodicStore = PeriodicAccessStore(context)
@@ -104,6 +106,7 @@ class ProfileEditViewModel @Inject constructor(
         }
         viewModelScope.launch {
             val existing = existingProfileId?.let { profileRepository.getById(it) }
+            pending = ProfileEditPending(context, existing ?: _uiState.value.draft)
             _uiState.update {
                 if (existing != null) {
                     it.copy(
@@ -388,25 +391,32 @@ class ProfileEditViewModel @Inject constructor(
                 }
                 return@launch
             }
-            // The legacy Schedule and Breaks controls were removed from the editor.
-            // Physical unlock items are edited in a separate repository-backed component.
-            // Never overwrite newer NFC/QR registrations with this screen's stale draft.
-            // Activate the independent policy on save, even when the user leaves
-            // the default radio buttons unchanged.
-            val policyStore = com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore(context)
-            if (!policyStore.configured(current.draft.id)) {
-                policyStore.save(current.draft.id, policyStore.forProfile(current.draft))
+            // Validate the unsaved snapshot, never mutate preferences during validation.
+            val edits = pending
+            if (!edits.ready()) {
+                _uiState.update { it.copy(configurationError = "動作セット内の動作が未登録、またはメイン動作が未選択だよ") }
+                return@launch
             }
-            val latestPersisted = if (current.isPersisted) profileRepository.getById(current.draft.id) else null
-            // Never commit an active policy without the specifically selected proof.
-            val validationProfile = latestPersisted ?: current.draft
-            if (!policyStore.isReady(validationProfile)) {
-                _uiState.update { it.copy(configurationError = "停止・一時休止で使用するNFC・QR・動作判定を登録して選択してね") }
+            val validationProfile = current.draft.copy(physicalUnblockItems = edits.linkedPhysicalItems)
+            fun chosenCredentialValid(method: com.foqos.android.ui.activitylab.UnlockMethod, id: String?): Boolean {
+                if (method != com.foqos.android.ui.activitylab.UnlockMethod.NFC &&
+                    method != com.foqos.android.ui.activitylab.UnlockMethod.QR) return true
+                return id != null && validationProfile.physicalUnblockItems.any { item ->
+                    item.id == id && item.codeValue.isNotBlank() &&
+                        item.type == if (method == com.foqos.android.ui.activitylab.UnlockMethod.NFC)
+                            com.foqos.android.data.model.PhysicalUnblockType.NFC else
+                            com.foqos.android.data.model.PhysicalUnblockType.QR_CODE
+                }
+            }
+            if (!chosenCredentialValid(edits.policy.stop, edits.policy.stopCredentialId) ||
+                !chosenCredentialValid(edits.policy.pause, edits.policy.pauseCredentialId)) {
+                _uiState.update { it.copy(configurationError = "停止・一時休止のNFC・QRタグを選択してね") }
                 return@launch
             }
             _uiState.update { it.copy(configurationError = null) }
             // The app-block domain denylist is deliberately independent of
             // full-screen focus mode's URL allowlist.
+            val latestPersisted = if (current.isPersisted) profileRepository.getById(current.draft.id) else null
             val blockedWebsiteHosts = current.blockedUrls.mapNotNull {
                 FullScreenModeStore.normalizeUrl(it)?.removePrefix("https://")
             }.distinct()
@@ -414,9 +424,7 @@ class ProfileEditViewModel @Inject constructor(
                 name = trimmedName,
                 // Independent unlock policies always start from the home button.
                 // Legacy strategy data is retained for profiles that have not migrated.
-                strategyId = if (com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore(context)
-                        .configured(current.draft.id)) ManualBlockingStrategy.ID
-                    else current.draft.strategyId,
+                strategyId = ManualBlockingStrategy.ID,
                 schedule = null,
                 enableBreaks = false,
                 allowMultipleBreaks = false,
@@ -424,14 +432,34 @@ class ProfileEditViewModel @Inject constructor(
                 // Never write the focus-mode allowlist into the app-block denylist.
                 domains = blockedWebsiteHosts,
                 allowModeDomains = false,
-                physicalUnblockItems = latestPersisted?.physicalUnblockItems
-                    ?: current.draft.physicalUnblockItems,
+                physicalUnblockItems = edits.linkedPhysicalItems,
                 updatedAt = Instant.now(),
             )
 
             val saved = if (!current.isPersisted) profileRepository.create(toSave) else profileRepository.saveEditorDraft(toSave)
             fullScreenStore.save(saved.id, current.fullScreenEnabled, current.fullScreenAllowedPackages)
             fullScreenStore.saveUrls(saved.id, current.fullScreenAllowedUrls)
+            edits.commit()
+            val locationStore = LocationAutomationStore(context)
+            val oldRule = locationStore.read(saved.id)
+            val oldEnabled = locationStore.enabled(saved.id)
+            val newRule = edits.locationRule
+            if (newRule == null) {
+                if (oldRule != null) {
+                    locationStore.clear(saved.id)
+                    GeofenceManager(context).unregister(saved.id)
+                }
+            } else {
+                locationStore.save(newRule)
+                locationStore.setEnabled(saved.id, edits.locationEnabled)
+                if (edits.locationEnabled) {
+                    // Geofence callbacks may be immediate, but NEVER start stopped profiles.
+                    GeofenceManager(context).register(newRule).addOnFailureListener {
+                        locationStore.setEnabled(saved.id, false)
+                    }
+                } else if (oldEnabled) GeofenceManager(context).unregister(saved.id)
+            }
+
             periodicStore.save(saved.id, if (current.periodicAccessEnabled) {
                 PeriodicAccessStore.Config(current.periodicWaitMinutes, current.periodicAccessMinutes)
             } else PeriodicAccessStore.Config())

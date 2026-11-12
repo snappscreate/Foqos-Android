@@ -17,9 +17,9 @@ object IntermittentCapturePlan {
 
     /** Explicit time-based challenges cannot be completed by stopping the recording early. */
     fun minimumDurationMillis(description: String): Long? {
-        val hours = Regex("""(\\d{1,2})\\s*時間""").find(description)
+        val hours = Regex("""(\d{1,2})\s*時間""").find(description)
             ?.groupValues?.get(1)?.toLongOrNull() ?: 0L
-        val minutes = Regex("""(\\d{1,3})\\s*分""").find(description)
+        val minutes = Regex("""(\d{1,3})\s*分""").find(description)
             ?.groupValues?.get(1)?.toLongOrNull() ?: 0L
         val total = (hours * 60L + minutes) * 60_000L
         return total.takeIf { it > 0L }

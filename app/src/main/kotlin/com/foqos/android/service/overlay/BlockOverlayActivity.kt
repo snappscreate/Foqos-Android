@@ -508,7 +508,6 @@ class BlockOverlayActivity : ComponentActivity() {
                         }
                     }) else null,
                     onActivityChallenge = if (activityConditions.isNotEmpty() &&
-                        (configuredChallengeSets.isNotEmpty() || selectedActivity != null) &&
                         retryRemainingMillis == 0L &&
                         !state.let { it == null || it.pauseActive || it.breakActive }) ({
                         if (configuredChallengeSets.isNotEmpty()) {

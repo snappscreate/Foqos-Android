@@ -143,7 +143,7 @@ fun ProfileUnlockPolicySection(
             UnlockMethod.NFC to "NFCタグ",
             UnlockMethod.QR to "QRコード",
             UnlockMethod.ACTIVITY to "AI動作判定",
-        ), !editingLocked && isPersisted, onSelected = {
+        ), !editingLocked, onSelected = {
             savePolicy(policy.copy(pause = it, pauseCredentialId = if (it == policy.pause) policy.pauseCredentialId else null))
         })
         when (policy.pause) {
@@ -163,44 +163,15 @@ fun ProfileUnlockPolicySection(
                 )
             }
             UnlockMethod.ACTIVITY -> {
-                Text("一時休止に使用する動作判定", style = MaterialTheme.typography.bodySmall)
-                var expanded by remember { mutableStateOf(false) }
-                Box {
-                    OutlinedButton(enabled = !editingLocked, onClick = {
-                        refresh++
-                        expanded = true
-                    }, modifier = Modifier.fillMaxWidth()) {
-                        Text(existingActivities.firstOrNull { it.id == mainId }?.description ?: "登録済みの動作を選択")
-                    }
-                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        reusableActivities.forEach { candidate ->
-                            DropdownMenuItem(text = { Text(candidate.description) }, onClick = {
-                                editor.addActivity(candidate)
-                                editor.mainConditionId = candidate.id
-                                refresh++
-                                expanded = false
-                            })
-                        }
-                    }
-                }
-                val configuredSets = editor.sets
-                if (configuredSets.isNotEmpty()) {
-                    Text("動作セットが${configuredSets.size}件設定されているよ。セット内の全動作達成で一時休止する。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary)
-                } else if (mainId == null || existingActivities.none { it.id == mainId }) {
-                    Text("単独のメイン動作が未設定。下で動作セットを作成するか、ここで選択してね。",
-                        color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                }
-                OutlinedButton(enabled = !editingLocked, onClick = { activityDialog = true }) {
-                    Text("＋ 動作判定を新しく登録")
-                }
+                Text("メインの動作判定セット", style = MaterialTheme.typography.titleSmall)
+                ActivityChallengeSetEditor(
+                    profileId = profile.id,
+                    editingLocked = editingLocked,
+                    repository = profileRepository,
+                    editor = editor,
+                )
             }
             else -> Unit
-        }
-        if (policy.pause == UnlockMethod.ACTIVITY) {
-            Text("複数動作を組み合わせる場合は、下の「動作条件セット」で設定してね。",
-                style = MaterialTheme.typography.bodySmall)
         }
         if (policy.pause != UnlockMethod.ACTIVITY) {
             Text("一時休止時間：${policy.pauseMinutes}分", style = MaterialTheme.typography.titleSmall)

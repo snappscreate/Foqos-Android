@@ -31,8 +31,25 @@ class ProfileEditPending(context: Context, profile: BlockedProfile) {
     private val startingLibrary = activityStore.reusableConditions()
     var library by mutableStateOf(startingLibrary)
     var removedLibraryIds by mutableStateOf(emptySet<String>())
-    var sets by mutableStateOf(setStore.sets(profile.id))
-    var subSets by mutableStateOf(setStore.subSets(profile.id))
+    // Migrate previous single-movement main and subconditions into one-movement sets
+    // in the edit draft only; the existing saved configuration is unchanged until Save.
+    private val committedMainSets = setStore.sets(profile.id)
+    var sets by mutableStateOf(
+        if (committedMainSets.isEmpty() &&
+            policy.pause == com.foqos.android.ui.activitylab.UnlockMethod.ACTIVITY &&
+            mainConditionId != null && activities.any { it.id == mainConditionId }) {
+            listOf(ActivityChallengeSet(conditionIds = listOf(mainConditionId!!),
+                pauseMinutes = policy.pauseMinutes))
+        } else committedMainSets
+    )
+    var subSets by mutableStateOf(setStore.subSets(profile.id).ifEmpty {
+        val mainIds = sets.flatMap { it.conditionIds }.toSet() + listOfNotNull(mainConditionId)
+        activities.filterNot { it.id in mainIds }.map { move ->
+            ActivityChallengeSet(conditionIds = listOf(move.id),
+                pauseMinutes = activityStore.conditionPauseMinutes(profile.id, move.id,
+                    policy.pauseMinutes))
+        }
+    })
     var locationRule: LocationRule? by mutableStateOf(locationStore.read(profile.id))
     var locationEnabled by mutableStateOf(locationStore.enabled(profile.id))
     var cooldownMinutes by mutableStateOf(policy.retryCooldownMinutes)

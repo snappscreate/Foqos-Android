@@ -94,7 +94,7 @@ object ActivityGeminiRelay {
         require(apiKey.isNotBlank()) { "Gemini APIキーを入力してね" }
         require(model in SUPPORTED_MODELS) { "未対応のモデル名だよ" }
         val parts = JSONArray().put(JSONObject().put("text",
-            "時系列の撮影データを見て「${activity.take(160)}」を本当に行ったか判定。" +
+            "時系列の撮影データを見て「${activity.take(2500)}」を本当に行ったか判定。" +
                 "姿勢だけで断定せず、明確な動きや継続の証拠が不足する場合は判断不能。"))
         if (video != null) {
             require(video.length() <= 14_000_000) { "動画が14MBを超えたため送信を中止したよ" }

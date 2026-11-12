@@ -126,6 +126,8 @@ class ActivityUnlockStore(context: Context) {
     }
 
     private fun activeMain(profileId: String, sessionId: String): SelectedActivityUnlock? {
+        if (ActivityChallengeSetStore(context).hasMainSetConfig(profileId) ||
+            ActivityChallengeSetStore(context).hasSubSetConfig(profileId)) return null
         if (ProfileUnlockPolicyStore(context).configured(profileId) &&
             ProfileUnlockPolicyStore(context).read(profileId).pause != UnlockMethod.ACTIVITY
         ) return null

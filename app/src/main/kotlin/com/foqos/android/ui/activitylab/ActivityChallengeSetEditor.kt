@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.foqos.android.ui.profile.ProfileEditPending
+import com.foqos.android.ui.common.DurationSliderField
 import com.foqos.android.data.model.BlockedProfile
 import com.foqos.android.data.repository.ProfileRepository
 import java.util.UUID
@@ -119,13 +120,16 @@ fun ActivityChallengeSetEditor(
                                 conditionIds = it.conditionIds + next.id)
                         })
                     }) { Text("＋ このセットに動作を追加（AND）") }
-                    Text("全て達成した場合：${group.pauseMinutes}分休止",
-                        style = MaterialTheme.typography.titleSmall)
-                    Slider(value = group.pauseMinutes.toFloat(), onValueChange = { minutes ->
-                        persist(sets.map {
-                            if (it.id != group.id) it else it.copy(pauseMinutes = minutes.toInt())
-                        })
-                    }, enabled = !editingLocked, valueRange = 1f..180f, steps = 178)
+                    DurationSliderField(
+                        label = "全て達成した場合の休止時間",
+                        value = group.pauseMinutes,
+                        onValueChange = { minutes ->
+                            persist(sets.map {
+                                if (it.id != group.id) it else it.copy(pauseMinutes = minutes)
+                            })
+                        },
+                        range = 1..180, enabled = !editingLocked,
+                    )
                 }
             }
         }

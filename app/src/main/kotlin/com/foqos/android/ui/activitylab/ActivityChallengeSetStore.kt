@@ -43,7 +43,33 @@ class ActivityChallengeSetStore(context: Context) {
         }
     }.getOrDefault(emptyList())
 
-    fun save(profileId: String, value: List<ActivityChallengeSet>) {
+    /** Additional alternative AI pause sets, independent from the main pause method. */
+    fun subSets(profileId: String): List<ActivityChallengeSet> = readGroups("sub_sets_$profileId")
+
+    fun allSets(profileId: String): List<ActivityChallengeSet> = sets(profileId) + subSets(profileId)
+
+    fun saveSubSets(profileId: String, value: List<ActivityChallengeSet>) =
+        writeGroups("sub_sets_$profileId", profileId, value)
+
+    private fun readGroups(key: String): List<ActivityChallengeSet> = runCatching {
+        val json = JSONArray(prefs.getString(key, "[]"))
+        (0 until json.length()).mapNotNull { i ->
+            val entry = json.optJSONObject(i) ?: return@mapNotNull null
+            val values = entry.optJSONArray("conditions") ?: JSONArray()
+            val ids = (0 until values.length()).mapNotNull { n ->
+                values.optString(n).takeIf(String::isNotBlank)
+            }.distinct()
+            if (ids.isEmpty()) return@mapNotNull null
+            ActivityChallengeSet(
+                id = entry.optString("id").takeIf(String::isNotBlank)
+                    ?: return@mapNotNull null,
+                conditionIds = ids,
+                pauseMinutes = entry.optInt("minutes", 10).coerceIn(1, 180),
+            )
+        }
+    }.getOrDefault(emptyList())
+
+    private fun writeGroups(key: String, profileId: String, value: List<ActivityChallengeSet>) {
         require(value.all { it.conditionIds.isNotEmpty() &&
             it.conditionIds.size == it.conditionIds.distinct().size &&
             it.pauseMinutes in 1..180 })
@@ -53,22 +79,25 @@ class ActivityChallengeSetStore(context: Context) {
                     .put("conditions", JSONArray(set.conditionIds)))
             }
         }
-        check(prefs.edit().putString("sets_$profileId", encoded.toString())
+        check(prefs.edit().putString(key, encoded.toString())
             .remove("progress_$profileId").commit()) { "動作セットを保存できなかった" }
     }
+
+    fun save(profileId: String, value: List<ActivityChallengeSet>) =
+        writeGroups("sets_$profileId", profileId, value)
 
     fun progress(profileId: String, sessionId: String): ActivityChallengeProgress? = runCatching {
         val data = JSONObject(prefs.getString("progress_$profileId", "{}") ?: "{}")
         if (data.optString("session") != sessionId) return@runCatching null
         val setId = data.optString("set")
-        if (sets(profileId).none { it.id == setId }) return@runCatching null
+        if (allSets(profileId).none { it.id == setId }) return@runCatching null
         val values = data.optJSONArray("completed") ?: JSONArray()
         ActivityChallengeProgress(sessionId, setId,
             (0 until values.length()).map { values.optString(it) }.toSet())
     }.getOrNull()
 
     fun chooseSet(profileId: String, sessionId: String, setId: String): Boolean {
-        val group = sets(profileId).firstOrNull { it.id == setId } ?: return false
+        val group = allSets(profileId).firstOrNull { it.id == setId } ?: return false
         // Rechoosing the same set does not erase previous successful steps.
         val existing = progress(profileId, sessionId)
         if (existing?.setId == setId) return true
@@ -79,7 +108,7 @@ class ActivityChallengeSetStore(context: Context) {
 
     fun nextConditions(profileId: String, sessionId: String): List<String> {
         val state = progress(profileId, sessionId) ?: return emptyList()
-        val group = sets(profileId).firstOrNull { it.id == state.setId }
+        val group = allSets(profileId).firstOrNull { it.id == state.setId }
             ?: return emptyList()
         return group.conditionIds.filterNot { it in state.completedIds }
     }
@@ -105,6 +134,7 @@ class ActivityChallengeSetStore(context: Context) {
     }
 
     fun deleteProfile(profileId: String) {
-        prefs.edit().remove("sets_$profileId").remove("progress_$profileId").commit()
+        prefs.edit().remove("sets_$profileId").remove("sub_sets_$profileId")
+            .remove("progress_$profileId").commit()
     }
 }

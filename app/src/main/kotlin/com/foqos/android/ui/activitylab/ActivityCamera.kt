@@ -42,6 +42,15 @@ class ActivityCamera(private val context: Context) {
             .setTargetVideoEncodingBitRate(750_000)
             .build()
     )
+    // Long-running intermittent mode: ~480p, target ~500kbps, microphone disabled.
+    // CameraX encoding bitrate is a target; actual size depends on the device encoder.
+    private val compressedVideoCapture = VideoCapture.withOutput(
+        Recorder.Builder()
+            .setQualitySelector(QualitySelector.from(Quality.SD))
+            .setTargetVideoEncodingBitRate(500_000)
+            .build()
+    )
+    private var selectedVideoCapture: VideoCapture<Recorder> = videoCapture
     private var provider: ProcessCameraProvider? = null
     private var activeRecording: Recording? = null
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -94,7 +103,8 @@ class ActivityCamera(private val context: Context) {
     }
 
 
-    suspend fun bind(owner: LifecycleOwner, front: Boolean, videoMode: Boolean) {
+    suspend fun bind(owner: LifecycleOwner, front: Boolean, videoMode: Boolean,
+        intermittent: Boolean = false) {
         val cameraProvider = suspendCancellableCoroutine<ProcessCameraProvider> { continuation ->
             val future = ProcessCameraProvider.getInstance(context)
             future.addListener({
@@ -110,7 +120,8 @@ class ActivityCamera(private val context: Context) {
         }
         val selector = if (front) CameraSelector.DEFAULT_FRONT_CAMERA
             else CameraSelector.DEFAULT_BACK_CAMERA
-        if (videoMode) cameraProvider.bindToLifecycle(owner, selector, previewUseCase, videoCapture)
+        selectedVideoCapture = if (intermittent) compressedVideoCapture else videoCapture
+        if (videoMode) cameraProvider.bindToLifecycle(owner, selector, previewUseCase, selectedVideoCapture)
         else cameraProvider.bindToLifecycle(owner, selector, previewUseCase, imageCapture)
     }
 
@@ -133,7 +144,7 @@ class ActivityCamera(private val context: Context) {
     suspend fun recordFor(durationMillis: Long): File = suspendCancellableCoroutine { continuation ->
         val file = File.createTempFile("activity_video_", ".mp4", context.cacheDir)
         val output = FileOutputOptions.Builder(file).build()
-        val pending: PendingRecording = videoCapture.output.prepareRecording(context, output)
+        val pending: PendingRecording = selectedVideoCapture.output.prepareRecording(context, output)
         paused = false
         remainingMillis = durationMillis
         activeRecording = pending.start(executor) { event ->

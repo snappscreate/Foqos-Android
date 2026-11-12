@@ -20,6 +20,7 @@ import com.foqos.android.ui.physicalunlock.PhysicalUnlockEditor
 import com.foqos.android.ui.settings.LocationAutomationSection
 import com.foqos.android.ui.settings.LocationAutomationViewModel
 import com.foqos.android.ui.profile.ProfileEditPending
+import com.foqos.android.ui.common.DurationSliderField
 import kotlinx.coroutines.launch
 
 /** A single location toggle, and independent stop / pause authentication selectors. */
@@ -174,10 +175,11 @@ fun ProfileUnlockPolicySection(
             else -> Unit
         }
         if (policy.pause != UnlockMethod.ACTIVITY) {
-            Text("一時休止時間：${policy.pauseMinutes}分", style = MaterialTheme.typography.titleSmall)
-            Slider(value = policy.pauseMinutes.toFloat(),
-                onValueChange = { savePolicy(policy.copy(pauseMinutes = it.toInt())) },
-                valueRange = 1f..180f, steps = 178, enabled = !editingLocked)
+            DurationSliderField(
+                label = "一時休止時間", value = policy.pauseMinutes,
+                onValueChange = { savePolicy(policy.copy(pauseMinutes = it)) },
+                range = 1..180, enabled = !editingLocked,
+            )
         } else {
             Text("動作判定の休止時間は各達成セットで設定するよ。",
                 style = MaterialTheme.typography.bodySmall,
@@ -304,13 +306,15 @@ fun PauseRetryCooldownSection(profileId: String, editingLocked: Boolean, editor:
             style = MaterialTheme.typography.bodySmall)
         Text("${policy.retryCooldownMinutes / 60}時間 ${policy.retryCooldownMinutes % 60}分",
             style = MaterialTheme.typography.titleMedium)
-        Text("時間：${policy.retryCooldownMinutes / 60}時間")
-        Slider(value = (policy.retryCooldownMinutes / 60).toFloat(),
-            onValueChange = { save(it.toInt() * 60 + policy.retryCooldownMinutes % 60) },
-            valueRange = 0f..24f, steps = 23, enabled = !editingLocked)
-        Text("分：${policy.retryCooldownMinutes % 60}分")
-        Slider(value = (policy.retryCooldownMinutes % 60).toFloat(),
-            onValueChange = { save((policy.retryCooldownMinutes / 60) * 60 + it.toInt()) },
-            valueRange = 0f..59f, steps = 58, enabled = !editingLocked)
+        DurationSliderField(
+            label = "時間", value = policy.retryCooldownMinutes / 60,
+            onValueChange = { save(it * 60 + policy.retryCooldownMinutes % 60) },
+            range = 0..24, enabled = !editingLocked, unit = "時間",
+        )
+        DurationSliderField(
+            label = "分", value = policy.retryCooldownMinutes % 60,
+            onValueChange = { save((policy.retryCooldownMinutes / 60) * 60 + it) },
+            range = 0..59, enabled = !editingLocked,
+        )
     }
 }

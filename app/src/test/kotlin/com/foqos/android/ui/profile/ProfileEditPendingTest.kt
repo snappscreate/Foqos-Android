@@ -23,6 +23,41 @@ import org.robolectric.annotation.Config
 class ProfileEditPendingTest {
     private val context: Context get() = ApplicationProvider.getApplicationContext()
 
+    @Test fun oldSingleMainAndSubMovementMigrateToSetsOnlyOnCommit() {
+        val id = UUID.randomUUID().toString()
+        val main = ActivityUnlockCondition(description = "メイン腕立て")
+        val sub = ActivityUnlockCondition(description = "サブ掃除")
+        val activities = ActivityUnlockStore(context)
+        val policies = ProfileUnlockPolicyStore(context)
+        val store = ActivityChallengeSetStore(context)
+        try {
+            activities.save(id, listOf(main, sub))
+            activities.setMainCondition(id, main.id)
+            activities.setConditionPauseMinutes(id, sub.id, 15)
+            policies.save(id, com.foqos.android.ui.activitylab.ProfileUnlockPolicy(
+                pause = UnlockMethod.ACTIVITY, pauseMinutes = 20))
+            val draft = ProfileEditPending(context, BlockedProfile(id = id, name = "Legacy"))
+            assertThat(draft.sets.single().conditionIds).containsExactly(main.id)
+            assertThat(draft.subSets.single().conditionIds).containsExactly(sub.id)
+            assertThat(draft.subSets.single().pauseMinutes).isEqualTo(15)
+            assertThat(store.hasMainSetConfig(id)).isFalse()
+            assertThat(store.hasSubSetConfig(id)).isFalse()
+            draft.commit()
+            assertThat(store.sets(id)).hasSize(1)
+            assertThat(store.subSets(id)).hasSize(1)
+
+            val empty = ProfileEditPending(context, BlockedProfile(id = id, name = "Legacy"))
+            empty.subSets = emptyList()
+            empty.commit()
+            assertThat(ProfileEditPending(context, BlockedProfile(id = id, name = "Legacy"))
+                .subSets).isEmpty()
+        } finally {
+            store.deleteProfile(id)
+            activities.deleteProfile(id)
+            policies.delete(id)
+        }
+    }
+
     @Test fun allEditsRemainUnappliedBeforeExplicitCommit() {
         val id = UUID.randomUUID().toString()
         val pending = ProfileEditPending(context, BlockedProfile(id = id, name = "Draft"))

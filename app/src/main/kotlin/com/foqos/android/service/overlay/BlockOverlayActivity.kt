@@ -379,7 +379,12 @@ class BlockOverlayActivity : ComponentActivity() {
                 }
                 val activitySessionId = state?.sessionId.orEmpty()
                 val activityProfileId = state?.profileId.orEmpty()
-                val configuredChallengeSets = challengeSetStore.sets(activityProfileId)
+                val pauseMethod = com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore(
+                    this@BlockOverlayActivity).read(activityProfileId).pause
+                val configuredChallengeSets =
+                    (if (pauseMethod == com.foqos.android.ui.activitylab.UnlockMethod.ACTIVITY)
+                        challengeSetStore.sets(activityProfileId) else emptyList()) +
+                        challengeSetStore.subSets(activityProfileId)
                 val challengeProgress = challengeSetStore.progress(activityProfileId, activitySessionId)
                 val persistentActivitySelection = remember(activityProfileId, activitySessionId, selectedActivityId) {
                     activityUnlockStore.selection(activityProfileId, activitySessionId)
@@ -503,6 +508,7 @@ class BlockOverlayActivity : ComponentActivity() {
                         }
                     }) else null,
                     onActivityChallenge = if (activityConditions.isNotEmpty() &&
+                        (configuredChallengeSets.isNotEmpty() || selectedActivity != null) &&
                         retryRemainingMillis == 0L &&
                         !state.let { it == null || it.pauseActive || it.breakActive }) ({
                         if (configuredChallengeSets.isNotEmpty()) {
@@ -515,7 +521,7 @@ class BlockOverlayActivity : ComponentActivity() {
                     }) else null,
                     selectedActivityLabel = selectedActivity?.description,
                     onChooseSubActivity =
-                        if (selectedActivity != null && !explicitActivitySelection &&
+                        if (configuredChallengeSets.isEmpty() && selectedActivity != null && !explicitActivitySelection &&
                             activityConditions.any { it.id != selectedActivity.id }) ({
                             showActivityChoices = true
                         }) else null,
@@ -579,7 +585,9 @@ class BlockOverlayActivity : ComponentActivity() {
                                     configuredChallengeSets.forEachIndexed { index, group ->
                                         val completed = if (challengeProgress?.setId == group.id)
                                             challengeProgress.completedIds else emptySet()
-                                        Text("セット ${index+1}：${completed.size}/${group.conditionIds.size}達成 / 全達成で${group.pauseMinutes}分休止",
+                                        val kind = if (challengeSetStore.subSets(activityProfileId).any { it.id == group.id })
+                                            "サブ" else "メイン"
+                                        Text("$kind セット ${index+1}：${completed.size}/${group.conditionIds.size}達成 / 全達成で${group.pauseMinutes}分休止",
                                             style = MaterialTheme.typography.titleSmall)
                                         if (challengeProgress?.setId != group.id) {
                                             OutlinedButton(onClick = {

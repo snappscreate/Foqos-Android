@@ -81,6 +81,7 @@ import com.foqos.android.domain.strategy.StrategyRegistry
 import com.foqos.android.service.nfc.NfcTagWriter
 import com.foqos.android.service.qr.QrCodeGenerator
 import com.foqos.android.ui.common.FoqosTimePickerDialog
+import com.foqos.android.ui.common.DurationSliderField
 import com.foqos.android.ui.common.WEEKDAY_DISPLAY_ORDER
 import com.foqos.android.ui.common.formatScheduleSummary
 import com.foqos.android.ui.common.shortDayName
@@ -383,21 +384,17 @@ fun ProfileEditScreen(
                         )
                     }
                     if (uiState.periodicAccessEnabled) {
-                        Text("ブロック継続時間：${uiState.periodicWaitMinutes}分")
-                        Slider(
-                            value = uiState.periodicWaitMinutes.toFloat(),
-                            onValueChange = { viewModel.setPeriodicWaitMinutes(it.toInt()) },
-                            valueRange = 5f..240f,
-                            steps = 46,
-                            enabled = !uiState.editingLocked,
+                        DurationSliderField(
+                            label = "ブロック継続時間",
+                            value = uiState.periodicWaitMinutes,
+                            onValueChange = viewModel::setPeriodicWaitMinutes,
+                            range = 5..240, step = 5, enabled = !uiState.editingLocked,
                         )
-                        Text("使用できる時間：${uiState.periodicAccessMinutes}分")
-                        Slider(
-                            value = uiState.periodicAccessMinutes.toFloat(),
-                            onValueChange = { viewModel.setPeriodicAccessMinutes(it.toInt()) },
-                            valueRange = 1f..30f,
-                            steps = 28,
-                            enabled = !uiState.editingLocked,
+                        DurationSliderField(
+                            label = "使用できる時間",
+                            value = uiState.periodicAccessMinutes,
+                            onValueChange = viewModel::setPeriodicAccessMinutes,
+                            range = 1..30, enabled = !uiState.editingLocked,
                         )
                         Text(
                             "開始後またはNFCなどの一時休止終了後から数えて、指定時間ブロックし、" +
@@ -558,11 +555,11 @@ private fun StrategySection(
         if (strategy.hasTimer) {
             val timerData = StrategyTimerData.fromJsonOrNull(strategyDataJson)
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Text(text = stringResource(R.string.profile_edit_timer_duration_label, timerData.durationInMinutes))
-                Slider(
-                    value = timerData.durationInMinutes.toFloat(),
-                    onValueChange = { onStrategyDataChange(timerData.copy(durationInMinutes = it.toInt()).toJson()) },
-                    valueRange = 5f..180f,
+                DurationSliderField(
+                    label = stringResource(R.string.profile_edit_timer_duration_label, timerData.durationInMinutes),
+                    value = timerData.durationInMinutes,
+                    onValueChange = { onStrategyDataChange(timerData.copy(durationInMinutes = it).toJson()) },
+                    range = 5..180,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.profile_edit_hide_stop_button_label), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
@@ -575,21 +572,21 @@ private fun StrategySection(
         } else if (strategy.hasPauseMode) {
             val pauseData = StrategyPauseTimerData.fromJsonOrNull(strategyDataJson)
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Text(text = stringResource(R.string.profile_edit_pause_duration_label, pauseData.pauseDurationInMinutes))
-                Slider(
-                    value = pauseData.pauseDurationInMinutes.toFloat(),
-                    onValueChange = { onStrategyDataChange(pauseData.copy(pauseDurationInMinutes = it.toInt()).toJson()) },
-                    valueRange = 1f..120f,
+                DurationSliderField(
+                    label = stringResource(R.string.profile_edit_pause_duration_label, pauseData.pauseDurationInMinutes),
+                    value = pauseData.pauseDurationInMinutes,
+                    onValueChange = { onStrategyDataChange(pauseData.copy(pauseDurationInMinutes = it).toJson()) },
+                    range = 1..120,
                 )
             }
         } else if (!strategy.allowsTimedBreaks) {
             val softData = SoftUnblockStrategyData.fromJsonOrNull(strategyDataJson)
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Text(text = stringResource(R.string.profile_edit_soft_unblock_access_label, softData.accessDurationInMinutes))
-                Slider(
-                    value = softData.accessDurationInMinutes.toFloat(),
-                    onValueChange = { onStrategyDataChange(softData.copy(accessDurationInMinutes = it.toInt()).normalized.toJson()) },
-                    valueRange = SoftUnblockStrategyData.DURATION_RANGE.first.toFloat()..SoftUnblockStrategyData.DURATION_RANGE.last.toFloat(),
+                DurationSliderField(
+                    label = stringResource(R.string.profile_edit_soft_unblock_access_label, softData.accessDurationInMinutes),
+                    value = softData.accessDurationInMinutes,
+                    onValueChange = { onStrategyDataChange(softData.copy(accessDurationInMinutes = it).normalized.toJson()) },
+                    range = SoftUnblockStrategyData.DURATION_RANGE,
                 )
                 Text(text = stringResource(R.string.profile_edit_soft_unblock_max_opens_label, softData.maximumUnblockCount))
                 Slider(

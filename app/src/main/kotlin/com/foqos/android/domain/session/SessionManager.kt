@@ -318,7 +318,9 @@ class SessionManager @Inject constructor(
             return@withContext
         }
         val activity = com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
-        if (activity.selection(profileId, current.id) != null) {
+        if (activity.selection(profileId, current.id) != null ||
+            com.foqos.android.ui.activitylab.ActivityChallengeSetStore(appContext)
+                .progress(profileId, current.id) != null) {
             emitError("先に選択した動作チャレンジを完了してね")
             return@withContext
         }
@@ -370,7 +372,9 @@ class SessionManager @Inject constructor(
         if (forPause) {
             if (current.isPauseActive() || !pauseRetryAllowed(profileId)) return@withContext false
             val activity = com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
-            if (activity.selection(profileId, current.id) != null) return@withContext false
+            if (activity.selection(profileId, current.id) != null ||
+                com.foqos.android.ui.activitylab.ActivityChallengeSetStore(appContext)
+                    .progress(profileId, current.id) != null) return@withContext false
             pauseForConfiguredDuration(current, policy.pauseMinutes)
         } else {
             markCompletelyStopped(profileId)
@@ -456,7 +460,11 @@ class SessionManager @Inject constructor(
         ) return@withContext rejected
 
         val sets = com.foqos.android.ui.activitylab.ActivityChallengeSetStore(appContext)
-        val available = sets.sets(profileId)
+        val available = (
+            if (independentUnlock.read(profileId).pause ==
+                com.foqos.android.ui.activitylab.UnlockMethod.ACTIVITY)
+                sets.sets(profileId) else emptyList()
+            ) + sets.subSets(profileId)
         val duration: Int
         if (available.isNotEmpty()) {
             val progress = sets.progress(profileId, sessionId) ?: return@withContext rejected

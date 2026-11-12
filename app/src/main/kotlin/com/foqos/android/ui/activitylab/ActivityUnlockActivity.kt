@@ -294,6 +294,13 @@ private fun ActivityUnlockCapture(
                                 video = recorded
                                 videoBytes = recorded.length()
                                 recordingRemainingMs = 0L
+                                val minimum = if (unlimited)
+                                    IntermittentCapturePlan.minimumDurationMillis(description)
+                                    else null
+                                if (minimum != null && elapsed < minimum) {
+                                    status = "指定された活動時間に達していないよ。必要：${minimum / 60_000L}分、経過：${elapsed / 60_000L}分。判定せず終了した。"
+                                    return@launch
+                                }
                                 phase = CapturePhase.JUDGING
                                 status = "撮影終了！ Geminiで判定中…"
                                 val activityPrompt = if (unlimited)

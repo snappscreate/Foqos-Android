@@ -39,6 +39,41 @@ class ActivityChallengeSetStoreTest {
         } finally { store.deleteProfile(id) }
     }
 
+    @Test fun mainAndSubGroupsAreStoredAndVerifiedSeparately() {
+        val id = UUID.randomUUID().toString()
+        val store = ActivityChallengeSetStore(context)
+        val main = ActivityChallengeSet(conditionIds = listOf("A", "B"), pauseMinutes = 20)
+        val sub = ActivityChallengeSet(conditionIds = listOf("C", "D"), pauseMinutes = 15)
+        try {
+            store.save(id, listOf(main))
+            store.saveSubSets(id, listOf(sub))
+            assertThat(store.sets(id)).containsExactly(main)
+            assertThat(store.subSets(id)).containsExactly(sub)
+            assertThat(store.chooseSet(id, "sub-session", sub.id)).isTrue()
+            assertThat(store.complete(id, "sub-session", "C"))
+                .isEqualTo(ActivityProofResult.STEP_COMPLETED)
+            assertThat(store.nextConditions(id, "sub-session")).containsExactly("D")
+            assertThat(store.complete(id, "sub-session", "D"))
+                .isEqualTo(ActivityProofResult.PAUSED)
+            assertThat(store.chooseSet(id, "main-session", main.id)).isTrue()
+            assertThat(store.complete(id, "main-session", "A"))
+                .isEqualTo(ActivityProofResult.STEP_COMPLETED)
+            assertThat(store.complete(id, "main-session", "B"))
+                .isEqualTo(ActivityProofResult.PAUSED)
+        } finally { store.deleteProfile(id) }
+    }
+
+    @Test fun savingEmptySubGroupsDoesNotReenableLegacySubConditions() {
+        val id = UUID.randomUUID().toString()
+        val store = ActivityChallengeSetStore(context)
+        try {
+            assertThat(store.hasSubSetConfig(id)).isFalse()
+            store.saveSubSets(id, emptyList())
+            assertThat(store.hasSubSetConfig(id)).isTrue()
+            assertThat(store.subSets(id)).isEmpty()
+        } finally { store.deleteProfile(id) }
+    }
+
     @Test fun changingSetClearsPartialProgress() {
         val id = UUID.randomUUID().toString()
         val store = ActivityChallengeSetStore(context)

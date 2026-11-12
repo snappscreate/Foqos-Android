@@ -210,11 +210,11 @@ fun SettingsScreen(
     if (showResetConfirm) {
         AlertDialog(
             onDismissRequest = { showResetConfirm = false },
-            title = { Text(stringResource(R.string.settings_reset_confirm_title)) },
-            text = { Text(stringResource(R.string.settings_reset_confirm_body)) },
+            title = { Text("すべての稼働中プロファイルを緊急停止する？") },
+            text = { Text("稼働中のセッションを終了し、ブロック状態を解除して、登録済みのスケジュールアラームをキャンセルするよ。プロファイルの設定自体は削除しない。再開するには再生ボタンを押してね。") },
             confirmButton = {
                 TextButton(onClick = { viewModel.resetAllState(); showResetConfirm = false }) {
-                    Text(stringResource(R.string.settings_reset_blocking_state), color = MaterialTheme.colorScheme.error)
+                    Text("緊急停止を実行", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = { TextButton(onClick = { showResetConfirm = false }) { Text(stringResource(R.string.action_cancel)) } },

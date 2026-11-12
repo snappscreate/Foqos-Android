@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.foqos.android.ui.profile.ProfileEditPending
+import com.foqos.android.ui.common.DurationSliderField
 import com.foqos.android.data.model.BlockedProfile
 import com.foqos.android.data.repository.ProfileRepository
 
@@ -127,15 +128,17 @@ fun ActivityUnlockSettingsSection(
                     editor?.activityRewards?.get(condition.id)
                         ?: store.conditionPauseMinutes(profileId, condition.id, defaultMinutes)
                 }
-                Text("このプロファイルのサブ条件として成功した場合：${rewardMinutes}分休止",
-                    style = MaterialTheme.typography.bodySmall)
-                Slider(value = rewardMinutes.toFloat(), enabled = !editingLocked,
+                DurationSliderField(
+                    label = "サブ条件達成時の休止時間",
+                    value = rewardMinutes,
                     onValueChange = { minutes ->
                         if (editor != null) editor.activityRewards =
-                        editor.activityRewards + (condition.id to minutes.toInt())
-                    else store.setConditionPauseMinutes(profileId, condition.id, minutes.toInt())
-                    rewardRefresh++
-                    }, valueRange = 1f..180f, steps = 178)
+                            editor.activityRewards + (condition.id to minutes)
+                        else store.setConditionPauseMinutes(profileId, condition.id, minutes)
+                        rewardRefresh++
+                    },
+                    range = 1..180, enabled = !editingLocked,
+                )
             }
             HorizontalDivider()
         }
@@ -195,10 +198,12 @@ fun ActivityUnlockSettingsSection(
                 "平均90秒ごと（ランダム60〜120秒）に3秒録画。480p相当・低ビットレート・無音で1本の動画にまとめる。撮影タイミングは画面に表示しない。Androidのカメラ使用表示は残るよ。",
                 style = MaterialTheme.typography.bodySmall,
             )
-            if (!draft.unlimitedRecording) Text("撮影時間：${draft.recordingSeconds}秒")
-            if (!draft.unlimitedRecording) Slider(value = draft.recordingSeconds.toFloat(),
-                onValueChange = { draft = draft.copy(recordingSeconds = it.toInt()) },
-                valueRange = 10f..120f, steps = 10, enabled = !editingLocked)
+            if (!draft.unlimitedRecording) DurationSliderField(
+                label = "撮影時間",
+                value = draft.recordingSeconds,
+                onValueChange = { draft = draft.copy(recordingSeconds = it) },
+                range = 10..120, step = 10, unit = "秒", enabled = !editingLocked,
+            )
             Text("カウントダウン：${draft.countdownSeconds}秒")
             Row(modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -176,10 +176,14 @@ fun ActivityUnlockSettingsSection(
                 }
             }
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("撮影時間の上限なし（手動終了）", modifier = Modifier.weight(1f))
+                Text("長時間・ランダム間欠撮影（手動終了）", modifier = Modifier.weight(1f))
                 Switch(checked = draft.unlimitedRecording, enabled = !editingLocked,
                     onCheckedChange = { draft = draft.copy(unlimitedRecording = it) })
             }
+            if (draft.unlimitedRecording) Text(
+                "平均90秒ごと（ランダム60〜120秒）に3秒録画。480p相当・低ビットレート・無音で1本の動画にまとめる。撮影タイミングは画面に表示しない。Androidのカメラ使用表示は残るよ。",
+                style = MaterialTheme.typography.bodySmall,
+            )
             if (!draft.unlimitedRecording) Text("撮影時間：${draft.recordingSeconds}秒")
             if (!draft.unlimitedRecording) Slider(value = draft.recordingSeconds.toFloat(),
                 onValueChange = { draft = draft.copy(recordingSeconds = it.toInt()) },

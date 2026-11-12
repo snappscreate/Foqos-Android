@@ -477,6 +477,10 @@ class SessionManager @Inject constructor(
                 return@withContext result
             duration = selectedSet.pauseMinutes
         } else {
+            // Once the profile uses set-based config, no obsolete single-movement
+            // reward can authorize a pause, even if an old main ID remains stored.
+            if (sets.hasMainSetConfig(profileId) || sets.hasSubSetConfig(profileId))
+                return@withContext rejected
             if (store.selection(profileId, sessionId)?.conditionId != conditionId)
                 return@withContext rejected
             val configuredDuration = independentUnlock.read(profileId).pauseMinutes

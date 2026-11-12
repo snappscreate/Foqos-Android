@@ -85,7 +85,8 @@ class ProfileUnlockPolicyStore(context: Context) {
                     val sets = ActivityChallengeSetStore(context).sets(profile.id)
                     if (sets.isNotEmpty()) sets.all { set ->
                         set.conditionIds.isNotEmpty() && set.conditionIds.all { it in registered }
-                    } else activity.mainConditionId(profile.id)?.let { it in registered } ?: false
+                    } else if (ActivityChallengeSetStore(context).hasMainSetConfig(profile.id)) false
+                    else activity.mainConditionId(profile.id)?.let { it in registered } ?: false
                 }
             }
         }

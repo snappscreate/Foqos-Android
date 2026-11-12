@@ -387,6 +387,9 @@ class BlockOverlayActivity : ComponentActivity() {
                     (if (pauseMethod == com.foqos.android.ui.activitylab.UnlockMethod.ACTIVITY)
                         challengeSetStore.sets(activityProfileId) else emptyList()) +
                         challengeSetStore.subSets(activityProfileId)
+                val legacyActivityAllowed =
+                    !challengeSetStore.hasMainSetConfig(activityProfileId) &&
+                    !challengeSetStore.hasSubSetConfig(activityProfileId)
                 val challengeProgress = challengeSetStore.progress(activityProfileId, activitySessionId)
                 val persistentActivitySelection = remember(activityProfileId, activitySessionId, selectedActivityId) {
                     activityUnlockStore.selection(activityProfileId, activitySessionId)
@@ -510,6 +513,7 @@ class BlockOverlayActivity : ComponentActivity() {
                         }
                     }) else null,
                     onActivityChallenge = if (activityConditions.isNotEmpty() &&
+                        (configuredChallengeSets.isNotEmpty() || legacyActivityAllowed) &&
                         retryRemainingMillis == 0L &&
                         !state.let { it == null || it.pauseActive || it.breakActive }) ({
                         if (configuredChallengeSets.isNotEmpty()) {
@@ -520,9 +524,9 @@ class BlockOverlayActivity : ComponentActivity() {
                             showActivityChoices = true
                         }
                     }) else null,
-                    selectedActivityLabel = selectedActivity?.description,
+                    selectedActivityLabel = if (legacyActivityAllowed) selectedActivity?.description else null,
                     onChooseSubActivity =
-                        if (configuredChallengeSets.isEmpty() && selectedActivity != null && !explicitActivitySelection &&
+                        if (legacyActivityAllowed && configuredChallengeSets.isEmpty() && selectedActivity != null && !explicitActivitySelection &&
                             activityConditions.any { it.id != selectedActivity.id }) ({
                             showActivityChoices = true
                         }) else null,

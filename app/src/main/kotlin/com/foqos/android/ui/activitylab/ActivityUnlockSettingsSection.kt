@@ -50,11 +50,15 @@ fun ActivityUnlockSettingsSection(
         return try {
             if (editor != null) {
                 if (libraryMode) {
-                    items.forEach(editor::editLibrary)
+                    items.filter { incoming ->
+                        conditions.firstOrNull { it.id == incoming.id } != incoming
+                    }.forEach(editor::editLibrary)
                     editor.refreshLibrary()
                 } else updateConditions(items)
             } else if (libraryMode) {
-                items.forEach(store::updateLibraryCondition)
+                items.filter { incoming ->
+                    conditions.firstOrNull { it.id == incoming.id } != incoming
+                }.forEach(store::updateLibraryCondition)
                 updateConditions(store.reusableConditions())
             } else {
                 store.save(profileId, items)

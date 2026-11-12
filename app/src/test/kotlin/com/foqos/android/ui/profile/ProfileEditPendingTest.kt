@@ -23,6 +23,36 @@ import org.robolectric.annotation.Config
 class ProfileEditPendingTest {
     private val context: Context get() = ApplicationProvider.getApplicationContext()
 
+    @Test fun libraryRegistrationAndEditsSurviveDiscardedProfileDraft() {
+        val profileId = UUID.randomUUID().toString()
+        val activity = ActivityUnlockCondition(description = "部屋の掃除")
+        val library = ActivityUnlockStore(context)
+        val groups = ActivityChallengeSetStore(context)
+        val draft = ProfileEditPending(context, BlockedProfile(id = profileId, name = "Unsaved"))
+        try {
+            draft.editLibrary(activity)
+            assertThat(library.reusableConditions().firstOrNull { it.id == activity.id }
+                ?.description).isEqualTo("部屋の掃除")
+            draft.editLibrary(activity.copy(description = "部屋を30分掃除"))
+            draft.sets = listOf(ActivityChallengeSet(conditionIds = listOf(activity.id)))
+            // No parent Save: the reusable definition persists, but set membership does not.
+            val reopened = ProfileEditPending(context, BlockedProfile(id = profileId, name = "Unsaved"))
+            assertThat(reopened.library.firstOrNull { it.id == activity.id }?.description)
+                .isEqualTo("部屋を30分掃除")
+            assertThat(groups.sets(profileId)).isEmpty()
+            assertThat(library.conditions(profileId)).isEmpty()
+            assertThat(draft.removeFromLibrary(activity.id)).isFalse()
+            assertThat(library.reusableConditions().any { it.id == activity.id }).isTrue()
+            draft.sets = emptyList()
+            assertThat(draft.removeFromLibrary(activity.id)).isTrue()
+            assertThat(library.reusableConditions().any { it.id == activity.id }).isFalse()
+        } finally {
+            groups.deleteProfile(profileId)
+            library.deleteProfile(profileId)
+            library.deleteLibraryCondition(activity.id)
+        }
+    }
+
     @Test fun oldSingleMainAndSubMovementMigrateToSetsOnlyOnCommit() {
         val id = UUID.randomUUID().toString()
         val main = ActivityUnlockCondition(description = "メイン腕立て")

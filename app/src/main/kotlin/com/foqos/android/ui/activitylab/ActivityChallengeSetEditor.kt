@@ -22,11 +22,12 @@ fun ActivityChallengeSetEditor(
     editingLocked: Boolean,
     repository: ProfileRepository,
     editor: ProfileEditPending,
+    subCondition: Boolean = false,
 ) {
     val context = LocalContext.current
     val store = remember(profileId) { ActivityChallengeSetStore(context) }
     val activities = remember(profileId) { ActivityUnlockStore(context) }
-    val sets = editor.sets
+    val sets = if (subCondition) editor.subSets else editor.sets
     var changeToken by remember { mutableIntStateOf(0) }
     var libraryDialog by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -41,7 +42,7 @@ fun ActivityChallengeSetEditor(
             value.flatMap { it.conditionIds }.distinct().forEach { id ->
                 catalog.firstOrNull { it.id == id }?.let { editor.addActivity(it) }
             }
-            editor.sets = value
+            if (subCondition) editor.subSets = value else editor.sets = value
             error = null
         } catch (e: Exception) { error = e.message ?: "セットを保存できなかった" }
     }
@@ -49,13 +50,13 @@ fun ActivityChallengeSetEditor(
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("同じセット内は全て達成（AND）。別々のセットはどれか1つ（OR）。",
             style = MaterialTheme.typography.bodySmall)
-        Text("使うには、上の一時休止条件（メイン）で「AI動作判定」を選んでね。",
+        Text(
+            if (subCondition) "メインの一時休止条件とは別に、達成したセットの時間だけ休止できるよ。"
+            else "メインは登録したセットのどれかを全て達成すると一時休止できるよ。",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.primary)
-        Text("セットを登録すると、単独メイン・サブ動作の休止時間よりセット単位の休止時間を優先するよ。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (sets.isEmpty()) Text("動作セットは未設定。従来の単独メイン・サブ条件で判定するよ。",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (sets.isEmpty()) Text("達成セットが未登録。下のボタンから追加してね。",
             style = MaterialTheme.typography.bodySmall)
         sets.forEachIndexed { index, group ->
             if (index > 0) {

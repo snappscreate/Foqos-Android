@@ -32,6 +32,7 @@ class ProfileEditPending(context: Context, profile: BlockedProfile) {
     var library by mutableStateOf(startingLibrary)
     var removedLibraryIds by mutableStateOf(emptySet<String>())
     var sets by mutableStateOf(setStore.sets(profile.id))
+    var subSets by mutableStateOf(setStore.subSets(profile.id))
     var locationRule: LocationRule? by mutableStateOf(locationStore.read(profile.id))
     var locationEnabled by mutableStateOf(locationStore.enabled(profile.id))
     var cooldownMinutes by mutableStateOf(policy.retryCooldownMinutes)
@@ -54,7 +55,7 @@ class ProfileEditPending(context: Context, profile: BlockedProfile) {
     }
 
     fun removeActivity(id: String): Boolean {
-        if (sets.any { id in it.conditionIds } || mainConditionId == id) return false
+        if ((sets + subSets).any { id in it.conditionIds } || mainConditionId == id) return false
         activities = activities.filterNot { it.id == id }
         activityRewards = activityRewards - id
         return true
@@ -66,9 +67,9 @@ class ProfileEditPending(context: Context, profile: BlockedProfile) {
             id !in ids && activityStore.attachedProfileIds(id).all { it == profileId }
         }
         return safeDeletes &&
-            sets.all { it.conditionIds.isNotEmpty() && it.conditionIds.all(ids::contains) } &&
+            (sets + subSets).all { it.conditionIds.isNotEmpty() && it.conditionIds.all(ids::contains) } &&
             (policy.pause != com.foqos.android.ui.activitylab.UnlockMethod.ACTIVITY ||
-                (sets.isNotEmpty() || mainConditionId?.let(ids::contains) == true))
+                sets.isNotEmpty())
     }
 
     /** Persist only after profile has passed validation and its Save button was pressed. */
@@ -92,6 +93,7 @@ class ProfileEditPending(context: Context, profile: BlockedProfile) {
             if (activities.any { it.id == id }) activityStore.setConditionPauseMinutes(profileId, id, duration)
         }
         setStore.save(profileId, sets)
+        setStore.saveSubSets(profileId, subSets)
         policyStore.save(profileId, merged)
     }
 }

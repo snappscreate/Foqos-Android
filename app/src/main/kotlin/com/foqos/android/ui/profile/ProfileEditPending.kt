@@ -15,8 +15,8 @@ import com.foqos.android.ui.activitylab.ProfileUnlockPolicy
 import com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore
 
 /**
- * Edit-screen transaction buffer. UI mutations MUST stay here until ProfileEditViewModel.save().
- * SharedPreferences and geofences are not altered by changing any of these fields.
+ * Profile-specific edits wait for the parent Save. Shared activity library definitions
+ * are deliberately independent and persist immediately from the library dialog.
  */
 class ProfileEditPending(context: Context, profile: BlockedProfile) {
     val profileId = profile.id
@@ -28,9 +28,7 @@ class ProfileEditPending(context: Context, profile: BlockedProfile) {
     var policy by mutableStateOf(policyStore.forProfile(profile))
     var mainConditionId by mutableStateOf(activityStore.mainConditionId(profile.id))
     var activities by mutableStateOf(activityStore.conditions(profile.id))
-    private val startingLibrary = activityStore.reusableConditions()
-    var library by mutableStateOf(startingLibrary)
-    var removedLibraryIds by mutableStateOf(emptySet<String>())
+    var library by mutableStateOf(activityStore.reusableConditions())
     // Migrate previous single-movement main and subconditions into one-movement sets
     // in the edit draft only; the existing saved configuration is unchanged until Save.
     private val committedMainSets = setStore.sets(profile.id)
@@ -60,13 +58,31 @@ class ProfileEditPending(context: Context, profile: BlockedProfile) {
         activities.associate { it.id to activityStore.conditionPauseMinutes(profile.id, it.id, policy.pauseMinutes) }
     )
 
+    /**
+     * Reusable definitions are independent of this profile. Persist immediately;
+     * only profile set memberships and pause rewards wait for the parent Save button.
+     */
     fun editLibrary(item: ActivityUnlockCondition) {
-        library = library.filterNot { it.id == item.id } + item.normalized()
+        val value = item.normalized()
+        activityStore.updateLibraryCondition(value)
+        refreshLibrary()
+        activities = activities.map { if (it.id == value.id) value else it }
     }
 
-    fun removeFromLibrary(id: String) {
-        removedLibraryIds = removedLibraryIds + id
-        library = library.filterNot { it.id == id }
+    fun removeFromLibrary(id: String): Boolean {
+        if ((sets + subSets).any { id in it.conditionIds } ||
+            id in activities.map { it.id }) return false
+        val deleted = activityStore.deleteLibraryCondition(id)
+        if (deleted) refreshLibrary()
+        return deleted
+    }
+
+    fun refreshLibrary() {
+        library = activityStore.reusableConditions()
+        // Definitions may be edited from another dialog, but do not change associations.
+        activities = activities.map { item ->
+            library.firstOrNull { it.id == item.id } ?: item
+        }
     }
 
     fun addActivity(activity: ActivityUnlockCondition) {
@@ -82,11 +98,7 @@ class ProfileEditPending(context: Context, profile: BlockedProfile) {
 
     fun ready(): Boolean {
         val ids = activities.map { it.id }.toSet()
-        val safeDeletes = removedLibraryIds.all { id ->
-            id !in ids && activityStore.attachedProfileIds(id).all { it == profileId }
-        }
-        return safeDeletes &&
-            (sets + subSets).all { it.conditionIds.isNotEmpty() && it.conditionIds.all(ids::contains) } &&
+        return (sets + subSets).all { it.conditionIds.isNotEmpty() && it.conditionIds.all(ids::contains) } &&
             (policy.pause != com.foqos.android.ui.activitylab.UnlockMethod.ACTIVITY ||
                 sets.isNotEmpty())
     }
@@ -94,17 +106,11 @@ class ProfileEditPending(context: Context, profile: BlockedProfile) {
     /** Persist only after profile has passed validation and its Save button was pressed. */
     fun commit() {
         val merged = policy.copy(retryCooldownMinutes = cooldownMinutes)
-        val prior = startingLibrary.associateBy { it.id }
-        // Save this profile's new associations first, then validate global deletions.
+        // Save only this profile's chosen movements and reward sets.
+        // Never replay stale library edits or deletions during parent Save.
         activityStore.save(profileId, activities.map { item ->
             library.firstOrNull { it.id == item.id } ?: item
         })
-        library.filter { prior[it.id] != it }.forEach(activityStore::updateLibraryCondition)
-        removedLibraryIds.forEach { id ->
-            check(activityStore.deleteLibraryCondition(id)) {
-                "この動作は他のプロファイルで使用されています。削除できないよ"
-            }
-        }
         activityStore.setMainCondition(profileId, mainConditionId?.takeIf { id ->
             activities.any { it.id == id }
         })

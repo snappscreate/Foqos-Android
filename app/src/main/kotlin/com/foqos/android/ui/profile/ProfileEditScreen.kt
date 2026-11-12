@@ -347,23 +347,13 @@ fun ProfileEditScreen(
                 )
             }
 
-            if (viewModel.pending.policy.pause == com.foqos.android.ui.activitylab.UnlockMethod.ACTIVITY) {
-                SectionCard(title = "動作判定の達成セット（AND・OR）") {
-                    ActivityChallengeSetEditor(
-                        profileId = uiState.draft.id,
-                        editingLocked = uiState.editingLocked,
-                        repository = viewModel.profileRepository,
-                        editor = viewModel.pending,
-                    )
-                }
-            }
-
-            SectionCard(title = "一時休止のサブ条件（AI動画判定）") {
-                ActivityUnlockSettingsSection(
+            SectionCard(title = "一時休止のサブ条件") {
+                ActivityChallengeSetEditor(
                     profileId = uiState.draft.id,
                     editingLocked = uiState.editingLocked,
-                    profileRepository = viewModel.profileRepository,
+                    repository = viewModel.profileRepository,
                     editor = viewModel.pending,
+                    subCondition = true,
                 )
             }
 

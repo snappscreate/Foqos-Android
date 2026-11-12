@@ -183,10 +183,9 @@ fun SettingsScreen(
 
             SettingsSection(title = stringResource(R.string.settings_danger_title)) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (DeveloperUiVisibility.showDiagnosticControls) {
-                        TextButton(onClick = { showResetConfirm = true }) {
-                            Text(stringResource(R.string.settings_reset_blocking_state), color = MaterialTheme.colorScheme.error)
-                        }
+                    // Emergency stop must remain available even when other developer tools are hidden.
+                    TextButton(onClick = { showResetConfirm = true }) {
+                        Text("緊急停止（全稼働プロファイル）", color = MaterialTheme.colorScheme.error)
                     }
                     Text(stringResource(R.string.settings_crash_logs_body), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     TextButton(onClick = { showCrashLogs = true }) {

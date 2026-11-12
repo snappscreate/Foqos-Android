@@ -44,6 +44,9 @@ class ActivityChallengeSetStore(context: Context) {
     }.getOrDefault(emptyList())
 
     /** Additional alternative AI pause sets, independent from the main pause method. */
+    fun hasMainSetConfig(profileId: String): Boolean = prefs.contains("sets_$profileId")
+    fun hasSubSetConfig(profileId: String): Boolean = prefs.contains("sub_sets_$profileId")
+
     fun subSets(profileId: String): List<ActivityChallengeSet> = readGroups("sub_sets_$profileId")
 
     fun allSets(profileId: String): List<ActivityChallengeSet> = sets(profileId) + subSets(profileId)

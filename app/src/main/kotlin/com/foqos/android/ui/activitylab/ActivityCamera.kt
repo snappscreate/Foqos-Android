@@ -152,7 +152,7 @@ class ActivityCamera(private val context: Context) {
                 is VideoRecordEvent.Status -> {
                     // Gemini inline uploads cannot exceed 14 MB. Stop before the limit
                     // even when the user selected unlimited *time*.
-                    if (event.recordingStats.numBytesRecorded >= 12_000_000L) {
+                    if (event.recordingStats.numBytesRecorded >= IntermittentCapturePlan.MAX_UPLOAD_BYTES) {
                         finishRecordingNow()
                     }
                 }

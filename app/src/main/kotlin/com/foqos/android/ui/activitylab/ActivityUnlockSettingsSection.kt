@@ -46,24 +46,30 @@ fun ActivityUnlockSettingsSection(
     var registrationDialog by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
     var rewardRefresh by remember { mutableIntStateOf(0) }
-    fun saveList(items: List<ActivityUnlockCondition>) {
-        try {
+    fun saveList(items: List<ActivityUnlockCondition>): Boolean {
+        return try {
             if (editor != null) {
-                if (libraryMode) items.forEach(editor::editLibrary)
-                else updateConditions(items)
+                if (libraryMode) {
+                    items.forEach(editor::editLibrary)
+                    editor.refreshLibrary()
+                } else updateConditions(items)
             } else if (libraryMode) {
                 items.forEach(store::updateLibraryCondition)
-                updateConditions(store.conditions(storageId))
+                updateConditions(store.reusableConditions())
             } else {
                 store.save(profileId, items)
                 updateConditions(store.conditions(profileId))
             }
             error = null
-        } catch (e: Exception) { error = e.message ?: "保存失敗" }
+            true
+        } catch (e: Exception) {
+            error = e.message ?: "保存失敗"
+            false
+        }
     }
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(if (registrationOnly) "動作の登録・編集を行う画面。休止時間はプロファイルの条件欄で設定するよ。" else
+        Text(if (registrationOnly) "ここで登録・編集・削除した動作は即時保存されるよ。プロファイルの保存ボタンは不要。休止時間と動作セットは各プロファイルで保存してね。" else
             "登録済みの動作をサブ条件へ追加するか、新しく動作を登録してね。休止時間はこのプロファイル専用の設定。",
             style = MaterialTheme.typography.bodySmall)
         conditions.filter { (registrationOnly && editingId == null) ||
@@ -82,19 +88,20 @@ fun ActivityUnlockSettingsSection(
                 }
                 OutlinedButton(enabled = !editingLocked, onClick = {
                     if (libraryMode) {
-                        val owners = store.attachedProfileIds(condition.id).filterNot {
-                            it == editor?.profileId && editor?.activities?.none { a -> a.id == condition.id } == true
-                        }.toSet()
-                        if (owners.isNotEmpty()) {
+                        val owners = store.attachedProfileIds(condition.id)
+                        val usedByDraft = editor != null &&
+                            ((editor.sets + editor.subSets).any { condition.id in it.conditionIds } ||
+                                editor.activities.any { it.id == condition.id })
+                        if (owners.isNotEmpty() || usedByDraft) {
                             val names = allProfiles.filter { it.id in owners }.map { it.name }
-                            error = if (owners.size == 1) {
-                                "${names.firstOrNull() ?: "別のプロファイル"}で使用されています。削除できないよ"
-                            } else "複数のプロファイルで使用されています。削除できないよ"
-                        } else if (editor != null) {
-                            editor.removeFromLibrary(condition.id)
-                            error = null
-                        } else if (store.deleteLibraryCondition(condition.id)) {
-                            updateConditions(store.conditions(storageId))
+                            error = when {
+                                owners.size > 1 -> "複数のプロファイルで使用されています。削除できないよ"
+                                owners.size == 1 -> "${names.firstOrNull() ?: "別のプロファイル"}で使用されています。削除できないよ"
+                                else -> "編集中のプロファイルの動作セットで使用されています。削除できないよ"
+                            }
+                        } else if (editor?.removeFromLibrary(condition.id)
+                            ?: store.deleteLibraryCondition(condition.id)) {
+                            if (editor == null) updateConditions(store.reusableConditions())
                             error = null
                         } else error = "削除できなかったよ"
                     } else {
@@ -212,8 +219,9 @@ fun ActivityUnlockSettingsSection(
                 }) { Text("判定をテスト") }
                 Button(enabled = !editingLocked && draft.description.isNotBlank(), onClick = {
                     val value = draft.normalized()
-                    saveList(conditions.filterNot { it.id == value.id } + value)
-                    editingId = null
+                    if (saveList(conditions.filterNot { it.id == value.id } + value)) {
+                        editingId = null
+                    }
                 }) { Text("条件を保存") }
                 OutlinedButton(onClick = { editingId = null }) { Text("戻る") }
             }

@@ -23,6 +23,15 @@ class IntermittentCapturePlanTest {
         assertThat(prompt).contains("経過時間が足りない場合")
     }
 
+    @Test fun minimumDurationRecognizesMinutesAndHours() {
+        assertThat(IntermittentCapturePlan.minimumDurationMillis("部屋を30分掃除する"))
+            .isEqualTo(1_800_000L)
+        assertThat(IntermittentCapturePlan.minimumDurationMillis("1時間20分勉強する"))
+            .isEqualTo(4_800_000L)
+        assertThat(IntermittentCapturePlan.minimumDurationMillis("腕立て伏せ30回"))
+            .isNull()
+    }
+
     @Test fun oneMinuteOfFootageFromHalfHourActivityIsExpected() {
         val clips = 30L * 60L / 90L
         val recordingSeconds = clips * IntermittentCapturePlan.CLIP_MILLIS / 1_000L

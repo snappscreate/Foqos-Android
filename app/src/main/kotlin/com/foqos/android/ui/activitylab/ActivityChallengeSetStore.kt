@@ -119,7 +119,7 @@ class ActivityChallengeSetStore(context: Context) {
     /** Called only after the active session and real Gemini verdict are authenticated. */
     fun complete(profileId: String, sessionId: String, conditionId: String): ActivityProofResult {
         val state = progress(profileId, sessionId) ?: return ActivityProofResult.REJECTED
-        val group = sets(profileId).firstOrNull { it.id == state.setId }
+        val group = allSets(profileId).firstOrNull { it.id == state.setId }
             ?: return ActivityProofResult.REJECTED
         if (conditionId !in group.conditionIds || conditionId in state.completedIds)
             return ActivityProofResult.REJECTED

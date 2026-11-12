@@ -28,6 +28,8 @@ import com.foqos.android.service.nfc.NfcTagContentParser
 import android.widget.ImageView
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
@@ -578,7 +580,9 @@ class BlockOverlayActivity : ComponentActivity() {
                         onDismissRequest = { showActivityChoices = false },
                         title = { Text("今回の一時休止条件を選択") },
                         text = {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Column(modifier = Modifier.heightIn(max = 440.dp)
+                                .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 if (configuredChallengeSets.isNotEmpty()) {
                                     Text("セット内の動作はすべて達成。セットを選び、残りの動作を進めてね。")
                                     configuredChallengeSets.forEachIndexed { index, group ->

@@ -987,7 +987,12 @@ class SessionManager @Inject constructor(
         _activeProfile.value = null
 
         val allProfiles = profileRepository.observeAll().first()
-        allProfiles.forEach { profile -> alarmScheduler.cancelAllForProfile(profile.id) }
+        val location = LocationAutomationStore(appContext)
+        allProfiles.forEach { profile ->
+            // An emergency stop must not be undone by the next geofence transition.
+            if (location.read(profile.id) != null) location.setManuallyStopped(profile.id, true)
+            alarmScheduler.cancelAllForProfile(profile.id)
+        }
         alarmScheduler.cancel(AlarmActivityType.EMERGENCY_ALLOWANCE_RESET, EMERGENCY_ALLOWANCE_KEY)
         widgetRefresher.refresh()
         }

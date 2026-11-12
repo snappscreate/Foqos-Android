@@ -33,6 +33,7 @@ class ProfileEditPendingTest {
         pending.addActivity(condition)
         pending.mainConditionId = condition.id
         pending.sets = listOf(ActivityChallengeSet(conditionIds = listOf(condition.id), pauseMinutes = 30))
+        pending.subSets = listOf(ActivityChallengeSet(conditionIds = listOf(condition.id), pauseMinutes = 12))
         pending.cooldownMinutes = 90
         pending.locationRule = rule
         pending.locationEnabled = true
@@ -44,6 +45,7 @@ class ProfileEditPendingTest {
         assertThat(policies.configured(id)).isFalse()
         assertThat(activities.conditions(id)).isEmpty()
         assertThat(sets.sets(id)).isEmpty()
+        assertThat(sets.subSets(id)).isEmpty()
         assertThat(location.read(id)).isNull()
 
         try {
@@ -51,6 +53,8 @@ class ProfileEditPendingTest {
             assertThat(policies.read(id).pause).isEqualTo(UnlockMethod.ACTIVITY)
             assertThat(policies.read(id).retryCooldownMinutes).isEqualTo(90)
             assertThat(sets.sets(id)).hasSize(1)
+            assertThat(sets.subSets(id)).hasSize(1)
+            assertThat(sets.subSets(id).single().pauseMinutes).isEqualTo(12)
             assertThat(activities.mainConditionId(id)).isEqualTo(condition.id)
             // Location registration is committed by the parent profile Save, never by the editor.
             assertThat(location.read(id)).isNull()

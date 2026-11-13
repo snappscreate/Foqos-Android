@@ -118,8 +118,15 @@ class ProfileEditPending(context: Context, profile: BlockedProfile) {
         activityRewards.forEach { (id, duration) ->
             if (activities.any { it.id == id }) activityStore.setConditionPauseMinutes(profileId, id, duration)
         }
-        // Unified AI alternatives are retained as one list, so there are no main/sub sets.
-        setStore.save(profileId, sets + subSets)
+        // Upgrade historical untyped targets as part of the parent's explicit Save,
+        // without altering the reusable shared movement definitions.
+        val unified = (sets + subSets).map { group ->
+            group.copy(targets = group.conditionIds.associateWith { id ->
+                group.targets[id] ?: com.foqos.android.ui.activitylab.ActivityTarget.inferred(
+                    activities.firstOrNull { it.id == id } ?: library.firstOrNull { it.id == id })
+            })
+        }
+        setStore.save(profileId, unified)
         setStore.saveSubSets(profileId, emptyList())
         policyStore.save(profileId, merged)
     }

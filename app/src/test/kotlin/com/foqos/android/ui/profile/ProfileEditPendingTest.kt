@@ -53,6 +53,49 @@ class ProfileEditPendingTest {
         }
     }
 
+    @Test fun mergedAchievementSetsAndMultiPauseSelectionsOnlyApplyOnProfileSave() {
+        val id = UUID.randomUUID().toString()
+        val first = ActivityUnlockCondition(description = "腹筋")
+        val second = ActivityUnlockCondition(description = "掃除")
+        val draft = ProfileEditPending(context, BlockedProfile(id = id, name = "Unified"))
+        val sets = ActivityChallengeSetStore(context)
+        val policy = ProfileUnlockPolicyStore(context)
+        val activity = ActivityUnlockStore(context)
+        val countSet = ActivityChallengeSet(
+            conditionIds = listOf(first.id), pauseMinutes = 15,
+            targets = mapOf(first.id to com.foqos.android.ui.activitylab.ActivityTarget(
+                com.foqos.android.ui.activitylab.ActivityTargetKind.COUNT, 30)))
+        val timedSet = ActivityChallengeSet(
+            conditionIds = listOf(second.id), pauseMinutes = 10,
+            targets = mapOf(second.id to com.foqos.android.ui.activitylab.ActivityTarget(
+                com.foqos.android.ui.activitylab.ActivityTargetKind.MINUTES, 20)))
+        try {
+            draft.editLibrary(first)
+            draft.editLibrary(second)
+            draft.addActivity(first)
+            draft.addActivity(second)
+            draft.sets = listOf(countSet)
+            draft.subSets = listOf(timedSet)
+            draft.policy = draft.policy.copy(
+                pauseMethods = setOf(UnlockMethod.NFC, UnlockMethod.ACTIVITY))
+            assertThat(policy.configured(id)).isFalse()
+            assertThat(sets.allSets(id)).isEmpty()
+            assertThat(draft.ready()).isTrue()
+            draft.commit()
+            assertThat(policy.read(id).enabledPauseMethods())
+                .containsExactly(UnlockMethod.NFC, UnlockMethod.ACTIVITY)
+            assertThat(sets.sets(id)).containsExactly(countSet, timedSet).inOrder()
+            assertThat(sets.subSets(id)).isEmpty()
+            assertThat(activity.conditions(id)).hasSize(2)
+        } finally {
+            sets.deleteProfile(id)
+            activity.deleteProfile(id)
+            activity.deleteLibraryCondition(first.id)
+            activity.deleteLibraryCondition(second.id)
+            policy.delete(id)
+        }
+    }
+
     @Test fun oldSingleMainAndSubMovementMigrateToSetsOnlyOnCommit() {
         val id = UUID.randomUUID().toString()
         val main = ActivityUnlockCondition(description = "メイン腕立て")

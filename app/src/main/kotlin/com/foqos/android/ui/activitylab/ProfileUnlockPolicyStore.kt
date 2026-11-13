@@ -19,9 +19,17 @@ data class ProfileUnlockPolicy(
     val pauseMethods: Set<UnlockMethod>? = null,
     val pauseNfcCredentialId: String? = null,
     val pauseQrCredentialId: String? = null,
+    val pauseNfcMinutes: Int? = null,
+    val pauseQrMinutes: Int? = null,
 ) {
     fun enabledPauseMethods(): Set<UnlockMethod> =
         pauseMethods ?: if (pause == UnlockMethod.MANUAL) emptySet() else setOf(pause)
+    fun pauseMinutesFor(method: UnlockMethod): Int = when (method) {
+        UnlockMethod.NFC -> pauseNfcMinutes ?: pauseMinutes
+        UnlockMethod.QR -> pauseQrMinutes ?: pauseMinutes
+        else -> pauseMinutes
+    }.coerceIn(1, 180)
+
     fun pauseCredentialFor(method: UnlockMethod): String? = when (method) {
         UnlockMethod.NFC -> pauseNfcCredentialId ?: if (pause == method) pauseCredentialId else null
         UnlockMethod.QR -> pauseQrCredentialId ?: if (pause == method) pauseCredentialId else null
@@ -48,6 +56,10 @@ class ProfileUnlockPolicyStore(context: Context) {
             }?.toSet(),
         pauseNfcCredentialId = prefs.getString("pause_nfc_credential_$profileId", null),
         pauseQrCredentialId = prefs.getString("pause_qr_credential_$profileId", null),
+        pauseNfcMinutes = if (prefs.contains("pause_nfc_minutes_$profileId"))
+            prefs.getInt("pause_nfc_minutes_$profileId", 20).coerceIn(1, 180) else null,
+        pauseQrMinutes = if (prefs.contains("pause_qr_minutes_$profileId"))
+            prefs.getInt("pause_qr_minutes_$profileId", 20).coerceIn(1, 180) else null,
     )
 
     /** Preserve old profiles' behavior until the new settings are explicitly saved. */
@@ -82,6 +94,10 @@ class ProfileUnlockPolicyStore(context: Context) {
                 else putString("pause_nfc_credential_$profileId", policy.pauseNfcCredentialId) }
             .apply { if (policy.pauseQrCredentialId == null) remove("pause_qr_credential_$profileId")
                 else putString("pause_qr_credential_$profileId", policy.pauseQrCredentialId) }
+            .apply { if (policy.pauseNfcMinutes == null) remove("pause_nfc_minutes_$profileId")
+                else putInt("pause_nfc_minutes_$profileId", policy.pauseNfcMinutes.coerceIn(1, 180)) }
+            .apply { if (policy.pauseQrMinutes == null) remove("pause_qr_minutes_$profileId")
+                else putInt("pause_qr_minutes_$profileId", policy.pauseQrMinutes.coerceIn(1, 180)) }
             .putInt("duration_$profileId", policy.pauseMinutes.coerceIn(1, 180))
             .putInt("cooldown_$profileId", policy.retryCooldownMinutes.coerceIn(0, 10080))
             .apply { if (policy.stopCredentialId == null) remove("stop_credential_$profileId") else putString("stop_credential_$profileId", policy.stopCredentialId) }
@@ -153,7 +169,8 @@ class ProfileUnlockPolicyStore(context: Context) {
             .remove("cooldown_$profileId").remove("last_pause_at_$profileId")
             .remove("stop_credential_$profileId").remove("pause_credential_$profileId")
             .remove("pause_methods_$profileId").remove("pause_nfc_credential_$profileId")
-            .remove("pause_qr_credential_$profileId").apply()
+            .remove("pause_qr_credential_$profileId").remove("pause_nfc_minutes_$profileId")
+            .remove("pause_qr_minutes_$profileId").apply()
     }
 
     private fun parse(value: String?, default: UnlockMethod) =

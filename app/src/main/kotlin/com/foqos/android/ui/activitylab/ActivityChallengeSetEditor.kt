@@ -49,12 +49,9 @@ fun ActivityChallengeSetEditor(
         } catch (e: Exception) { error = e.message ?: "セットを保存できなかった" }
     }
 
-    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("同じセット内は全て達成（AND）。別々のセットはどれか1つ（OR）。",
             style = MaterialTheme.typography.bodySmall)
-        Text("登録済み動作を組み合わせ、回数または時間を設定する。セット内AND、セット間OR。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (sets.isEmpty()) Text("達成セットが未登録。下のボタンから追加してね。",
             style = MaterialTheme.typography.bodySmall)
         sets.forEachIndexed { index, group ->
@@ -64,7 +61,7 @@ fun ActivityChallengeSetEditor(
                     color = MaterialTheme.colorScheme.primary)
             }
             OutlinedCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("セット ${index + 1}", style = MaterialTheme.typography.titleMedium)
                         TextButton(enabled = !editingLocked,
@@ -114,7 +111,7 @@ fun ActivityChallengeSetEditor(
                         }
                         val target = group.targets[conditionId] ?:
                             ActivityTarget.inferred(catalog.firstOrNull { it.id == conditionId })
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             listOf(ActivityTargetKind.COUNT to "回数", ActivityTargetKind.MINUTES to "時間").forEach { (kind, caption) ->
                                 FilterChip(
                                     selected = target.kind == kind,
@@ -130,7 +127,7 @@ fun ActivityChallengeSetEditor(
                             }
                         }
                         DurationSliderField(
-                            label = catalog.firstOrNull { it.id == conditionId }?.description ?: "動作",
+                            label = "",
                             value = target.amount.coerceIn(1, if (target.kind == ActivityTargetKind.COUNT) 300 else 180),
                             onValueChange = { amount ->
                                 persist(sets.map { entry ->
@@ -141,6 +138,7 @@ fun ActivityChallengeSetEditor(
                             range = if (target.kind == ActivityTargetKind.COUNT) 1..300 else 1..180,
                             unit = if (target.kind == ActivityTargetKind.COUNT) "回" else "分",
                             enabled = !editingLocked,
+                            compact = true,
                         )
                     }
                     OutlinedButton(enabled = !editingLocked &&

@@ -83,7 +83,7 @@ fun ActivityUnlockSettingsSection(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 Column(Modifier.weight(1f)) {
                     Text(condition.description)
-                    Text("${if (condition.unlimitedRecording) "撮影時間は手動終了" else "撮影${condition.recordingSeconds}秒"} / 開始前${condition.countdownSeconds}秒 / ${if (condition.frontCamera) "前面" else "背面"}",
+                    Text("撮影方法はセットで選んだ回数・時間に応じて自動切替 / 開始前${condition.countdownSeconds}秒 / ${if (condition.frontCamera) "前面" else "背面"}",
                         style = MaterialTheme.typography.bodySmall)
                 }
                 if (registrationOnly) {
@@ -189,21 +189,8 @@ fun ActivityUnlockSettingsSection(
                     Text(if (draft.frontCamera) "前面（タップで背面）" else "背面（タップで前面）")
                 }
             }
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("長時間・ランダム間欠撮影（手動終了）", modifier = Modifier.weight(1f))
-                Switch(checked = draft.unlimitedRecording, enabled = !editingLocked,
-                    onCheckedChange = { draft = draft.copy(unlimitedRecording = it) })
-            }
-            if (draft.unlimitedRecording) Text(
-                "平均90秒ごと（ランダム60〜120秒）に3秒録画。480p相当・低ビットレート・無音で1本の動画にまとめる。撮影タイミングは画面に表示しない。Androidのカメラ使用表示は残るよ。",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            if (!draft.unlimitedRecording) DurationSliderField(
-                label = "撮影時間",
-                value = draft.recordingSeconds,
-                onValueChange = { draft = draft.copy(recordingSeconds = it) },
-                range = 10..120, step = 10, unit = "秒", enabled = !editingLocked,
-            )
+            Text("回数は連続撮影、時間はランダム間欠撮影。目標の回数・時間はプロファイルの達成セットで設定するよ。",
+                style = MaterialTheme.typography.bodySmall)
             Text("カウントダウン：${draft.countdownSeconds}秒")
             Row(modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -213,7 +200,7 @@ fun ActivityUnlockSettingsSection(
                     }) { Text(if (draft.countdownSeconds == seconds) "✓ ${seconds}秒" else "${seconds}秒") }
                 }
             }
-            Text("一時休止時間はプロファイルの一時休止条件で設定するよ。",
+            Text("回数・時間と一時休止時間はプロファイルの達成セットで設定するよ。",
                 style = MaterialTheme.typography.bodySmall)
             Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(enabled = draft.description.isNotBlank(), onClick = {

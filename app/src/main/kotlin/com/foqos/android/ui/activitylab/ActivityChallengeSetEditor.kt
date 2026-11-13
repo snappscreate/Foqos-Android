@@ -95,7 +95,7 @@ fun ActivityChallengeSetEditor(
                                                             ids[motionIndex] = option.id
                                                         },
                                                         targets = it.targets - conditionId +
-                                                            (option.id to (it.targets[option.id] ?: ActivityTarget())))
+                                                            (option.id to (it.targets[option.id] ?: ActivityTarget.inferred(option))))
                                                 })
                                                 expanded = false
                                             })
@@ -114,7 +114,8 @@ fun ActivityChallengeSetEditor(
                         }
                     }
                     group.conditionIds.forEach { conditionId ->
-                        val target = group.targets[conditionId] ?: ActivityTarget()
+                        val target = group.targets[conditionId] ?:
+                            ActivityTarget.inferred(catalog.firstOrNull { it.id == conditionId })
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             listOf(ActivityTargetKind.COUNT to "回数", ActivityTargetKind.MINUTES to "時間").forEach { (kind, caption) ->
                                 FilterChip(
@@ -150,7 +151,7 @@ fun ActivityChallengeSetEditor(
                         if (next != null) persist(sets.map {
                             if (it.id != group.id) it else it.copy(
                                 conditionIds = it.conditionIds + next.id,
-                                targets = it.targets + (next.id to ActivityTarget()))
+                                targets = it.targets + (next.id to ActivityTarget.inferred(next)))
                         })
                     }) { Text("＋ このセットに動作を追加（AND）") }
                     DurationSliderField(
@@ -170,7 +171,7 @@ fun ActivityChallengeSetEditor(
             val id = catalog.first().id
             persist(sets + ActivityChallengeSet(
                 id = UUID.randomUUID().toString(), conditionIds = listOf(id), pauseMinutes = 10,
-                targets = mapOf(id to ActivityTarget())))
+                targets = mapOf(id to ActivityTarget.inferred(catalog.first())))
         }, modifier = Modifier.fillMaxWidth()) { Text("＋ 別の達成セットを追加（OR）") }
         OutlinedButton(enabled = !editingLocked, onClick = { libraryDialog = true },
             modifier = Modifier.fillMaxWidth()) { Text("保存済みの動作を管理・新しく登録") }

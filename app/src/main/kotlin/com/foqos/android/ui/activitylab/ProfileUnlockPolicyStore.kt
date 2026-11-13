@@ -16,7 +16,18 @@ data class ProfileUnlockPolicy(
     val retryCooldownMinutes: Int = 0,
     val stopCredentialId: String? = null,
     val pauseCredentialId: String? = null,
-)
+    val pauseMethods: Set<UnlockMethod>? = null,
+    val pauseNfcCredentialId: String? = null,
+    val pauseQrCredentialId: String? = null,
+) {
+    fun enabledPauseMethods(): Set<UnlockMethod> =
+        pauseMethods ?: if (pause == UnlockMethod.MANUAL) emptySet() else setOf(pause)
+    fun pauseCredentialFor(method: UnlockMethod): String? = when (method) {
+        UnlockMethod.NFC -> pauseNfcCredentialId ?: if (pause == method) pauseCredentialId else null
+        UnlockMethod.QR -> pauseQrCredentialId ?: if (pause == method) pauseCredentialId else null
+        else -> null
+    }
+}
 
 class ProfileUnlockPolicyStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("profile_unlock_policy_v1", Context.MODE_PRIVATE)
@@ -31,6 +42,12 @@ class ProfileUnlockPolicyStore(context: Context) {
         retryCooldownMinutes = prefs.getInt("cooldown_$profileId", 0).coerceIn(0, 10080),
         stopCredentialId = prefs.getString("stop_credential_$profileId", null),
         pauseCredentialId = prefs.getString("pause_credential_$profileId", null),
+        pauseMethods = prefs.getString("pause_methods_$profileId", null)?.split(",")
+            ?.filter(String::isNotBlank)?.mapNotNull { name ->
+                UnlockMethod.entries.firstOrNull { it.name == name && it != UnlockMethod.MANUAL }
+            }?.toSet(),
+        pauseNfcCredentialId = prefs.getString("pause_nfc_credential_$profileId", null),
+        pauseQrCredentialId = prefs.getString("pause_qr_credential_$profileId", null),
     )
 
     /** Preserve old profiles' behavior until the new settings are explicitly saved. */
@@ -59,6 +76,12 @@ class ProfileUnlockPolicyStore(context: Context) {
             .putBoolean("enabled_$profileId", true)
             .putString("stop_$profileId", policy.stop.name)
             .putString("pause_$profileId", policy.pause.name)
+            .apply { if (policy.pauseMethods == null) remove("pause_methods_$profileId")
+                else putString("pause_methods_$profileId", policy.pauseMethods.joinToString(",") { it.name }) }
+            .apply { if (policy.pauseNfcCredentialId == null) remove("pause_nfc_credential_$profileId")
+                else putString("pause_nfc_credential_$profileId", policy.pauseNfcCredentialId) }
+            .apply { if (policy.pauseQrCredentialId == null) remove("pause_qr_credential_$profileId")
+                else putString("pause_qr_credential_$profileId", policy.pauseQrCredentialId) }
             .putInt("duration_$profileId", policy.pauseMinutes.coerceIn(1, 180))
             .putInt("cooldown_$profileId", policy.retryCooldownMinutes.coerceIn(0, 10080))
             .apply { if (policy.stopCredentialId == null) remove("stop_credential_$profileId") else putString("stop_credential_$profileId", policy.stopCredentialId) }
@@ -90,8 +113,20 @@ class ProfileUnlockPolicyStore(context: Context) {
                 }
             }
         }
-        return valid(policy.stop, policy.stopCredentialId) &&
-            valid(policy.pause, policy.pauseCredentialId)
+        if (!valid(policy.stop, policy.stopCredentialId)) return false
+        return policy.enabledPauseMethods().all { method ->
+            when (method) {
+                UnlockMethod.ACTIVITY -> {
+                    val registered = ActivityUnlockStore(context).conditions(profile.id)
+                        .map { it.id }.toSet()
+                    val groups = ActivityChallengeSetStore(context).allSets(profile.id)
+                    groups.isNotEmpty() && groups.all { set ->
+                        set.conditionIds.isNotEmpty() && set.conditionIds.all { it in registered }
+                    }
+                }
+                else -> valid(method, policy.pauseCredentialFor(method))
+            }
+        }
     }
 
     /** The lock begins when a successful timed pause starts, not after it expires. */
@@ -112,7 +147,9 @@ class ProfileUnlockPolicyStore(context: Context) {
         prefs.edit().remove("enabled_$profileId").remove("stop_$profileId")
             .remove("pause_$profileId").remove("duration_$profileId")
             .remove("cooldown_$profileId").remove("last_pause_at_$profileId")
-            .remove("stop_credential_$profileId").remove("pause_credential_$profileId").apply()
+            .remove("stop_credential_$profileId").remove("pause_credential_$profileId")
+            .remove("pause_methods_$profileId").remove("pause_nfc_credential_$profileId")
+            .remove("pause_qr_credential_$profileId").apply()
     }
 
     private fun parse(value: String?, default: UnlockMethod) =

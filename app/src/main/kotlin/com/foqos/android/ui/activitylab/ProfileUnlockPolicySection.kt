@@ -176,6 +176,12 @@ fun ProfileUnlockPolicySection(
                 },
                 onAdd = { credentialsDialog = true },
             )
+            DurationSliderField(
+                label = "NFC認証後の一時休止時間",
+                value = policy.pauseMinutesFor(UnlockMethod.NFC),
+                onValueChange = { savePolicy(policy.copy(pauseNfcMinutes = it)) },
+                range = 1..180, enabled = !editingLocked,
+            )
         }
         if (UnlockMethod.QR in methods) {
             CredentialDropdown(
@@ -191,6 +197,12 @@ fun ProfileUnlockPolicySection(
                 },
                 onAdd = { credentialsDialog = true },
             )
+            DurationSliderField(
+                label = "QR認証後の一時休止時間",
+                value = policy.pauseMinutesFor(UnlockMethod.QR),
+                onValueChange = { savePolicy(policy.copy(pauseQrMinutes = it)) },
+                range = 1..180, enabled = !editingLocked,
+            )
         }
         if (UnlockMethod.ACTIVITY in methods) {
             Text("AI動作判定の達成セット", style = MaterialTheme.typography.titleSmall)
@@ -201,7 +213,7 @@ fun ProfileUnlockPolicySection(
                 editor = editor,
             )
         }
-        if (UnlockMethod.NFC in methods || UnlockMethod.QR in methods || methods.isEmpty()) {
+        if (methods.isEmpty()) {
             DurationSliderField(
                 label = "認証後の一時休止時間",
                 value = policy.pauseMinutes,

@@ -171,7 +171,7 @@ fun ActivityChallengeSetEditor(
             val id = catalog.first().id
             persist(sets + ActivityChallengeSet(
                 id = UUID.randomUUID().toString(), conditionIds = listOf(id), pauseMinutes = 10,
-                targets = mapOf(id to ActivityTarget.inferred(catalog.first())))
+                targets = mapOf(id to ActivityTarget.inferred(catalog.first()))))
         }, modifier = Modifier.fillMaxWidth()) { Text("＋ 別の達成セットを追加（OR）") }
         OutlinedButton(enabled = !editingLocked, onClick = { libraryDialog = true },
             modifier = Modifier.fillMaxWidth()) { Text("保存済みの動作を管理・新しく登録") }

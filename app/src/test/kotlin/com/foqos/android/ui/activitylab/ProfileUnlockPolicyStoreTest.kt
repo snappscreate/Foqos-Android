@@ -30,6 +30,8 @@ class ProfileUnlockPolicyStoreTest {
                 pauseMethods = setOf(UnlockMethod.NFC, UnlockMethod.QR),
                 pauseNfcCredentialId = nfc.id,
                 pauseQrCredentialId = qr.id,
+                pauseNfcMinutes = 15,
+                pauseQrMinutes = 10,
             )
             store.save(id, settings)
             val restored = ProfileUnlockPolicyStore(context).read(id)
@@ -37,6 +39,8 @@ class ProfileUnlockPolicyStoreTest {
                 .containsExactly(UnlockMethod.NFC, UnlockMethod.QR)
             assertThat(restored.pauseCredentialFor(UnlockMethod.NFC)).isEqualTo(nfc.id)
             assertThat(restored.pauseCredentialFor(UnlockMethod.QR)).isEqualTo(qr.id)
+            assertThat(restored.pauseMinutesFor(UnlockMethod.NFC)).isEqualTo(15)
+            assertThat(restored.pauseMinutesFor(UnlockMethod.QR)).isEqualTo(10)
             val profile = BlockedProfile(id = id, name = "Multi", strategyId = "manual",
                 physicalUnblockItems = listOf(nfc, qr))
             assertThat(store.isReady(profile)).isTrue()

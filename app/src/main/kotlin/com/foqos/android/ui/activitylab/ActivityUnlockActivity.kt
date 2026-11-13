@@ -69,23 +69,37 @@ class ActivityUnlockActivity : ComponentActivity() {
             finish()
             return
         }
+        val configuredTarget = if (isTest) null else
+            ActivityChallengeSetStore(this).progress(profileId, sessionId)?.let { progress ->
+                ActivityChallengeSetStore(this).allSets(profileId)
+                    .firstOrNull { it.id == progress.setId }?.targets?.get(conditionId)
+            }
         val description = if (isTest) intent.getStringExtra(EXTRA_DESCRIPTION).orEmpty()
             else entry!!.description
         val seconds = (if (isTest) intent.getIntExtra(EXTRA_SECONDS, 20)
             else entry!!.recordingSeconds).coerceIn(10, 120)
         val countdown = (if (isTest) intent.getIntExtra(EXTRA_COUNTDOWN, 5)
             else entry!!.countdownSeconds).coerceIn(0, 30)
-        val unlimited = if (isTest) intent.getBooleanExtra(EXTRA_UNLIMITED, false)
+        val unlimited = if (configuredTarget != null)
+            configuredTarget.kind == ActivityTargetKind.MINUTES
+            else if (isTest) intent.getBooleanExtra(EXTRA_UNLIMITED, false)
             else entry!!.unlimitedRecording
+        val continuousCount = configuredTarget?.kind == ActivityTargetKind.COUNT
+        val targetDescription = configuredTarget?.let { "${description} ${it.description()}" }
+            ?: description
         val frontCamera = if (isTest) intent.getBooleanExtra(EXTRA_FRONT, true)
             else entry!!.frontCamera
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
             FoqosTheme {
                 ActivityUnlockCapture(
-                    description = description,
+                    description = targetDescription,
                     seconds = seconds,
                     unlimited = unlimited,
+                    continuousCount = continuousCount,
+                    minimumCaptureMillis = configuredTarget?.takeIf {
+                        it.kind == ActivityTargetKind.MINUTES
+                    }?.amount?.times(60_000L),
                     countdown = countdown,
                     frontCamera = frontCamera,
                     isTest = isTest,
@@ -118,6 +132,8 @@ private fun ActivityUnlockCapture(
     description: String,
     seconds: Int,
     unlimited: Boolean,
+    continuousCount: Boolean,
+    minimumCaptureMillis: Long?,
     countdown: Int,
     frontCamera: Boolean,
     isTest: Boolean,
@@ -176,7 +192,7 @@ private fun ActivityUnlockCapture(
     val canRequest = if (settings.useRelay) settings.endpoint.startsWith("https://")
         else credentials.hasKey()
     val recordingSecondsLeft = ((recordingRemainingMs + 999L) / 1000L).coerceAtLeast(0L)
-    val timeLabel = if (unlimited) "長時間・間欠撮影" else
+    val timeLabel = if (unlimited) "長時間・間欠撮影" else if (continuousCount) "回数判定・連続録画" else
         "%02d:%02d".format(recordingSecondsLeft / 60L, recordingSecondsLeft % 60L)
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -185,8 +201,9 @@ private fun ActivityUnlockCapture(
             Text(if (isTest) "動作判定テスト（解除なし）" else "AI動作チャレンジ",
                 style = MaterialTheme.typography.titleLarge)
             Text(description, style = MaterialTheme.typography.titleMedium)
-            Text(if (unlimited) "長時間モード：平均90秒おきに約3秒ずつランダム撮影。撮影タイミングは表示しない。カメラ使用中はAndroidのカメラ表示が点灯するよ。" else
-                "ポーズ中は録画時間を消費しない。撮影を終了すると、それまでの映像で判定する。",
+            Text(if (unlimited) "時間判定：60〜120秒ごとに約3秒ずつランダム撮影。タイミングは表示しない。Androidのカメラ使用表示は残るよ。"
+                else if (continuousCount) "回数判定：連続撮影するよ。必要な回数を終えたら手動で撮影終了して判定。"
+                else "ポーズ中は録画時間を消費しない。撮影を終了すると、それまでの映像で判定する。",
                 style = MaterialTheme.typography.bodySmall)
             if (granted) {
                 Box(modifier = Modifier.fillMaxWidth().height(260.dp).clipToBounds()) {
@@ -194,7 +211,8 @@ private fun ActivityUnlockCapture(
                         modifier = Modifier.fillMaxSize().clipToBounds())
                     val overlayMessage = when (phase) {
                         CapturePhase.COUNTDOWN -> "撮影開始まで $countdownRemaining"
-                        CapturePhase.RECORDING -> if (unlimited) "長時間の活動を記録中" else "● 録画中  残り $timeLabel"
+                        CapturePhase.RECORDING -> if (unlimited) "長時間の活動を記録中"
+                            else if (continuousCount) "● 回数判定・連続録画中" else "● 録画中  残り $timeLabel"
                         CapturePhase.RESUME_COUNTDOWN -> "撮影再開まで $countdownRemaining"
                         CapturePhase.PAUSED -> if (unlimited) "長時間の活動を記録中" else "一時休止中  残り $timeLabel"
                         CapturePhase.JUDGING -> "撮影終了・AI判定中"
@@ -218,10 +236,10 @@ private fun ActivityUnlockCapture(
                     Text("カメラの使用を許可")
                 }
             }
-            Text("${if (unlimited) "ランダム間欠撮影・480p・無音" else "撮影上限 ${seconds}秒"} / 開始前 ${countdown}秒 / ${if (frontCamera) "前面" else "背面"}カメラ")
+            Text("${if (unlimited) "ランダム間欠撮影・480p・無音" else if (continuousCount) "連続撮影・手動終了" else "撮影上限 ${seconds}秒"} / 開始前 ${countdown}秒 / ${if (frontCamera) "前面" else "背面"}カメラ")
             if (phase == CapturePhase.RECORDING || phase == CapturePhase.PAUSED || phase == CapturePhase.RESUME_COUNTDOWN) {
-                Text(if (unlimited)
-                    "活動経過時間：%02d:%02d / サンプル録画は自動・非表示".format(
+                Text(if (unlimited || continuousCount)
+                    "活動経過時間：%02d:%02d".format(
                         activityElapsedMs / 60_000L, (activityElapsedMs / 1000L) % 60L)
                     else "残り撮影時間：$timeLabel" +
                         if (phase != CapturePhase.RECORDING) "（カウント停止中）" else "",
@@ -243,7 +261,7 @@ private fun ActivityUnlockCapture(
                             verdictCostYen = null
                             video?.delete()
                             video = null
-                            recordingRemainingMs = if (unlimited) 0L else seconds * 1000L
+                            recordingRemainingMs = if (unlimited || continuousCount) 0L else seconds * 1000L
                             activityElapsedMs = 0L
                             sampleCount = 0
                             try {
@@ -286,7 +304,11 @@ private fun ActivityUnlockCapture(
                                     }
                                 } else {
                                     captureSound(start = true)
-                                    camera.recordFor(seconds * 1000L).also { captureSound(start = false) }
+                                    val started = SystemClock.elapsedRealtime()
+                                    val captured = camera.recordFor(if (continuousCount) 0L else seconds * 1000L)
+                                    if (continuousCount) activityElapsedMs = SystemClock.elapsedRealtime() - started
+                                    captureSound(start = false)
+                                    captured
                                 }
                                 val elapsed = if (unlimited)
                                     (SystemClock.elapsedRealtime() - activityStart) else 0L
@@ -295,7 +317,7 @@ private fun ActivityUnlockCapture(
                                 videoBytes = recorded.length()
                                 recordingRemainingMs = 0L
                                 val minimum = if (unlimited)
-                                    IntermittentCapturePlan.minimumDurationMillis(description)
+                                    minimumCaptureMillis ?: IntermittentCapturePlan.minimumDurationMillis(description)
                                     else null
                                 if (minimum != null && elapsed < minimum) {
                                     status = "指定された活動時間に達していないよ。必要：${minimum / 60_000L}分、経過：${elapsed / 60_000L}分。判定せず終了した。"
@@ -305,6 +327,8 @@ private fun ActivityUnlockCapture(
                                 status = "撮影終了！ Geminiで判定中…"
                                 val activityPrompt = if (unlimited)
                                     IntermittentCapturePlan.evidenceDescription(description, elapsed, sampleTimes)
+                                    else if (continuousCount)
+                                        "${description}。動画の中で完了した回数を実際に数え、指示された回数未満なら必ず「不一致」。姿勢だけで回数を推定しない。途中の繰り返しを数え漏らしたり動画が不足している場合は「判断不能」。"
                                     else description
                                 val judgementStartedAt = SystemClock.elapsedRealtime()
                                 val result = if (settings.useRelay) {
@@ -367,7 +391,7 @@ private fun ActivityUnlockCapture(
                 }
 
                 CapturePhase.RECORDING, CapturePhase.PAUSED -> {
-                    if (unlimited) {
+                    if (unlimited || continuousCount) {
                         Button(modifier = Modifier.fillMaxWidth(), onClick = {
                             status = "記録を終了して判定するよ"
                             camera.finishRecordingNow()

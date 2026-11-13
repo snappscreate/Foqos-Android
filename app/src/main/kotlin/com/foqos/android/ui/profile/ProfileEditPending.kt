@@ -98,9 +98,10 @@ class ProfileEditPending(context: Context, profile: BlockedProfile) {
 
     fun ready(): Boolean {
         val ids = activities.map { it.id }.toSet()
-        return (sets + subSets).all { it.conditionIds.isNotEmpty() && it.conditionIds.all(ids::contains) } &&
-            (policy.pause != com.foqos.android.ui.activitylab.UnlockMethod.ACTIVITY ||
-                sets.isNotEmpty())
+        val groups = sets + subSets
+        return groups.all { it.conditionIds.isNotEmpty() && it.conditionIds.all(ids::contains) } &&
+            (com.foqos.android.ui.activitylab.UnlockMethod.ACTIVITY !in policy.enabledPauseMethods() ||
+                groups.isNotEmpty())
     }
 
     /** Persist only after profile has passed validation and its Save button was pressed. */
@@ -117,8 +118,9 @@ class ProfileEditPending(context: Context, profile: BlockedProfile) {
         activityRewards.forEach { (id, duration) ->
             if (activities.any { it.id == id }) activityStore.setConditionPauseMinutes(profileId, id, duration)
         }
-        setStore.save(profileId, sets)
-        setStore.saveSubSets(profileId, subSets)
+        // Unified AI alternatives are retained as one list, so there are no main/sub sets.
+        setStore.save(profileId, sets + subSets)
+        setStore.saveSubSets(profileId, emptyList())
         policyStore.save(profileId, merged)
     }
 }

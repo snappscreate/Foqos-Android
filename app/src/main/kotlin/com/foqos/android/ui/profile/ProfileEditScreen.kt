@@ -348,16 +348,6 @@ fun ProfileEditScreen(
                 )
             }
 
-            SectionCard(title = "一時休止のサブ条件") {
-                ActivityChallengeSetEditor(
-                    profileId = uiState.draft.id,
-                    editingLocked = uiState.editingLocked,
-                    repository = viewModel.profileRepository,
-                    editor = viewModel.pending,
-                    subCondition = true,
-                )
-            }
-
             SectionCard(title = "次に一時休止できるまでの待機時間") {
                 PauseRetryCooldownSection(
                     profileId = uiState.draft.id,

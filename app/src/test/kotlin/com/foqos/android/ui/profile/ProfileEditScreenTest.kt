@@ -88,14 +88,13 @@ class ProfileEditScreenTest {
         }
 
         composeTestRule.onNodeWithText("停止条件").assertExists()
-        composeTestRule.onNodeWithText("一時休止条件（メイン）").assertExists()
+        composeTestRule.onNodeWithText("一時休止条件").assertExists()
         composeTestRule.onNodeWithText("動作判定の達成セット（AND・OR）").assertDoesNotExist()
         composeTestRule.onNodeWithText("アプリ").assertExists()
         composeTestRule.onNodeWithText("ブロックするURL").assertExists()
         composeTestRule.onNodeWithText("許可するWebサイト（両モード共通）").assertExists()
         composeTestRule.onNodeWithText("ブロック範囲を使用").assertExists()
-        composeTestRule.onNodeWithText("一時休止のサブ条件").assertExists()
-        composeTestRule.onNodeWithText("＋ 別の達成セットを追加（OR）").assertExists()
+        composeTestRule.onNodeWithText("AI動作判定").assertExists()
         composeTestRule.onNodeWithText("次に一時休止できるまでの待機時間").assertExists()
         composeTestRule.onNodeWithText("ブロック方式").assertExists()
     }
@@ -168,7 +167,6 @@ class ProfileEditScreenTest {
         composeTestRule.onNodeWithText("停止に使用するNFCタグ").assertExists()
         composeTestRule.onNodeWithText("登録済みから選択").assertExists()
         composeTestRule.onNodeWithText("ブロック範囲を使用").assertExists()
-        composeTestRule.onNodeWithText("一時休止のサブ条件").assertExists()
     }
 
     /**
@@ -208,7 +206,6 @@ class ProfileEditScreenTest {
         // The old combined strategy selector has been replaced. Verify the
         // independently configurable stop/pause sections in edit mode.
         composeTestRule.onNodeWithText("停止条件").assertExists()
-        composeTestRule.onNodeWithText("一時休止条件（メイン）").assertExists()
-        composeTestRule.onNodeWithText("一時休止のサブ条件").assertExists()
+        composeTestRule.onNodeWithText("一時休止条件").assertExists()
     }
 }

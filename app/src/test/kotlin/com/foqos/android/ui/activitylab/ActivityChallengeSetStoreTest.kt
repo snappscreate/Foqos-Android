@@ -74,6 +74,25 @@ class ActivityChallengeSetStoreTest {
         } finally { store.deleteProfile(id) }
     }
 
+    @Test fun targetKindAndAmountRoundTripForEachMovement() {
+        val id = UUID.randomUUID().toString()
+        val store = ActivityChallengeSetStore(context)
+        val set = ActivityChallengeSet(
+            conditionIds = listOf("situp", "clean"),
+            targets = mapOf(
+                "situp" to ActivityTarget(ActivityTargetKind.COUNT, 30),
+                "clean" to ActivityTarget(ActivityTargetKind.MINUTES, 20),
+            ),
+            pauseMinutes = 15,
+        )
+        try {
+            store.save(id, listOf(set))
+            assertThat(ActivityChallengeSetStore(context).sets(id)).containsExactly(set)
+            assertThat(store.sets(id).single().targets["situp"]?.description()).isEqualTo("30回")
+            assertThat(store.sets(id).single().targets["clean"]?.description()).isEqualTo("20分")
+        } finally { store.deleteProfile(id) }
+    }
+
     @Test fun changingSetClearsPartialProgress() {
         val id = UUID.randomUUID().toString()
         val store = ActivityChallengeSetStore(context)

@@ -33,6 +33,7 @@ fun DurationSliderField(
     enabled: Boolean = true,
     unit: String = "分",
     step: Int = 1,
+    compact: Boolean = false,
 ) {
     require(!range.isEmpty())
     var text by remember { mutableStateOf(value.toString()) }
@@ -40,11 +41,15 @@ fun DurationSliderField(
     LaunchedEffect(value, focused) {
         if (!focused) text = value.toString()
     }
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(if (compact) 0.dp else 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()) {
-            Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            if (compact) {
+                androidx.compose.foundation.layout.Spacer(modifier = Modifier.weight(1f))
+            } else {
+                Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            }
             OutlinedTextField(
                 value = text,
                 onValueChange = { raw ->
@@ -53,7 +58,7 @@ fun DurationSliderField(
                         raw.toIntOrNull()?.takeIf { it in range }?.let(onValueChange)
                     }
                 },
-                modifier = Modifier.width(110.dp).onFocusChanged {
+                modifier = Modifier.width(if (compact) 100.dp else 110.dp).onFocusChanged {
                     val wasFocused = focused
                     focused = it.isFocused
                     if (wasFocused && !it.isFocused) {

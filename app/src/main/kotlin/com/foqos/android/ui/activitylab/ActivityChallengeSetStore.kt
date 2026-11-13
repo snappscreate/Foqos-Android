@@ -50,7 +50,6 @@ class ActivityChallengeSetStore(context: Context) {
                 conditionIds = ids,
                 pauseMinutes = entry.optInt("minutes", 10).coerceIn(1, 180),
                 targets = readTargets(entry),
-                targets = readTargets(entry),
             )
         }
     }.getOrDefault(emptyList())
@@ -96,6 +95,7 @@ class ActivityChallengeSetStore(context: Context) {
                     ?: return@mapNotNull null,
                 conditionIds = ids,
                 pauseMinutes = entry.optInt("minutes", 10).coerceIn(1, 180),
+                targets = readTargets(entry),
             )
         }
     }.getOrDefault(emptyList())

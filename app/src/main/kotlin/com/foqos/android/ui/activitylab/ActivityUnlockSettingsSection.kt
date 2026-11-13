@@ -83,8 +83,7 @@ fun ActivityUnlockSettingsSection(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 Column(Modifier.weight(1f)) {
                     Text(condition.description)
-                    Text("撮影方法はセットで選んだ回数・時間に応じて自動切替 / 開始前${condition.countdownSeconds}秒 / ${if (condition.frontCamera) "前面" else "背面"}",
-                        style = MaterialTheme.typography.bodySmall)
+
                 }
                 if (registrationOnly) {
                     OutlinedButton(enabled = !editingLocked, onClick = {
@@ -194,7 +193,7 @@ fun ActivityUnlockSettingsSection(
             Text("カウントダウン：${draft.countdownSeconds}秒")
             Row(modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(0,3,5,10,15,20,30).forEach { seconds ->
+                listOf(0,5,10,30).forEach { seconds ->
                     OutlinedButton(enabled = !editingLocked, onClick = {
                         draft = draft.copy(countdownSeconds = seconds)
                     }) { Text(if (draft.countdownSeconds == seconds) "✓ ${seconds}秒" else "${seconds}秒") }

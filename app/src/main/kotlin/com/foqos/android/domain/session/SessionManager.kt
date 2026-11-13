@@ -374,7 +374,7 @@ class SessionManager @Inject constructor(
             if (activity.selection(profileId, current.id) != null ||
                 com.foqos.android.ui.activitylab.ActivityChallengeSetStore(appContext)
                     .progress(profileId, current.id) != null) return@withContext false
-            pauseForConfiguredDuration(current, policy.pauseMinutes)
+            pauseForConfiguredDuration(current, policy.pauseMinutesFor(expected))
         } else {
             markCompletelyStopped(profileId)
             endSession(current, Instant.now())

@@ -120,7 +120,11 @@ class ProfileUnlockPolicyStore(context: Context) {
                     val registered = ActivityUnlockStore(context).conditions(profile.id)
                         .map { it.id }.toSet()
                     val groups = ActivityChallengeSetStore(context).allSets(profile.id)
-                    groups.isNotEmpty() && groups.all { set ->
+                    if (groups.isEmpty() && policy.pauseMethods == null) {
+                        // Profiles created before set-based AI conditions may still have
+                        // a single saved main movement until their first edit-and-save.
+                        ActivityUnlockStore(context).mainConditionId(profile.id) in registered
+                    } else groups.isNotEmpty() && groups.all { set ->
                         set.conditionIds.isNotEmpty() && set.conditionIds.all { it in registered }
                     }
                 }

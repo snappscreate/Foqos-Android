@@ -25,13 +25,13 @@ data class ActivityTarget(
         /** Best-effort draft migration only; existing saved definitions remain untouched. */
         fun inferred(activity: ActivityUnlockCondition?): ActivityTarget {
             val label = activity?.description.orEmpty()
-            val repetition = Regex("""(\\d{1,3})\\s*回""").find(label)
+            val repetition = Regex("""(\d{1,3})\s*回""").find(label)
                 ?.groupValues?.getOrNull(1)?.toIntOrNull()
             if (repetition != null) return ActivityTarget(ActivityTargetKind.COUNT,
                 repetition.coerceIn(1, 720))
-            val hours = Regex("""(\\d{1,2})\\s*時間""").find(label)
+            val hours = Regex("""(\d{1,2})\s*時間""").find(label)
                 ?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
-            val minutes = Regex("""(\\d{1,3})\\s*分""").find(label)
+            val minutes = Regex("""(\d{1,3})\s*分""").find(label)
                 ?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
             val time = hours * 60 + minutes
             if (time > 0) return ActivityTarget(ActivityTargetKind.MINUTES, time.coerceIn(1, 720))

@@ -18,6 +18,35 @@ class ProfileUnlockPolicyStoreTest {
     private val context: Context get() = ApplicationProvider.getApplicationContext()
     private fun uniqueProfile() = UUID.randomUUID().toString()
 
+    @Test fun multiPauseCheckboxesPersistCredentialsAndAllOffMeansManual() {
+        val id = uniqueProfile()
+        val store = ProfileUnlockPolicyStore(context)
+        val nfc = PhysicalUnblockItem(id = "nfc-one", name = "NFC",
+            type = PhysicalUnblockType.NFC, codeValue = "tag-one")
+        val qr = PhysicalUnblockItem(id = "qr-one", name = "QR",
+            type = PhysicalUnblockType.QR_CODE, codeValue = "qr-one")
+        try {
+            val settings = ProfileUnlockPolicy(
+                pauseMethods = setOf(UnlockMethod.NFC, UnlockMethod.QR),
+                pauseNfcCredentialId = nfc.id,
+                pauseQrCredentialId = qr.id,
+            )
+            store.save(id, settings)
+            val restored = ProfileUnlockPolicyStore(context).read(id)
+            assertThat(restored.enabledPauseMethods())
+                .containsExactly(UnlockMethod.NFC, UnlockMethod.QR)
+            assertThat(restored.pauseCredentialFor(UnlockMethod.NFC)).isEqualTo(nfc.id)
+            assertThat(restored.pauseCredentialFor(UnlockMethod.QR)).isEqualTo(qr.id)
+            val profile = BlockedProfile(id = id, name = "Multi", strategyId = "manual",
+                physicalUnblockItems = listOf(nfc, qr))
+            assertThat(store.isReady(profile)).isTrue()
+            assertThat(store.isReady(profile.copy(physicalUnblockItems = listOf(nfc)))).isFalse()
+            store.save(id, settings.copy(pauseMethods = emptySet()))
+            assertThat(store.read(id).enabledPauseMethods()).isEmpty()
+            assertThat(store.isReady(profile.copy(physicalUnblockItems = emptyList()))).isTrue()
+        } finally { store.delete(id) }
+    }
+
     @Test fun stopAndPauseAreIndependent() {
         val id = uniqueProfile()
         val store = ProfileUnlockPolicyStore(context)

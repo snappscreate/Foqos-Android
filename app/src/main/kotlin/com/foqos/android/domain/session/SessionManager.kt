@@ -325,17 +325,16 @@ class SessionManager @Inject constructor(
             return@withContext
         }
         val policy = independentUnlock.read(profileId)
-        when (policy.pause) {
-            com.foqos.android.ui.activitylab.UnlockMethod.MANUAL ->
-                pauseForConfiguredDuration(current, policy.pauseMinutes)
-            com.foqos.android.ui.activitylab.UnlockMethod.NFC ->
-                _uiRequests.emit(StrategyUiRequest.ScanNfc(StrategyUiRequest.Purpose.STOP) to
-                    PendingStrategyAction.LocationPause(current.id))
-            com.foqos.android.ui.activitylab.UnlockMethod.QR ->
+        val methods = policy.enabledPauseMethods()
+        when {
+            methods.isEmpty() -> pauseForConfiguredDuration(current, policy.pauseMinutes)
+            com.foqos.android.ui.activitylab.UnlockMethod.QR in methods ->
                 _uiRequests.emit(StrategyUiRequest.ScanQr(StrategyUiRequest.Purpose.STOP) to
                     PendingStrategyAction.LocationPause(current.id))
-            com.foqos.android.ui.activitylab.UnlockMethod.ACTIVITY ->
-                emitError("ブロック画面で設定済みの動作判定を完了してね")
+            com.foqos.android.ui.activitylab.UnlockMethod.NFC in methods ->
+                _uiRequests.emit(StrategyUiRequest.ScanNfc(StrategyUiRequest.Purpose.STOP) to
+                    PendingStrategyAction.LocationPause(current.id))
+            else -> emitError("ブロック画面で設定済みのAI動作判定を達成してね")
         }
     }
 
@@ -358,13 +357,13 @@ class SessionManager @Inject constructor(
         val current = sessionForProfile(profileId) ?: return@withContext false
         val profile = profileRepository.getById(profileId) ?: return@withContext false
         val policy = independentUnlock.read(profileId)
-        val requested = if (forPause) policy.pause else policy.stop
+        val requested = if (forPause) policy.enabledPauseMethods() else setOf(policy.stop)
         val expected = when (type) {
             PhysicalUnblockType.NFC -> com.foqos.android.ui.activitylab.UnlockMethod.NFC
             PhysicalUnblockType.QR_CODE -> com.foqos.android.ui.activitylab.UnlockMethod.QR
         }
-        if (requested != expected || locationStoreOutside(profileId)) return@withContext false
-        val chosenId = if (forPause) policy.pauseCredentialId else policy.stopCredentialId
+        if (expected !in requested || locationStoreOutside(profileId)) return@withContext false
+        val chosenId = if (forPause) policy.pauseCredentialFor(expected) else policy.stopCredentialId
         val chosen = profile.physicalUnblockItems.firstOrNull { it.id == chosenId && it.type == type }
             ?: return@withContext false
         if (com.foqos.android.data.model.PhysicalUnblockItem.normalizeCodeValue(chosen.codeValue) !=
@@ -460,11 +459,9 @@ class SessionManager @Inject constructor(
         ) return@withContext rejected
 
         val sets = com.foqos.android.ui.activitylab.ActivityChallengeSetStore(appContext)
-        val available = (
-            if (independentUnlock.read(profileId).pause ==
-                com.foqos.android.ui.activitylab.UnlockMethod.ACTIVITY)
-                sets.sets(profileId) else emptyList()
-            ) + sets.subSets(profileId)
+        val available = if (com.foqos.android.ui.activitylab.UnlockMethod.ACTIVITY in
+            independentUnlock.read(profileId).enabledPauseMethods())
+            sets.allSets(profileId) else emptyList()
         val duration: Int
         if (available.isNotEmpty()) {
             val progress = sets.progress(profileId, sessionId) ?: return@withContext rejected
@@ -532,7 +529,7 @@ class SessionManager @Inject constructor(
             // New profiles start from home, never from an unsolicited NFC tap.
             val current = sessionForProfile(profileId) ?: return
             val policy = independentUnlock.read(profileId)
-            val forPause = policy.pause == com.foqos.android.ui.activitylab.UnlockMethod.NFC
+            val forPause = com.foqos.android.ui.activitylab.UnlockMethod.NFC in policy.enabledPauseMethods()
             authorizeConfiguredCode(profileId, "foqos://profile/$profileId",
                 PhysicalUnblockType.NFC, forPause = forPause)
             return

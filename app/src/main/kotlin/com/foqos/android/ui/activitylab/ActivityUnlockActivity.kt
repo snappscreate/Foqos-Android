@@ -162,6 +162,7 @@ private fun ActivityUnlockCapture(
     var verdictCostYen by remember { mutableStateOf<Double?>(null) }
     var video by remember { mutableStateOf<File?>(null) }
     var activityElapsedMs by remember { mutableLongStateOf(0L) }
+    var activityStartedAt by remember { mutableLongStateOf(0L) }
     var sampleCount by remember { mutableIntStateOf(0) }
     val latestCaptureJob by rememberUpdatedState(captureJob)
     val latestResumeJob by rememberUpdatedState(resumeJob)
@@ -183,6 +184,10 @@ private fun ActivityUnlockCapture(
         if (phase == CapturePhase.RECORDING || phase == CapturePhase.PAUSED) {
             while (true) {
                 recordingRemainingMs = camera.remainingRecordingMillis
+                if (unlimited || continuousCount) {
+                    activityElapsedMs = if (activityStartedAt > 0L)
+                        SystemClock.elapsedRealtime() - activityStartedAt else 0L
+                }
                 delay(100L)
             }
         }
@@ -263,6 +268,7 @@ private fun ActivityUnlockCapture(
                             video = null
                             recordingRemainingMs = if (unlimited || continuousCount) 0L else seconds * 1000L
                             activityElapsedMs = 0L
+                            activityStartedAt = 0L
                             sampleCount = 0
                             try {
                                 phase = CapturePhase.COUNTDOWN
@@ -275,6 +281,7 @@ private fun ActivityUnlockCapture(
                                 phase = CapturePhase.RECORDING
                                 val sampleTimes = mutableListOf<Long>()
                                 val activityStart = SystemClock.elapsedRealtime()
+                                activityStartedAt = activityStart
                                 status = if (unlimited) "活動の記録中。手動終了で判定するよ。" else "● 撮影開始！"
                                 val recorded = if (unlimited) {
                                     // CameraX pause/resume keeps the sampled clips in one MP4.
@@ -310,7 +317,7 @@ private fun ActivityUnlockCapture(
                                     captureSound(start = false)
                                     captured
                                 }
-                                val elapsed = if (unlimited)
+                                val elapsed = if (unlimited || continuousCount)
                                     (SystemClock.elapsedRealtime() - activityStart) else 0L
                                 activityElapsedMs = elapsed
                                 video = recorded

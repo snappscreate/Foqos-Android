@@ -383,10 +383,12 @@ class BlockOverlayActivity : ComponentActivity() {
                 val activityProfileId = state?.profileId.orEmpty()
                 val pauseMethod = com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore(
                     this@BlockOverlayActivity).read(activityProfileId).pause
+                val pausePolicies = com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore(
+                    this@BlockOverlayActivity).read(activityProfileId)
                 val configuredChallengeSets =
-                    (if (pauseMethod == com.foqos.android.ui.activitylab.UnlockMethod.ACTIVITY)
-                        challengeSetStore.sets(activityProfileId) else emptyList()) +
-                        challengeSetStore.subSets(activityProfileId)
+                    if (com.foqos.android.ui.activitylab.UnlockMethod.ACTIVITY in
+                        pausePolicies.enabledPauseMethods()) challengeSetStore.allSets(activityProfileId)
+                    else emptyList()
                 val legacyActivityAllowed =
                     !challengeSetStore.hasMainSetConfig(activityProfileId) &&
                     !challengeSetStore.hasSubSetConfig(activityProfileId)
@@ -431,7 +433,7 @@ class BlockOverlayActivity : ComponentActivity() {
                     } == true && (
                         independentPolicy.stop == com.foqos.android.ui.activitylab.UnlockMethod.NFC ||
                         (selectedActivity == null &&
-                            independentPolicy.pause == com.foqos.android.ui.activitylab.UnlockMethod.NFC)
+                            com.foqos.android.ui.activitylab.UnlockMethod.NFC in independentPolicy.enabledPauseMethods())
                     )
                 } else {
                     selectedActivity == null && (activeProfile?.let { profile ->
@@ -492,7 +494,7 @@ class BlockOverlayActivity : ComponentActivity() {
                     else independentPolicy?.let { policy ->
                         when {
                             configuredStopRequested -> "停止用NFCをかざすとブロックを完全停止"
-                            policy.pause == com.foqos.android.ui.activitylab.UnlockMethod.NFC ->
+                            com.foqos.android.ui.activitylab.UnlockMethod.NFC in policy.enabledPauseMethods() ->
                                 "NFCをかざすと設定時間だけ一時休止"
                             policy.stop == com.foqos.android.ui.activitylab.UnlockMethod.NFC ->
                                 "NFCをかざすとブロックを完全停止"
@@ -592,9 +594,7 @@ class BlockOverlayActivity : ComponentActivity() {
                                     configuredChallengeSets.forEachIndexed { index, group ->
                                         val completed = if (challengeProgress?.setId == group.id)
                                             challengeProgress.completedIds else emptySet()
-                                        val kind = if (challengeSetStore.subSets(activityProfileId).any { it.id == group.id })
-                                            "サブ" else "メイン"
-                                        Text("$kind セット ${index+1}：${completed.size}/${group.conditionIds.size}達成 / 全達成で${group.pauseMinutes}分休止",
+                                        Text("セット ${index+1}：${completed.size}/${group.conditionIds.size}達成 / 全達成で${group.pauseMinutes}分休止",
                                             style = MaterialTheme.typography.titleSmall)
                                         if (challengeProgress?.setId != group.id) {
                                             OutlinedButton(onClick = {
@@ -740,8 +740,7 @@ class BlockOverlayActivity : ComponentActivity() {
         if (independent.configured(profile.id)) {
             val policy = independent.read(profile.id)
             val forPause = !configuredStopRequested &&
-                (intent.getBooleanExtra(EXTRA_LOCATION_PAUSE_REQUEST, false) ||
-                    policy.pause == com.foqos.android.ui.activitylab.UnlockMethod.NFC)
+                com.foqos.android.ui.activitylab.UnlockMethod.NFC in policy.enabledPauseMethods()
             val approved = sessionManager.authorizeConfiguredCode(
                 profile.id, code, PhysicalUnblockType.NFC, forPause = forPause,
             )

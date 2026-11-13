@@ -608,7 +608,7 @@ class BlockOverlayActivity : ComponentActivity() {
                                                 activityConditions.firstOrNull { it.id == id }?.let { move ->
                                                     Button(onClick = { openActivityChallenge(move) },
                                                         modifier = Modifier.fillMaxWidth()) {
-                                                        Text("挑戦：${move.description}")
+                                                        Text("挑戦：${move.description} ${group.targets[id]?.description().orEmpty()}")
                                                     }
                                                 }
                                             }

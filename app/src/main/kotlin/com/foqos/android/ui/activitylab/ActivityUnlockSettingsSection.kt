@@ -179,7 +179,7 @@ fun ActivityUnlockSettingsSection(
                 value = draft.description,
                 onValueChange = { draft = draft.copy(description = it) },
                 enabled = !editingLocked,
-                label = { Text("判定する動作（例：腕立て伏せを30回行う）") },
+                label = { Text("登録する動作名（例：腹筋、掃除、スクワット）") },
                 modifier = Modifier.fillMaxWidth(),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

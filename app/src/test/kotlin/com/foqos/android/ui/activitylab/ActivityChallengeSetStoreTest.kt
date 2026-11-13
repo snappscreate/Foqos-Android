@@ -74,6 +74,18 @@ class ActivityChallengeSetStoreTest {
         } finally { store.deleteProfile(id) }
     }
 
+    @Test fun legacyActivityLabelsInferReasonableTargets() {
+        assertThat(ActivityTarget.inferred(ActivityUnlockCondition(description = "腹筋50回")))
+            .isEqualTo(ActivityTarget(ActivityTargetKind.COUNT, 50))
+        assertThat(ActivityTarget.inferred(ActivityUnlockCondition(description = "部屋を30分掃除")))
+            .isEqualTo(ActivityTarget(ActivityTargetKind.MINUTES, 30))
+        assertThat(ActivityTarget.inferred(ActivityUnlockCondition(description = "1時間の散歩")))
+            .isEqualTo(ActivityTarget(ActivityTargetKind.MINUTES, 60))
+        assertThat(ActivityTarget.inferred(ActivityUnlockCondition(description = "掃除",
+            unlimitedRecording = true)))
+            .isEqualTo(ActivityTarget(ActivityTargetKind.MINUTES, 20))
+    }
+
     @Test fun targetKindAndAmountRoundTripForEachMovement() {
         val id = UUID.randomUUID().toString()
         val store = ActivityChallengeSetStore(context)

@@ -20,6 +20,26 @@ data class ActivityTarget(
     val amount: Int = 30,
 ) {
     fun description(): String = if (kind == ActivityTargetKind.COUNT) "${amount}回" else "${amount}分"
+
+    companion object {
+        /** Best-effort draft migration only; existing saved definitions remain untouched. */
+        fun inferred(activity: ActivityUnlockCondition?): ActivityTarget {
+            val label = activity?.description.orEmpty()
+            val repetition = Regex("""(\\d{1,3})\\s*回""").find(label)
+                ?.groupValues?.getOrNull(1)?.toIntOrNull()
+            if (repetition != null) return ActivityTarget(ActivityTargetKind.COUNT,
+                repetition.coerceIn(1, 720))
+            val hours = Regex("""(\\d{1,2})\\s*時間""").find(label)
+                ?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
+            val minutes = Regex("""(\\d{1,3})\\s*分""").find(label)
+                ?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
+            val time = hours * 60 + minutes
+            if (time > 0) return ActivityTarget(ActivityTargetKind.MINUTES, time.coerceIn(1, 720))
+            return if (activity?.unlimitedRecording == true)
+                ActivityTarget(ActivityTargetKind.MINUTES, 20)
+            else ActivityTarget()
+        }
+    }
 }
 
 data class ActivityChallengeProgress(

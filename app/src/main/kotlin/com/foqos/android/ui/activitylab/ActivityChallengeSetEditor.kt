@@ -112,8 +112,6 @@ fun ActivityChallengeSetEditor(
                                 }) { Text("削除") }
                             }
                         }
-                    }
-                    group.conditionIds.forEach { conditionId ->
                         val target = group.targets[conditionId] ?:
                             ActivityTarget.inferred(catalog.firstOrNull { it.id == conditionId })
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

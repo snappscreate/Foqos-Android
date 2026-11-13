@@ -28,7 +28,7 @@ fun ActivityChallengeSetEditor(
     val context = LocalContext.current
     val store = remember(profileId) { ActivityChallengeSetStore(context) }
     val activities = remember(profileId) { ActivityUnlockStore(context) }
-    val sets = if (subCondition) editor.subSets else editor.sets
+    val sets = editor.sets + editor.subSets
     var changeToken by remember { mutableIntStateOf(0) }
     var libraryDialog by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -43,7 +43,8 @@ fun ActivityChallengeSetEditor(
             value.flatMap { it.conditionIds }.distinct().forEach { id ->
                 catalog.firstOrNull { it.id == id }?.let { editor.addActivity(it) }
             }
-            if (subCondition) editor.subSets = value else editor.sets = value
+            editor.sets = value
+            editor.subSets = emptyList()
             error = null
         } catch (e: Exception) { error = e.message ?: "セットを保存できなかった" }
     }
@@ -51,12 +52,9 @@ fun ActivityChallengeSetEditor(
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("同じセット内は全て達成（AND）。別々のセットはどれか1つ（OR）。",
             style = MaterialTheme.typography.bodySmall)
-        Text(
-            if (subCondition) "メインの一時休止条件とは別に、達成したセットの時間だけ休止できるよ。"
-            else "メインは登録したセットのどれかを全て達成すると一時休止できるよ。",
+        Text("登録済み動作を組み合わせ、回数または時間を設定する。セット内AND、セット間OR。",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (sets.isEmpty()) Text("達成セットが未登録。下のボタンから追加してね。",
             style = MaterialTheme.typography.bodySmall)
         sets.forEachIndexed { index, group ->
@@ -95,7 +93,9 @@ fun ActivityChallengeSetEditor(
                                                     if (it.id != group.id) it else it.copy(
                                                         conditionIds = it.conditionIds.toMutableList().also { ids ->
                                                             ids[motionIndex] = option.id
-                                                        })
+                                                        },
+                                                        targets = it.targets - conditionId +
+                                                            (option.id to (it.targets[option.id] ?: ActivityTarget())))
                                                 })
                                                 expanded = false
                                             })
@@ -106,18 +106,51 @@ fun ActivityChallengeSetEditor(
                                 TextButton(enabled = !editingLocked, onClick = {
                                     persist(sets.map {
                                         if (it.id != group.id) it else it.copy(
-                                            conditionIds = it.conditionIds.filterIndexed { i, _ -> i != motionIndex })
+                                            conditionIds = it.conditionIds.filterIndexed { i, _ -> i != motionIndex },
+                                            targets = it.targets - conditionId)
                                     })
                                 }) { Text("削除") }
                             }
                         }
+                    }
+                    group.conditionIds.forEach { conditionId ->
+                        val target = group.targets[conditionId] ?: ActivityTarget()
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(ActivityTargetKind.COUNT to "回数", ActivityTargetKind.MINUTES to "時間").forEach { (kind, caption) ->
+                                FilterChip(
+                                    selected = target.kind == kind,
+                                    enabled = !editingLocked,
+                                    onClick = {
+                                        persist(sets.map { entry ->
+                                            if (entry.id != group.id) entry else entry.copy(
+                                                targets = entry.targets + (conditionId to target.copy(kind = kind)))
+                                        })
+                                    },
+                                    label = { Text(caption) },
+                                )
+                            }
+                        }
+                        DurationSliderField(
+                            label = catalog.firstOrNull { it.id == conditionId }?.description ?: "動作",
+                            value = target.amount.coerceIn(1, if (target.kind == ActivityTargetKind.COUNT) 300 else 180),
+                            onValueChange = { amount ->
+                                persist(sets.map { entry ->
+                                    if (entry.id != group.id) entry else entry.copy(
+                                        targets = entry.targets + (conditionId to target.copy(amount = amount)))
+                                })
+                            },
+                            range = if (target.kind == ActivityTargetKind.COUNT) 1..300 else 1..180,
+                            unit = if (target.kind == ActivityTargetKind.COUNT) "回" else "分",
+                            enabled = !editingLocked,
+                        )
                     }
                     OutlinedButton(enabled = !editingLocked &&
                         group.conditionIds.size < catalog.size, onClick = {
                         val next = catalog.firstOrNull { it.id !in group.conditionIds }
                         if (next != null) persist(sets.map {
                             if (it.id != group.id) it else it.copy(
-                                conditionIds = it.conditionIds + next.id)
+                                conditionIds = it.conditionIds + next.id,
+                                targets = it.targets + (next.id to ActivityTarget()))
                         })
                     }) { Text("＋ このセットに動作を追加（AND）") }
                     DurationSliderField(
@@ -136,7 +169,8 @@ fun ActivityChallengeSetEditor(
         OutlinedButton(enabled = !editingLocked && catalog.isNotEmpty(), onClick = {
             val id = catalog.first().id
             persist(sets + ActivityChallengeSet(
-                id = UUID.randomUUID().toString(), conditionIds = listOf(id), pauseMinutes = 10))
+                id = UUID.randomUUID().toString(), conditionIds = listOf(id), pauseMinutes = 10,
+                targets = mapOf(id to ActivityTarget())))
         }, modifier = Modifier.fillMaxWidth()) { Text("＋ 別の達成セットを追加（OR）") }
         OutlinedButton(enabled = !editingLocked, onClick = { libraryDialog = true },
             modifier = Modifier.fillMaxWidth()) { Text("保存済みの動作を管理・新しく登録") }

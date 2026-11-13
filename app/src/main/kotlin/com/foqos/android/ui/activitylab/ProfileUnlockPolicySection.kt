@@ -138,52 +138,76 @@ fun ProfileUnlockPolicySection(
             )
         }
         HorizontalDivider()
-        Text("一時休止条件（メイン）", style = MaterialTheme.typography.titleMedium)
-        UnlockDropdown(policy.pause, listOf(
-            UnlockMethod.MANUAL to "手動",
+        Text("一時休止条件", style = MaterialTheme.typography.titleMedium)
+        Text("使用する方法をすべて選んでね。どれか1つ達成すれば一時休止（OR）。すべて未選択なら手動。",
+            style = MaterialTheme.typography.bodySmall)
+        val methods = policy.enabledPauseMethods()
+        listOf(
             UnlockMethod.NFC to "NFCタグ",
             UnlockMethod.QR to "QRコード",
             UnlockMethod.ACTIVITY to "AI動作判定",
-        ), !editingLocked, onSelected = {
-            savePolicy(policy.copy(pause = it, pauseCredentialId = if (it == policy.pause) policy.pauseCredentialId else null))
-        })
-        when (policy.pause) {
-            UnlockMethod.NFC, UnlockMethod.QR -> {
-                val kind = if (policy.pause == UnlockMethod.NFC) PhysicalUnblockType.NFC else PhysicalUnblockType.QR_CODE
-                CredentialDropdown(
-                    title = if (kind == PhysicalUnblockType.NFC) "一時休止に使用するNFCタグ" else "一時休止に使用するQRコード",
-                    items = reusableItems.filter { it.type == kind }, selectedId = policy.pauseCredentialId,
+        ).forEach { (method, title) ->
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Checkbox(
+                    checked = method in methods,
                     enabled = !editingLocked,
-                    onSelect = { chosen ->
-                        editor.linkedPhysicalItems = editor.linkedPhysicalItems.let { old ->
+                    onCheckedChange = { checked ->
+                        savePolicy(policy.copy(pauseMethods =
+                            if (checked) methods + method else methods - method))
+                    },
+                )
+                Text(title)
+            }
+        }
+        if (methods.isEmpty()) {
+            Text("手動で一時休止する設定だよ。", style = MaterialTheme.typography.bodySmall)
+        }
+        if (UnlockMethod.NFC in methods) {
+            CredentialDropdown(
+                title = "一時休止に使用するNFCタグ",
+                items = reusableItems.filter { it.type == PhysicalUnblockType.NFC },
+                selectedId = policy.pauseCredentialFor(UnlockMethod.NFC),
+                enabled = !editingLocked,
+                onSelect = { chosen ->
+                    editor.linkedPhysicalItems = editor.linkedPhysicalItems.let { old ->
                         if (old.any { it.id == chosen.id }) old else old + chosen
                     }
-                    savePolicy(editor.policy.copy(pauseCredentialId = chosen.id))
-                    },
-                    onAdd = { credentialsDialog = true },
-                )
-            }
-            UnlockMethod.ACTIVITY -> {
-                Text("メインの動作判定セット", style = MaterialTheme.typography.titleSmall)
-                ActivityChallengeSetEditor(
-                    profileId = profile.id,
-                    editingLocked = editingLocked,
-                    repository = profileRepository,
-                    editor = editor,
-                )
-            }
-            else -> Unit
+                    savePolicy(editor.policy.copy(pauseNfcCredentialId = chosen.id))
+                },
+                onAdd = { credentialsDialog = true },
+            )
         }
-        if (policy.pause != UnlockMethod.ACTIVITY) {
+        if (UnlockMethod.QR in methods) {
+            CredentialDropdown(
+                title = "一時休止に使用するQRコード",
+                items = reusableItems.filter { it.type == PhysicalUnblockType.QR_CODE },
+                selectedId = policy.pauseCredentialFor(UnlockMethod.QR),
+                enabled = !editingLocked,
+                onSelect = { chosen ->
+                    editor.linkedPhysicalItems = editor.linkedPhysicalItems.let { old ->
+                        if (old.any { it.id == chosen.id }) old else old + chosen
+                    }
+                    savePolicy(editor.policy.copy(pauseQrCredentialId = chosen.id))
+                },
+                onAdd = { credentialsDialog = true },
+            )
+        }
+        if (UnlockMethod.ACTIVITY in methods) {
+            Text("AI動作判定の達成セット", style = MaterialTheme.typography.titleSmall)
+            ActivityChallengeSetEditor(
+                profileId = profile.id,
+                editingLocked = editingLocked,
+                repository = profileRepository,
+                editor = editor,
+            )
+        }
+        if (UnlockMethod.NFC in methods || UnlockMethod.QR in methods || methods.isEmpty()) {
             DurationSliderField(
-                label = "一時休止時間", value = policy.pauseMinutes,
+                label = "認証後の一時休止時間",
+                value = policy.pauseMinutes,
                 onValueChange = { savePolicy(policy.copy(pauseMinutes = it)) },
                 range = 1..180, enabled = !editingLocked,
             )
-        } else {
-            Text("動作判定の休止時間は各達成セットで設定するよ。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary)
         }
         if (error != null) Text(error!!, color = MaterialTheme.colorScheme.error)
     }

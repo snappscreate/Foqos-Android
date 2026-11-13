@@ -10,7 +10,17 @@ data class ActivityChallengeSet(
     val id: String = UUID.randomUUID().toString(),
     val conditionIds: List<String>,
     val pauseMinutes: Int = 10,
+    val targets: Map<String, ActivityTarget> = emptyMap(),
 )
+
+enum class ActivityTargetKind { COUNT, MINUTES }
+
+data class ActivityTarget(
+    val kind: ActivityTargetKind = ActivityTargetKind.COUNT,
+    val amount: Int = 30,
+) {
+    fun description(): String = if (kind == ActivityTargetKind.COUNT) "${amount}回" else "${amount}分"
+}
 
 data class ActivityChallengeProgress(
     val sessionId: String,
@@ -39,6 +49,8 @@ class ActivityChallengeSetStore(context: Context) {
                     ?: return@mapNotNull null,
                 conditionIds = ids,
                 pauseMinutes = entry.optInt("minutes", 10).coerceIn(1, 180),
+                targets = readTargets(entry),
+                targets = readTargets(entry),
             )
         }
     }.getOrDefault(emptyList())
@@ -53,6 +65,22 @@ class ActivityChallengeSetStore(context: Context) {
 
     fun saveSubSets(profileId: String, value: List<ActivityChallengeSet>) =
         writeGroups("sub_sets_$profileId", profileId, value)
+
+    private fun readTargets(entry: JSONObject): Map<String, ActivityTarget> {
+        val json = entry.optJSONObject("targets") ?: return emptyMap()
+        return json.keys().asSequence().mapNotNull { id ->
+            val data = json.optJSONObject(id) ?: return@mapNotNull null
+            val kind = runCatching { ActivityTargetKind.valueOf(data.optString("kind")) }
+                .getOrDefault(ActivityTargetKind.COUNT)
+            id to ActivityTarget(kind, data.optInt("amount", 30).coerceIn(1, 720))
+        }.toMap()
+    }
+
+    private fun writeTargets(set: ActivityChallengeSet): JSONObject = JSONObject().apply {
+        set.targets.forEach { (id, target) ->
+            put(id, JSONObject().put("kind", target.kind.name).put("amount", target.amount))
+        }
+    }
 
     private fun readGroups(key: String): List<ActivityChallengeSet> = runCatching {
         val json = JSONArray(prefs.getString(key, "[]"))
@@ -75,11 +103,14 @@ class ActivityChallengeSetStore(context: Context) {
     private fun writeGroups(key: String, profileId: String, value: List<ActivityChallengeSet>) {
         require(value.all { it.conditionIds.isNotEmpty() &&
             it.conditionIds.size == it.conditionIds.distinct().size &&
-            it.pauseMinutes in 1..180 })
+            it.pauseMinutes in 1..180 &&
+            it.targets.keys.all(it.conditionIds::contains) &&
+            it.targets.values.all { target -> target.amount in 1..720 } })
         val encoded = JSONArray().apply {
             value.forEach { set ->
                 put(JSONObject().put("id", set.id).put("minutes", set.pauseMinutes)
-                    .put("conditions", JSONArray(set.conditionIds)))
+                    .put("conditions", JSONArray(set.conditionIds))
+                    .put("targets", writeTargets(set)))
             }
         }
         check(prefs.edit().putString(key, encoded.toString())

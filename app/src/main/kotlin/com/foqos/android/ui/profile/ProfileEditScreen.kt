@@ -44,6 +44,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -106,8 +108,9 @@ fun ProfileEditScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(uiState.saved) {
-        if (uiState.saved) onDone()
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(uiState.saveSuccessCount) {
+        if (uiState.saveSuccessCount > 0) snackbarHostState.showSnackbar("保存しました")
     }
     LaunchedEffect(uiState.deleted) {
         if (uiState.deleted) onDone()
@@ -128,9 +131,10 @@ fun ProfileEditScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(if (viewModel.isNewProfile) stringResource(R.string.profile_edit_title_new) else stringResource(R.string.profile_edit_title_edit)) },
+                title = { Text(if (!uiState.isPersisted) stringResource(R.string.profile_edit_title_new) else stringResource(R.string.profile_edit_title_edit)) },
                 navigationIcon = {
                     IconButton(onClick = onDone) {
                         Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_cancel))

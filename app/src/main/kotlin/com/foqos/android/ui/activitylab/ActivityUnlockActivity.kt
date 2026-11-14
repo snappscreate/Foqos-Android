@@ -359,23 +359,51 @@ private fun ActivityUnlockCapture(
                                     coroutineScope {
                                         val recording = async { camera.recordFor(0L) }
                                         val sampleLoop = launch {
-                                            // Allow CameraX to emit its Start event before first pause.
+                                            // Keep pause time out of both the recording cadence and the goal clock.
                                             delay(350L)
                                             while (true) {
-                                                sampleTimes.add(SystemClock.elapsedRealtime() - activityStart)
+                                                while (userPaused) delay(100L)
+                                                samplingClip = true
+                                                sampleTimes.add(activeElapsedNow())
                                                 sampleCount = sampleTimes.size
-                                                delay(IntermittentCapturePlan.CLIP_MILLIS)
+                                                var clipRemaining = IntermittentCapturePlan.CLIP_MILLIS
+                                                while (clipRemaining > 0L) {
+                                                    if (userPaused) {
+                                                        delay(100L)
+                                                    } else {
+                                                        val step = minOf(100L, clipRemaining)
+                                                        delay(step)
+                                                        if (!userPaused) clipRemaining -= step
+                                                    }
+                                                }
                                                 camera.pauseRecording()
-                                                delay(if (targetMinutes != null)
+                                                samplingClip = false
+                                                var gapRemaining = if (targetMinutes != null)
                                                     IntermittentCapturePlan.nextGapMillis(targetMinutes)
-                                                    else IntermittentCapturePlan.nextGapMillis())
+                                                    else IntermittentCapturePlan.nextGapMillis()
+                                                while (gapRemaining > 0L) {
+                                                    if (userPaused) {
+                                                        delay(100L)
+                                                    } else {
+                                                        val step = minOf(100L, gapRemaining)
+                                                        delay(step)
+                                                        if (!userPaused) gapRemaining -= step
+                                                    }
+                                                }
+                                                while (userPaused) delay(100L)
                                                 camera.resumeRecording()
                                             }
                                         }
                                         val elapsedTicker = launch {
                                             while (true) {
-                                                activityElapsedMs = SystemClock.elapsedRealtime() - activityStart
-                                                delay(1000L)
+                                                activityElapsedMs = activeElapsedNow()
+                                                if (minimumCaptureMillis != null &&
+                                                    activityElapsedMs >= minimumCaptureMillis) {
+                                                    status = "設定時間に達したよ。自動で判定するね。"
+                                                    camera.finishRecordingNow()
+                                                    break
+                                                }
+                                                delay(100L)
                                             }
                                         }
                                         try { recording.await() }
@@ -470,41 +498,14 @@ private fun ActivityUnlockCapture(
                 }
 
                 CapturePhase.RECORDING, CapturePhase.PAUSED -> {
-                    if (unlimited || continuousCount) {
-                        Button(modifier = Modifier.fillMaxWidth(), onClick = {
-                            status = "記録を終了して判定するよ"
-                            camera.finishRecordingNow()
-                        }) { Text("■ 活動を終了・判定") }
-                    } else {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(modifier = Modifier.weight(1f), onClick = {
-                            if (phase == CapturePhase.RECORDING) {
-                                camera.pauseRecording()
-                                recordingRemainingMs = camera.remainingRecordingMillis
-                                phase = CapturePhase.PAUSED
-                                status = "撮影を一時休止中。再開で続きを録画するよ"
-                            } else {
-                                phase = CapturePhase.RESUME_COUNTDOWN
-                                resumeJob?.cancel()
-                                resumeJob = scope.launch {
-                                    for (i in countdown downTo 1) {
-                                        countdownRemaining = i
-                                        status = "撮影再開まであと${i}秒"
-                                        delay(1000L)
-                                    }
-                                    countdownRemaining = 0
-                                    camera.resumeRecording()
-                                    captureSound(start = true)
-                                    phase = CapturePhase.RECORDING
-                                    status = "● 撮影を再開！"
-                                }
-                            }
-                        }) { Text(if (phase == CapturePhase.PAUSED) "▶ 再開" else "Ⅱ ポーズ") }
+                            if (userPaused) resumeCapture() else pauseCapture()
+                        }) { Text(if (userPaused) "▶ 再開" else "Ⅱ 一時停止") }
                         Button(modifier = Modifier.weight(1f), onClick = {
-                            status = "撮影終了。撮影済みの映像を判定するよ"
+                            status = "撮影を終了して判定するよ"
                             camera.finishRecordingNow()
                         }) { Text("■ 撮影終了・判定") }
-                    }
                     }
                     OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = {
                         captureJob?.cancel()

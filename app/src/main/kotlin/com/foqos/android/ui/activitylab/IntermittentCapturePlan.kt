@@ -17,14 +17,16 @@ object IntermittentCapturePlan {
     /** Target interval between short samples. 30 minutes of activity -> 90-second mean. */
     fun averageIntervalMillis(targetMinutes: Int): Long {
         val scaled = 90_000.0 * sqrt(targetMinutes.coerceAtLeast(1) / 30.0)
-        return scaled.roundToLong().coerceIn(10_000L, 180_000L)
+        // 170s average leaves room for randomized samples up to the 180s ceiling.
+        return scaled.roundToLong().coerceIn(10_000L, 170_000L)
     }
 
     /** Randomized capture interval, bounded to 10-180 seconds. */
     fun nextGapMillis(targetMinutes: Int, random: Random = Random.Default): Long {
         val average = averageIntervalMillis(targetMinutes)
-        val low = (average * 0.75).roundToLong().coerceIn(10_000L, 180_000L)
         val high = (average * 1.25).roundToLong().coerceIn(10_000L, 180_000L)
+        // Preserve the configured mean even when the upper random bound is clipped.
+        val low = (2 * average - high).coerceIn(10_000L, high)
         return if (low == high) low else random.nextLong(low, high + 1)
     }
 

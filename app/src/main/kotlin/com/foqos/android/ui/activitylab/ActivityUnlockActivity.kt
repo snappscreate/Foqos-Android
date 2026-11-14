@@ -17,6 +17,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.background
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -80,26 +82,17 @@ class ActivityUnlockActivity : ComponentActivity() {
             else entry!!.recordingSeconds).coerceIn(10, 120)
         val countdown = (if (isTest) intent.getIntExtra(EXTRA_COUNTDOWN, 5)
             else entry!!.countdownSeconds).coerceIn(0, 30)
-        val unlimited = if (configuredTarget != null)
-            configuredTarget.kind == ActivityTargetKind.MINUTES
-            else if (isTest) intent.getBooleanExtra(EXTRA_UNLIMITED, false)
-            else entry!!.unlimitedRecording
-        val continuousCount = configuredTarget?.kind == ActivityTargetKind.COUNT
-        val targetDescription = configuredTarget?.let { "${description} ${it.description()}" }
-            ?: description
+        val legacyUnlimited = if (isTest) false else entry!!.unlimitedRecording
         val frontCamera = if (isTest) intent.getBooleanExtra(EXTRA_FRONT, true)
             else entry!!.frontCamera
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
             FoqosTheme {
                 ActivityUnlockCapture(
-                    description = targetDescription,
+                    description = description,
                     seconds = seconds,
-                    unlimited = unlimited,
-                    continuousCount = continuousCount,
-                    minimumCaptureMillis = configuredTarget?.takeIf {
-                        it.kind == ActivityTargetKind.MINUTES
-                    }?.amount?.times(60_000L),
+                    configuredTarget = configuredTarget,
+                    legacyUnlimited = legacyUnlimited,
                     countdown = countdown,
                     frontCamera = frontCamera,
                     isTest = isTest,
@@ -131,9 +124,8 @@ private enum class CapturePhase { READY, COUNTDOWN, RECORDING, PAUSED, RESUME_CO
 private fun ActivityUnlockCapture(
     description: String,
     seconds: Int,
-    unlimited: Boolean,
-    continuousCount: Boolean,
-    minimumCaptureMillis: Long?,
+    configuredTarget: ActivityTarget?,
+    legacyUnlimited: Boolean,
     countdown: Int,
     frontCamera: Boolean,
     isTest: Boolean,
@@ -145,6 +137,19 @@ private fun ActivityUnlockCapture(
     val owner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val camera = remember { ActivityCamera(context) }
+    var testKind by remember { mutableStateOf(ActivityTargetKind.COUNT) }
+    var testAmountText by remember { mutableStateOf("30") }
+    val testMaximum = if (testKind == ActivityTargetKind.COUNT) 300 else 180
+    val testAmount = testAmountText.toIntOrNull()?.takeIf { it in 1..testMaximum }
+    val target = if (isTest) testAmount?.let { ActivityTarget(testKind, it) } else configuredTarget
+    val targetMinutes = target?.takeIf { it.kind == ActivityTargetKind.MINUTES }?.amount
+    val shortTimed = targetMinutes != null && targetMinutes <= 1
+    val unlimited = (targetMinutes != null && !shortTimed) ||
+        (target == null && !isTest && legacyUnlimited)
+    val continuousCount = target?.kind == ActivityTargetKind.COUNT
+    val minimumCaptureMillis = targetMinutes?.times(60_000L)
+    val autoDurationMillis = if (shortTimed) minimumCaptureMillis ?: 60_000L
+        else seconds * 1000L
     var granted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
@@ -152,7 +157,7 @@ private fun ActivityUnlockCapture(
     var cameraReady by remember { mutableStateOf(false) }
     var phase by remember { mutableStateOf(CapturePhase.READY) }
     var countdownRemaining by remember { mutableIntStateOf(0) }
-    var recordingRemainingMs by remember { mutableLongStateOf(if (unlimited) 0L else seconds * 1000L) }
+    var recordingRemainingMs by remember { mutableLongStateOf(if (unlimited || continuousCount) 0L else autoDurationMillis) }
     var status by remember { mutableStateOf("撮影待機中") }
     var verdict by remember { mutableStateOf<ActivityVerdict?>(null) }
     var captureJob by remember { mutableStateOf<Job?>(null) }
@@ -171,10 +176,10 @@ private fun ActivityUnlockCapture(
     DisposableEffect(camera) {
         onDispose { latestResumeJob?.cancel(); latestCaptureJob?.cancel(); camera.close(); latestVideo?.delete() }
     }
-    LaunchedEffect(granted, owner) {
+    LaunchedEffect(granted, owner, unlimited, shortTimed) {
         cameraReady = false
         if (granted) {
-            try { camera.bind(owner, front = frontCamera, videoMode = true, intermittent = unlimited); cameraReady = true }
+            try { camera.bind(owner, front = frontCamera, videoMode = true, intermittent = unlimited || shortTimed); cameraReady = true }
             catch (e: Exception) { status = "カメラを起動できない：${e.message}" }
         }
     }
@@ -205,11 +210,47 @@ private fun ActivityUnlockCapture(
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(if (isTest) "動作判定テスト（解除なし）" else "AI動作チャレンジ",
                 style = MaterialTheme.typography.titleLarge)
-            Text(description, style = MaterialTheme.typography.titleMedium)
-            Text(if (unlimited) "時間判定：60〜120秒ごとに約3秒ずつランダム撮影。タイミングは表示しない。Androidのカメラ使用表示は残るよ。"
-                else if (continuousCount) "回数判定：連続撮影するよ。必要な回数を終えたら手動で撮影終了して判定。"
-                else "ポーズ中は録画時間を消費しない。撮影を終了すると、それまでの映像で判定する。",
-                style = MaterialTheme.typography.bodySmall)
+            Text(if (target != null) "${description} ${target.description()}" else description,
+                style = MaterialTheme.typography.titleMedium)
+            if (isTest) {
+                Text("テストの達成条件", style = MaterialTheme.typography.titleSmall)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    listOf(ActivityTargetKind.COUNT to "回数", ActivityTargetKind.MINUTES to "時間")
+                        .forEach { (kind, label) ->
+                            FilterChip(
+                                selected = testKind == kind,
+                                enabled = phase == CapturePhase.READY,
+                                onClick = {
+                                    testKind = kind
+                                    testAmountText = if (kind == ActivityTargetKind.COUNT) "30" else "5"
+                                },
+                                label = { Text(label) },
+                            )
+                        }
+                    Spacer(Modifier.weight(1f))
+                    OutlinedTextField(
+                        value = testAmountText,
+                        onValueChange = { raw ->
+                            if (raw.length <= 3 && raw.all(Char::isDigit)) testAmountText = raw
+                        },
+                        enabled = phase == CapturePhase.READY,
+                        modifier = Modifier.width(108.dp),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        suffix = { Text(if (testKind == ActivityTargetKind.COUNT) "回" else "分") },
+                        isError = testAmount == null,
+                    )
+                }
+                if (testAmount == null) Text("1〜${testMaximum}の数値を入力してね。",
+                    color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+            Text(when {
+                unlimited -> "時間判定：平均約${targetMinutes?.let { IntermittentCapturePlan.averageIntervalMillis(it) / 1000L } ?: 90}秒間隔で3秒ずつランダム撮影。Androidのカメラ使用表示は残るよ。"
+                shortTimed -> "1分以内の時間判定は連続撮影して、自動終了するよ。"
+                continuousCount -> "回数判定：連続撮影。必要な回数を終えたら手動で撮影終了して判定。"
+                else -> "撮影を終了すると、それまでの映像で判定する。"
+            }, style = MaterialTheme.typography.bodySmall)
             if (granted) {
                 Box(modifier = Modifier.fillMaxWidth().height(260.dp).clipToBounds()) {
                     AndroidView(factory = { camera.preview },

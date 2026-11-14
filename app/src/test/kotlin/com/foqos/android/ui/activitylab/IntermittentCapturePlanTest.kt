@@ -39,9 +39,12 @@ class IntermittentCapturePlanTest {
             "部屋を30分掃除する", 1_800_000L, listOf(0L, 90_000L, 183_000L))
         assertThat(prompt).contains("30.0分")
         assertThat(prompt).contains("0.0, 1.5, 3.1")
-        assertThat(prompt).contains("連続記録ではなく")
+        assertThat(prompt).contains("この1本の動画")
+        assertThat(prompt).contains("平均間隔は約91.5秒")
+        assertThat(prompt).contains("合理的に推定")
+        assertThat(prompt).contains("短いクリップをつないだ動画であることだけを理由に")
         assertThat(prompt).contains("判断不能")
-        assertThat(prompt).contains("経過時間が足りない場合")
+        assertThat(prompt).contains("未撮影時間に何をしていたかを事実として断定しない")
     }
 
     @Test fun minimumDurationRecognizesMinutesAndHours() {

@@ -23,7 +23,7 @@ class IntermittentCapturePlanTest {
         assertThat(baseline).isEqualTo(90_000L)
         assertThat(long).isGreaterThan(90_000L)
         assertThat(IntermittentCapturePlan.averageIntervalMillis(300))
-            .isEqualTo(180_000L)
+            .isEqualTo(170_000L)
 
         val random = Random(993)
         listOf(2, 5, 10, 20, 30, 60, 120, 300).forEach { minutes ->

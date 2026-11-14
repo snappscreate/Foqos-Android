@@ -69,6 +69,7 @@ class ProfileEditViewModel @Inject constructor(
         val configurationError: String? = null,
         val domainError: String? = null,
         val saved: Boolean = false,
+        val saveSuccessCount: Int = 0,
         val deleted: Boolean = false,
         val installedApps: List<InstalledAppInfo> = emptyList(),
         val appSearchQuery: String = "",
@@ -387,7 +388,8 @@ class ProfileEditViewModel @Inject constructor(
                 val saved = profileRepository.rename(current.draft.id, trimmedName) ?: return@launch
                 sessionManager.refreshActiveProfileConfig(saved.id)
                 _uiState.update {
-                    it.copy(draft = saved, isPersisted = true, saved = true)
+                    it.copy(draft = saved, isPersisted = true, saved = true,
+                        saveSuccessCount = it.saveSuccessCount + 1)
                 }
                 return@launch
             }
@@ -483,7 +485,8 @@ class ProfileEditViewModel @Inject constructor(
             // the next session start.
             sessionManager.refreshActiveProfileConfig(saved.id)
 
-            _uiState.update { it.copy(draft = saved, isPersisted = true, saved = true) }
+            _uiState.update { it.copy(draft = saved, isPersisted = true, saved = true,
+                        saveSuccessCount = it.saveSuccessCount + 1) }
         }
     }
 

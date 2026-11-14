@@ -46,18 +46,47 @@ object IntermittentCapturePlan {
 
     fun evidenceDescription(activity: String, elapsedMillis: Long, sampleTimesMillis: List<Long>): String {
         val elapsedMinutes = elapsedMillis / 60_000.0
-        val moments = sampleTimesMillis.joinToString(", ") { "%.1f".format(java.util.Locale.US, it / 60_000.0) }
+        val intervalSeconds = sampleTimesMillis.zipWithNext { first, second ->
+            (second - first).coerceAtLeast(0L)
+        }
+        val averageSeconds = intervalSeconds.takeIf { it.isNotEmpty() }
+            ?.average()?.div(1_000.0)
+        val moments = sampleTimesMillis.joinToString(", ") {
+            "%.1f".format(java.util.Locale.US, it / 60_000.0)
+        }
         return buildString {
             append(activity)
-            append("\n【断続撮影の判定条件】活動全体の経過時間は")
+            append("\n【間欠撮影による活動判定】")
+            append("実際の活動計測時間は")
             append("%.1f".format(java.util.Locale.US, elapsedMinutes))
-            append("分。添付の動画は連続記録ではなく、時間を空けて撮影した約3秒のクリップを")
-            append("時系列に連結したもの。撮影開始時点（活動開始からの分）: ")
+            append("分。")
+            append("この1本の動画は録画の一時停止と再開を繰り返して作られたもので、")
+            append("各撮影区間は約3秒。")
+            append("撮影区間は")
+            append(sampleTimesMillis.size)
+            append("回。")
+            if (averageSeconds != null) {
+                append("撮影開始時刻同士の平均間隔は約")
+                append("%.1f".format(java.util.Locale.US, averageSeconds))
+                append("秒。")
+            }
+            append("撮影開始時点（活動開始からの分）は")
             append(moments)
-            append("。切り取られた動画を連続した行動と誤認しないこと。")
-            append("観測されていない時間に活動したと断言しないこと。")
-            append("指定した活動や継続性を裏付ける観測が足りないなら「判断不能」。")
-            append("「30分行った」などの所要時間が条件なら、経過時間が足りない場合は「不一致」。")
+            append("。動画の再生時間と実際の活動計測時間を混同しないこと。")
+            append("\n【一致の基準】")
+            append("設定時間が経過しており、時間的に離れた複数の撮影区間で対象の動作が確認でき、")
+            append("長時間の未実施や明らかな中断を示す場面がなく、")
+            append("一連の継続した活動だったと合理的に推定できるなら「一致」。")
+            append("録画していない時間まで映像で直接確認できる必要はない。")
+            append("短いクリップをつないだ動画であることだけを理由に不一致や判断不能にしないこと。")
+            append("\n【不一致・判断不能の基準】")
+            append("対象動作をほとんど確認できない、または長い休憩や別の活動が明確に観測されるなら「不一致」。")
+            append("対象が画角から外れている、映像が不鮮明、撮影区間が少なすぎるなど、")
+            append("推定に必要な情報が不足するなら「判断不能」。")
+            append("未撮影時間に何をしていたかを事実として断定しないこと。")
+            append("設定時間に達していない場合は「不一致」。")
+            append("判定理由では複数の撮影区間に観測された具体的な動作と中断の有無を説明すること。")
         }
     }
+
 }

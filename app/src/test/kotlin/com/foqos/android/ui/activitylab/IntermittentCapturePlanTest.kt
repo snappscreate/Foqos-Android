@@ -13,6 +13,27 @@ class IntermittentCapturePlanTest {
         assertThat(intervals.distinct().size).isGreaterThan(50)
     }
 
+    @Test fun intervalScalesWithActivityGoalAndHonorsTenTo180SecondBounds() {
+        val short = IntermittentCapturePlan.averageIntervalMillis(2)
+        val medium = IntermittentCapturePlan.averageIntervalMillis(10)
+        val baseline = IntermittentCapturePlan.averageIntervalMillis(30)
+        val long = IntermittentCapturePlan.averageIntervalMillis(60)
+        assertThat(short).isLessThan(medium)
+        assertThat(medium).isLessThan(90_000L)
+        assertThat(baseline).isEqualTo(90_000L)
+        assertThat(long).isGreaterThan(90_000L)
+        assertThat(IntermittentCapturePlan.averageIntervalMillis(300))
+            .isEqualTo(180_000L)
+
+        val random = Random(993)
+        listOf(2, 5, 10, 20, 30, 60, 120, 300).forEach { minutes ->
+            val samples = (1..1000).map { IntermittentCapturePlan.nextGapMillis(minutes, random) }
+            assertThat(samples.minOrNull()).isAtLeast(10_000L)
+            assertThat(samples.maxOrNull()).isAtMost(180_000L)
+            assertThat(samples.distinct().size).isGreaterThan(1)
+        }
+    }
+
     @Test fun sampleScheduleIsExplainedAsNonContinuousEvidence() {
         val prompt = IntermittentCapturePlan.evidenceDescription(
             "部屋を30分掃除する", 1_800_000L, listOf(0L, 90_000L, 183_000L))

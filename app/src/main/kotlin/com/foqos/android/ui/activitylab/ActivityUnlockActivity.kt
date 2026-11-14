@@ -282,7 +282,7 @@ private fun ActivityUnlockCapture(
                     Text("カメラの使用を許可")
                 }
             }
-            Text("${if (unlimited) "ランダム間欠撮影・480p・無音" else if (continuousCount) "連続撮影・手動終了" else "撮影上限 ${seconds}秒"} / 開始前 ${countdown}秒 / ${if (frontCamera) "前面" else "背面"}カメラ")
+            Text("${if (unlimited) "ランダム間欠撮影・480p・無音" else if (continuousCount) "連続撮影・手動終了" else if (shortTimed) "連続撮影・1分で自動終了" else "撮影上限 ${seconds}秒"} / 開始前 ${countdown}秒 / ${if (frontCamera) "前面" else "背面"}カメラ")
             if (phase == CapturePhase.RECORDING || phase == CapturePhase.PAUSED || phase == CapturePhase.RESUME_COUNTDOWN) {
                 Text(if (unlimited || continuousCount)
                     "活動経過時間：%02d:%02d".format(
@@ -297,7 +297,7 @@ private fun ActivityUnlockCapture(
                 color = MaterialTheme.colorScheme.error)
             when (phase) {
                 CapturePhase.READY -> Button(
-                    enabled = granted && cameraReady && canRequest && description.isNotBlank(),
+                    enabled = granted && cameraReady && canRequest && description.isNotBlank() && (!isTest || testAmount != null),
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
                         captureJob = scope.launch {
@@ -307,7 +307,7 @@ private fun ActivityUnlockCapture(
                             verdictCostYen = null
                             video?.delete()
                             video = null
-                            recordingRemainingMs = if (unlimited || continuousCount) 0L else seconds * 1000L
+                            recordingRemainingMs = if (unlimited || continuousCount) 0L else autoDurationMillis
                             activityElapsedMs = 0L
                             activityStartedAt = 0L
                             sampleCount = 0
@@ -337,7 +337,9 @@ private fun ActivityUnlockCapture(
                                                 sampleCount = sampleTimes.size
                                                 delay(IntermittentCapturePlan.CLIP_MILLIS)
                                                 camera.pauseRecording()
-                                                delay(IntermittentCapturePlan.nextGapMillis())
+                                                delay(if (targetMinutes != null)
+                                                    IntermittentCapturePlan.nextGapMillis(targetMinutes)
+                                                    else IntermittentCapturePlan.nextGapMillis())
                                                 camera.resumeRecording()
                                             }
                                         }
@@ -353,21 +355,20 @@ private fun ActivityUnlockCapture(
                                 } else {
                                     captureSound(start = true)
                                     val started = SystemClock.elapsedRealtime()
-                                    val captured = camera.recordFor(if (continuousCount) 0L else seconds * 1000L)
+                                    val captured = camera.recordFor(if (continuousCount) 0L else autoDurationMillis)
                                     if (continuousCount) activityElapsedMs = SystemClock.elapsedRealtime() - started
                                     captureSound(start = false)
                                     captured
                                 }
-                                val elapsed = if (unlimited || continuousCount)
-                                    (SystemClock.elapsedRealtime() - activityStart) else 0L
+                                val elapsed = SystemClock.elapsedRealtime() - activityStart
                                 activityElapsedMs = elapsed
                                 video = recorded
                                 videoBytes = recorded.length()
                                 recordingRemainingMs = 0L
-                                val minimum = if (unlimited)
-                                    minimumCaptureMillis ?: IntermittentCapturePlan.minimumDurationMillis(description)
-                                    else null
-                                if (minimum != null && elapsed < minimum) {
+                                val minimum = minimumCaptureMillis ?: if (unlimited)
+                                    IntermittentCapturePlan.minimumDurationMillis(description) else null
+                                // Allow minor CameraX finalization/clock differences at the boundary.
+                                if (minimum != null && elapsed + 750L < minimum) {
                                     status = "指定された活動時間に達していないよ。必要：${minimum / 60_000L}分、経過：${elapsed / 60_000L}分。判定せず終了した。"
                                     return@launch
                                 }
@@ -376,7 +377,9 @@ private fun ActivityUnlockCapture(
                                 val activityPrompt = if (unlimited)
                                     IntermittentCapturePlan.evidenceDescription(description, elapsed, sampleTimes)
                                     else if (continuousCount)
-                                        "${description}。動画の中で完了した回数を実際に数え、指示された回数未満なら必ず「不一致」。姿勢だけで回数を推定しない。途中の繰り返しを数え漏らしたり動画が不足している場合は「判断不能」。"
+                                        "${description} ${target?.description().orEmpty()}。動画の中で完了した回数を実際に数え、指示された回数未満なら必ず「不一致」。姿勢だけで回数を推定しない。途中の繰り返しを数え漏らしたり動画が不足している場合は「判断不能」。"
+                                    else if (shortTimed)
+                                        "${description} ${target?.description().orEmpty()}。指定時間の活動を映像で確認し、十分な証拠がない場合は判断不能。"
                                     else description
                                 val judgementStartedAt = SystemClock.elapsedRealtime()
                                 val result = if (settings.useRelay) {

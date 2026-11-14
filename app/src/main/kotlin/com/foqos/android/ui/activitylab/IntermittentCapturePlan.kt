@@ -1,6 +1,8 @@
 package com.foqos.android.ui.activitylab
 
 import kotlin.random.Random
+import kotlin.math.sqrt
+import kotlin.math.roundToLong
 
 /**
  * Coarse activity evidence, not uninterrupted monitoring.
@@ -12,6 +14,21 @@ object IntermittentCapturePlan {
     const val MAX_GAP_MILLIS = 120_000L
     const val MAX_UPLOAD_BYTES = 12_000_000L
 
+    /** Target interval between short samples. 30 minutes of activity -> 90-second mean. */
+    fun averageIntervalMillis(targetMinutes: Int): Long {
+        val scaled = 90_000.0 * sqrt(targetMinutes.coerceAtLeast(1) / 30.0)
+        return scaled.roundToLong().coerceIn(10_000L, 180_000L)
+    }
+
+    /** Randomized capture interval, bounded to 10-180 seconds. */
+    fun nextGapMillis(targetMinutes: Int, random: Random = Random.Default): Long {
+        val average = averageIntervalMillis(targetMinutes)
+        val low = (average * 0.75).roundToLong().coerceIn(10_000L, 180_000L)
+        val high = (average * 1.25).roundToLong().coerceIn(10_000L, 180_000L)
+        return if (low == high) low else random.nextLong(low, high + 1)
+    }
+
+    /** Legacy callers without an explicit goal retain their old 60-120s range. */
     fun nextGapMillis(random: Random = Random.Default): Long =
         random.nextLong(MIN_GAP_MILLIS, MAX_GAP_MILLIS + 1)
 

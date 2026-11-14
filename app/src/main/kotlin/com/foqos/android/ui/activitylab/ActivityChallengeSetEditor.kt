@@ -1,11 +1,14 @@
 package com.foqos.android.ui.activitylab
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -111,35 +114,60 @@ fun ActivityChallengeSetEditor(
                         }
                         val target = group.targets[conditionId] ?:
                             ActivityTarget.inferred(catalog.firstOrNull { it.id == conditionId })
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf(ActivityTargetKind.COUNT to "回数", ActivityTargetKind.MINUTES to "時間").forEach { (kind, caption) ->
-                                FilterChip(
-                                    selected = target.kind == kind,
-                                    enabled = !editingLocked,
-                                    onClick = {
-                                        persist(sets.map { entry ->
-                                            if (entry.id != group.id) entry else entry.copy(
-                                                targets = entry.targets + (conditionId to target.copy(kind = kind)))
-                                        })
-                                    },
-                                    label = { Text(caption) },
-                                )
-                            }
+                        val maxAmount = if (target.kind == ActivityTargetKind.COUNT) 300 else 180
+                        var amountText by remember(group.id, conditionId) {
+                            mutableStateOf(target.amount.toString())
                         }
-                        DurationSliderField(
-                            label = "",
-                            value = target.amount.coerceIn(1, if (target.kind == ActivityTargetKind.COUNT) 300 else 180),
-                            onValueChange = { amount ->
-                                persist(sets.map { entry ->
-                                    if (entry.id != group.id) entry else entry.copy(
-                                        targets = entry.targets + (conditionId to target.copy(amount = amount)))
-                                })
-                            },
-                            range = if (target.kind == ActivityTargetKind.COUNT) 1..300 else 1..180,
-                            unit = if (target.kind == ActivityTargetKind.COUNT) "回" else "分",
-                            enabled = !editingLocked,
-                            compact = true,
-                        )
+                        var amountFocused by remember(group.id, conditionId) { mutableStateOf(false) }
+                        LaunchedEffect(target.amount, amountFocused) {
+                            if (!amountFocused) amountText = target.amount.toString()
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        ) {
+                            listOf(ActivityTargetKind.COUNT to "回数", ActivityTargetKind.MINUTES to "時間")
+                                .forEach { (kind, caption) ->
+                                    FilterChip(
+                                        selected = target.kind == kind,
+                                        enabled = !editingLocked,
+                                        onClick = {
+                                            persist(sets.map { entry ->
+                                                if (entry.id != group.id) entry else entry.copy(
+                                                    targets = entry.targets + (conditionId to target.copy(kind = kind)))
+                                            })
+                                        },
+                                        label = { Text(caption) },
+                                    )
+                                }
+                            Spacer(Modifier.weight(1f))
+                            OutlinedTextField(
+                                value = amountText,
+                                onValueChange = { input ->
+                                    if (input.length <= 3 && input.all(Char::isDigit)) {
+                                        amountText = input
+                                        input.toIntOrNull()?.takeIf { it in 1..maxAmount }?.let { amount ->
+                                            persist(sets.map { entry ->
+                                                if (entry.id != group.id) entry else entry.copy(
+                                                    targets = entry.targets + (conditionId to target.copy(amount = amount)))
+                                            })
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.width(100.dp).onFocusChanged { state ->
+                                    val wasFocused = amountFocused
+                                    amountFocused = state.isFocused
+                                    if (wasFocused && !state.isFocused) {
+                                        amountText = target.amount.toString()
+                                    }
+                                },
+                                enabled = !editingLocked,
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                suffix = { Text(if (target.kind == ActivityTargetKind.COUNT) "回" else "分") },
+                            )
+                        }
                     }
                     OutlinedButton(enabled = !editingLocked &&
                         group.conditionIds.size < catalog.size, onClick = {

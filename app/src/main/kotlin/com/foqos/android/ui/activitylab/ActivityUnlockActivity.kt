@@ -375,7 +375,7 @@ private fun ActivityUnlockCapture(
                                 phase = CapturePhase.JUDGING
                                 status = "撮影終了！ Geminiで判定中…"
                                 val activityPrompt = if (unlimited)
-                                    IntermittentCapturePlan.evidenceDescription(description, elapsed, sampleTimes)
+                                    IntermittentCapturePlan.evidenceDescription("$description ${target?.description().orEmpty()}".trim(), elapsed, sampleTimes)
                                     else if (continuousCount)
                                         "${description} ${target?.description().orEmpty()}。動画の中で完了した回数を実際に数え、指示された回数未満なら必ず「不一致」。姿勢だけで回数を推定しない。途中の繰り返しを数え漏らしたり動画が不足している場合は「判断不能」。"
                                     else if (shortTimed)

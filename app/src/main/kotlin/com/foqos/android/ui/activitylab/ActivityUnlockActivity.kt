@@ -108,10 +108,11 @@ class ActivityUnlockActivity : ComponentActivity() {
     }
 }
 
-/** A quiet, short cue. The notification stream respects the device's current sound policy. */
+/** A short cue on the alarm stream, audible in normal silent/vibrate mode when alarm volume
+ * is enabled. Android Do Not Disturb and hardware audio policies remain authoritative. */
 private fun captureSound(start: Boolean) {
     runCatching {
-        val tone = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 30)
+        val tone = ToneGenerator(AudioManager.STREAM_ALARM, 75)
         tone.startTone(if (start) ToneGenerator.TONE_PROP_ACK else ToneGenerator.TONE_PROP_BEEP, 120)
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ tone.release() }, 220L)
     }
@@ -169,6 +170,33 @@ private fun ActivityUnlockCapture(
     var activityElapsedMs by remember { mutableLongStateOf(0L) }
     var activityStartedAt by remember { mutableLongStateOf(0L) }
     var sampleCount by remember { mutableIntStateOf(0) }
+    var userPaused by remember { mutableStateOf(false) }
+    var samplingClip by remember { mutableStateOf(false) }
+    var pauseStartedAt by remember { mutableLongStateOf(0L) }
+    var pausedTotalMs by remember { mutableLongStateOf(0L) }
+    fun activeElapsedNow(): Long {
+        if (activityStartedAt == 0L) return 0L
+        val now = SystemClock.elapsedRealtime()
+        val currentPause = if (userPaused && pauseStartedAt != 0L) now - pauseStartedAt else 0L
+        return (now - activityStartedAt - pausedTotalMs - currentPause).coerceAtLeast(0L)
+    }
+    fun pauseCapture() {
+        if (userPaused) return
+        camera.pauseRecording()
+        userPaused = true
+        pauseStartedAt = SystemClock.elapsedRealtime()
+        phase = CapturePhase.PAUSED
+        status = "撮影を一時停止中。活動時間には含めないよ。"
+    }
+    fun resumeCapture() {
+        if (!userPaused) return
+        pausedTotalMs += (SystemClock.elapsedRealtime() - pauseStartedAt).coerceAtLeast(0L)
+        pauseStartedAt = 0L
+        userPaused = false
+        if (!unlimited || samplingClip) camera.resumeRecording()
+        phase = CapturePhase.RECORDING
+        status = "撮影を再開したよ。"
+    }
     val latestCaptureJob by rememberUpdatedState(captureJob)
     val latestResumeJob by rememberUpdatedState(resumeJob)
     val latestVideo by rememberUpdatedState(video)
@@ -183,16 +211,12 @@ private fun ActivityUnlockCapture(
             catch (e: Exception) { status = "カメラを起動できない：${e.message}" }
         }
     }
-    // CameraX timer is based on elapsedRealtime and is suspended on pause.
-    // Polling here affects only the label, not the actual recording duration.
-    LaunchedEffect(phase) {
+    // Activity targets use the active clock; user-paused time never counts.
+    LaunchedEffect(phase, userPaused) {
         if (phase == CapturePhase.RECORDING || phase == CapturePhase.PAUSED) {
             while (true) {
                 recordingRemainingMs = camera.remainingRecordingMillis
-                if (unlimited || continuousCount) {
-                    activityElapsedMs = if (activityStartedAt > 0L)
-                        SystemClock.elapsedRealtime() - activityStartedAt else 0L
-                }
+                activityElapsedMs = activeElapsedNow()
                 delay(100L)
             }
         }
@@ -260,7 +284,7 @@ private fun ActivityUnlockCapture(
                         CapturePhase.RECORDING -> if (unlimited) "長時間の活動を記録中"
                             else if (continuousCount) "● 回数判定・連続録画中" else "● 録画中  残り $timeLabel"
                         CapturePhase.RESUME_COUNTDOWN -> "撮影再開まで $countdownRemaining"
-                        CapturePhase.PAUSED -> if (unlimited) "長時間の活動を記録中" else "一時休止中  残り $timeLabel"
+                        CapturePhase.PAUSED -> "Ⅱ 一時停止中（活動時間はカウントしない）"
                         CapturePhase.JUDGING -> "撮影終了・AI判定中"
                         CapturePhase.READY -> null
                     }
@@ -284,7 +308,7 @@ private fun ActivityUnlockCapture(
             }
             Text("${if (unlimited) "ランダム間欠撮影・480p・無音" else if (continuousCount) "連続撮影・手動終了" else if (shortTimed) "連続撮影・1分で自動終了" else "撮影上限 ${seconds}秒"} / 開始前 ${countdown}秒 / ${if (frontCamera) "前面" else "背面"}カメラ")
             if (phase == CapturePhase.RECORDING || phase == CapturePhase.PAUSED || phase == CapturePhase.RESUME_COUNTDOWN) {
-                Text(if (unlimited || continuousCount)
+                Text(if (unlimited || continuousCount || shortTimed)
                     "活動経過時間：%02d:%02d".format(
                         activityElapsedMs / 60_000L, (activityElapsedMs / 1000L) % 60L)
                     else "残り撮影時間：$timeLabel" +
@@ -311,6 +335,10 @@ private fun ActivityUnlockCapture(
                             activityElapsedMs = 0L
                             activityStartedAt = 0L
                             sampleCount = 0
+                            userPaused = false
+                            samplingClip = false
+                            pauseStartedAt = 0L
+                            pausedTotalMs = 0L
                             try {
                                 phase = CapturePhase.COUNTDOWN
                                 for (i in countdown downTo 1) {
@@ -323,6 +351,7 @@ private fun ActivityUnlockCapture(
                                 val sampleTimes = mutableListOf<Long>()
                                 val activityStart = SystemClock.elapsedRealtime()
                                 activityStartedAt = activityStart
+                                captureSound(start = true)
                                 status = if (unlimited) "活動の記録中。手動終了で判定するよ。" else "● 撮影開始！"
                                 val recorded = if (unlimited) {
                                     // CameraX pause/resume keeps the sampled clips in one MP4.
@@ -353,14 +382,13 @@ private fun ActivityUnlockCapture(
                                         finally { sampleLoop.cancel(); elapsedTicker.cancel() }
                                     }
                                 } else {
-                                    captureSound(start = true)
                                     val started = SystemClock.elapsedRealtime()
                                     val captured = camera.recordFor(if (continuousCount) 0L else autoDurationMillis)
                                     if (continuousCount) activityElapsedMs = SystemClock.elapsedRealtime() - started
-                                    captureSound(start = false)
                                     captured
                                 }
-                                val elapsed = SystemClock.elapsedRealtime() - activityStart
+                                val elapsed = activeElapsedNow()
+                                captureSound(start = false)
                                 activityElapsedMs = elapsed
                                 video = recorded
                                 videoBytes = recorded.length()

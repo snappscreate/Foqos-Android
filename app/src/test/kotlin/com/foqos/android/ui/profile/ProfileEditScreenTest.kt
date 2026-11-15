@@ -1,6 +1,9 @@
 package com.foqos.android.ui.profile
 
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.cancel
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -45,6 +48,7 @@ class ProfileEditScreenTest {
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
     private lateinit var db: AppDatabase
+    private var activeViewModel: ProfileEditViewModel? = null
 
     @Before
     fun setUp() {
@@ -54,7 +58,15 @@ class ProfileEditScreenTest {
 
     @After
     fun tearDown() {
+        // A Compose collector or manually-created ViewModel must not query Room
+        // after its in-memory SQLite connection pool has been closed.
+        composeTestRule.runOnUiThread {
+            composeTestRule.activity.setContent { }
+        }
+        activeViewModel?.viewModelScope?.cancel()
+        composeTestRule.waitForIdle()
         db.close()
+        activeViewModel = null
     }
 
     private fun awaitLoaded(viewModel: ProfileEditViewModel) {
@@ -79,6 +91,7 @@ class ProfileEditScreenTest {
             context = context,
         )
 
+        activeViewModel = viewModel
         awaitLoaded(viewModel)
 
         composeTestRule.setContent {
@@ -152,6 +165,7 @@ class ProfileEditScreenTest {
             context = context,
         )
 
+        activeViewModel = viewModel
         awaitLoaded(viewModel)
         check(viewModel.uiState.value.isPersisted) { "Test setup failed: profile did not load as persisted/edit mode" }
 
@@ -195,6 +209,7 @@ class ProfileEditScreenTest {
             sessionManager = com.foqos.android.testutil.buildTestSessionManager(context, db, profileRepository),
             context = context,
         )
+        activeViewModel = viewModel
         awaitLoaded(viewModel)
 
         composeTestRule.setContent {

@@ -8,6 +8,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
+import android.util.Log
 import android.provider.Settings
 import com.foqos.android.service.accessibility.AccessibilityBlockPolicy
 import com.foqos.android.service.accessibility.BrowserAuthGrace
@@ -119,6 +120,13 @@ class UsageStatsPoller @Inject constructor(
         when (decision) {
             BlockDecision.Allow -> Unit
             is BlockDecision.BlockApp -> {
+                if (packageName in browsers && effectiveStates.any {
+                        it.fullScreenMode && packageName == it.fullScreenBrowserPackage &&
+                            it.fullScreenAllowedUrls.isNotEmpty()
+                    }) {
+                    Log.w("UsageStatsPoller", "Browser app blocked by package-only fallback; " +
+                        "urlInspectionReady=${com.foqos.android.service.accessibility.ForegroundAppAccessibilityService.urlInspectionReady}")
+                }
                 if (LauncherVisibleAppFilter.isEligible(context, decision.packageName, currentLauncherPackageName())) {
                     maybeLaunchOverlay(decision.packageName, domain = null)
                 }

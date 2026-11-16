@@ -63,7 +63,6 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
     private var lastLoggedSettingsProbe: String? = null
 
     private var browserAuthRecheckJob: Job? = null
-    private val browserUrlContinuity = BrowserUrlContinuityTracker()
     private var lastOverlayPackage: String? = null
     private var lastOverlayAtElapsedMillis: Long = 0L
 
@@ -238,50 +237,19 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
             effectiveStates.any { it.fullScreenMode && packageName == it.fullScreenBrowserPackage }
         ) {
             val observedUrl = readUrlBarText(packageName)
-            val explicitDecision = observedUrl?.let {
-                blockPolicy.decideForUrlAcrossProfiles(
-                    packageName, it, effectiveStates, neverBlockPackages = neverBlock,
-                )
-            }
-            val observedHost = observedUrl?.let(AccessibilityBlockPolicy::extractHost)
-            val restrictedProfiles = effectiveStates.filter { state ->
-                state.fullScreenMode && packageName == state.fullScreenBrowserPackage &&
-                    state.fullScreenAllowedUrls.isNotEmpty() &&
-                    packageName !in state.fullScreenAllowedPackages
-            }
-            // A startup grace can temporarily return Allow for a foreign domain.
-            // Cache only a host that is explicitly approved by *every* active focus profile.
-            val verifiedAllowed = explicitDecision == BlockDecision.Allow &&
-                observedHost != null && restrictedProfiles.isNotEmpty() &&
-                restrictedProfiles.all { state ->
-                    state.fullScreenAllowedUrls.any { allowed ->
-                        AccessibilityBlockPolicy.extractHost(allowed)?.let { allowedHost ->
-                            AccessibilityBlockPolicy.hostMatchesDomain(observedHost, allowedHost)
-                        } == true
-                    }
-                }
-            val windowId = appWindow?.id ?: -1
-            val effectiveUrl = browserUrlContinuity.observe(
-                packageName, windowId, observedUrl, verifiedAllowed,
-                SystemClock.elapsedRealtime(),
-            )
-            if (observedUrl == null && effectiveUrl != null) {
-                Log.d(TAG, "Browser URL field temporarily unavailable; rechecking last verified host")
-            }
+            // A missing/hidden browser URL is not grounds to block the browser.
+            // A positively observed disallowed host is still blocked by the policy.
             val urlDecision = blockPolicy.decideForUrlAcrossProfiles(
-                packageName, effectiveUrl, effectiveStates, neverBlockPackages = neverBlock,
+                packageName, observedUrl, effectiveStates, neverBlockPackages = neverBlock,
             )
             // Diagnostic metadata only: never log the URL or address-bar contents.
             if (urlDecision !is BlockDecision.Allow && !browserAuthGrace) {
                 Log.w(TAG, "Browser restriction: package=$packageName " +
-                    "urlAvailable=${observedUrl != null} cachedUrlUsed=${observedUrl == null && effectiveUrl != null} " +
+                    "urlAvailable=${observedUrl != null} " +
                     "kind=${urlDecision.javaClass.simpleName}")
             }
-            // Capture verified approved URLs even during a brief login handoff,
-            // so the first check after the handoff does not lose the active page.
             if (browserAuthGrace) BlockDecision.Allow else urlDecision
         } else {
-            browserUrlContinuity.clear()
             if (browserAuthGrace) BlockDecision.Allow else blockPolicy.decideForAppAcrossProfiles(
                 packageName, effectiveStates, neverBlockPackages = neverBlock,
                 protectedSettingsScreen = protectedSettingsScreen,

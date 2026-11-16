@@ -274,6 +274,41 @@ class AccessibilityBlockPolicyTest {
         )).isEqualTo(BlockDecision.BlockDomain("com.android.chrome", "youtube.com"))
     }
 
+    @Test fun `missing or unreadable URL does not block restricted browser after any timeout`() {
+        val focus = state().copy(
+            profileId = "focus", sessionId = "focus-session",
+            fullScreenMode = true,
+            fullScreenAllowedUrls = setOf("https://eden.ac"),
+            fullScreenBrowserPackage = "com.android.chrome",
+            fullScreenBrowserStartupUntil = 1_000L,
+        )
+        listOf(15_000L, 180_000L, 3_600_000L).forEach { now ->
+            assertThat(policy.decideForUrl("com.android.chrome", null, focus, nowMillis = now))
+                .isEqualTo(BlockDecision.Allow)
+            assertThat(policy.decideForUrl("com.android.chrome", "", focus, nowMillis = now))
+                .isEqualTo(BlockDecision.Allow)
+            assertThat(policy.decideForUrl("com.android.chrome", "https://eden.ac/course/1", focus, nowMillis = now))
+                .isEqualTo(BlockDecision.Allow)
+            assertThat(policy.decideForUrl("com.android.chrome", "https://outside.example", focus, nowMillis = now))
+                .isEqualTo(BlockDecision.BlockDomain("com.android.chrome", "outside.example"))
+        }
+    }
+
+    @Test fun `unknown focus URL cannot override an independently blocked browser`() {
+        val focus = state().copy(
+            profileId = "focus", sessionId = "focus-session",
+            fullScreenMode = true,
+            fullScreenAllowedUrls = setOf("https://eden.ac"),
+            fullScreenBrowserPackage = "com.android.chrome",
+        )
+        val appBlock = state(blockedPackages = setOf("com.android.chrome")).copy(
+            profileId = "blocked", sessionId = "blocked-session",
+        )
+        assertThat(policy.decideForUrlAcrossProfiles(
+            "com.android.chrome", null, listOf(focus, appBlock), nowMillis = 3_600_000L,
+        )).isEqualTo(BlockDecision.BlockApp("com.android.chrome"))
+    }
+
     @Test fun `fullscreen browser startup grace is temporary`() {
         val s = state().copy(
             fullScreenMode = true,

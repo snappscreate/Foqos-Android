@@ -63,6 +63,7 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
     private var lastLoggedSettingsProbe: String? = null
 
     private var browserAuthRecheckJob: Job? = null
+    private val browserUrlContinuity = BrowserUrlContinuityTracker()
     private var lastOverlayPackage: String? = null
     private var lastOverlayAtElapsedMillis: Long = 0L
 
@@ -232,13 +233,31 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
             packageName in AccessibilityBlockPolicy.SETTINGS_PACKAGES &&
             isProtectedFoqosSettingsScreen()
 
-        val decision = if (browserAuthGrace) BlockDecision.Allow else if (packageName in AccessibilityBlockPolicy.BROWSER_PACKAGES ||
-            effectiveStates.any { it.fullScreenMode && packageName == it.fullScreenBrowserPackage }) {
-            val url = readUrlBarText(packageName)
+        val decision = if (browserAuthGrace) BlockDecision.Allow else if (
+            packageName in AccessibilityBlockPolicy.BROWSER_PACKAGES ||
+            effectiveStates.any { it.fullScreenMode && packageName == it.fullScreenBrowserPackage }
+        ) {
+            val observedUrl = readUrlBarText(packageName)
+            val explicitDecision = observedUrl?.let {
+                blockPolicy.decideForUrlAcrossProfiles(
+                    packageName, it, effectiveStates, neverBlockPackages = neverBlock,
+                )
+            }
+            val verifiedAllowed = explicitDecision == BlockDecision.Allow &&
+                observedUrl?.let { AccessibilityBlockPolicy.extractHost(it) != null } == true
+            val windowId = appWindow?.id ?: -1
+            val effectiveUrl = browserUrlContinuity.observe(
+                packageName, windowId, observedUrl, verifiedAllowed,
+                SystemClock.elapsedRealtime(),
+            )
+            if (observedUrl == null && effectiveUrl != null) {
+                Log.d(TAG, "Browser URL field temporarily unavailable; rechecking last verified host")
+            }
             blockPolicy.decideForUrlAcrossProfiles(
-                packageName, url, effectiveStates, neverBlockPackages = neverBlock,
+                packageName, effectiveUrl, effectiveStates, neverBlockPackages = neverBlock,
             )
         } else {
+            browserUrlContinuity.clear()
             blockPolicy.decideForAppAcrossProfiles(
                 packageName, effectiveStates, neverBlockPackages = neverBlock,
                 protectedSettingsScreen = protectedSettingsScreen,
@@ -365,6 +384,7 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         observerScope.cancel()
         connected = false
+        browserUrlContinuity.clear()
         urlInspectionReady = false
         super.onDestroy()
     }

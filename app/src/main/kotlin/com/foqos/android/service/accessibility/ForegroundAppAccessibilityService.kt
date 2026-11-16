@@ -243,8 +243,23 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
                     packageName, it, effectiveStates, neverBlockPackages = neverBlock,
                 )
             }
+            val observedHost = observedUrl?.let(AccessibilityBlockPolicy::extractHost)
+            val restrictedProfiles = effectiveStates.filter { state ->
+                state.fullScreenMode && packageName == state.fullScreenBrowserPackage &&
+                    state.fullScreenAllowedUrls.isNotEmpty() &&
+                    packageName !in state.fullScreenAllowedPackages
+            }
+            // A startup grace can temporarily return Allow for a foreign domain.
+            // Cache only a host that is explicitly approved by *every* active focus profile.
             val verifiedAllowed = explicitDecision == BlockDecision.Allow &&
-                observedUrl?.let { AccessibilityBlockPolicy.extractHost(it) != null } == true
+                observedHost != null && restrictedProfiles.isNotEmpty() &&
+                restrictedProfiles.all { state ->
+                    state.fullScreenAllowedUrls.any { allowed ->
+                        AccessibilityBlockPolicy.extractHost(allowed)?.let { allowedHost ->
+                            AccessibilityBlockPolicy.hostMatchesDomain(observedHost, allowedHost)
+                        } == true
+                    }
+                }
             val windowId = appWindow?.id ?: -1
             val effectiveUrl = browserUrlContinuity.observe(
                 packageName, windowId, observedUrl, verifiedAllowed,

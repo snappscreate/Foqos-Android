@@ -233,7 +233,7 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
             packageName in AccessibilityBlockPolicy.SETTINGS_PACKAGES &&
             isProtectedFoqosSettingsScreen()
 
-        val decision = if (browserAuthGrace) BlockDecision.Allow else if (
+        val decision = if (
             packageName in AccessibilityBlockPolicy.BROWSER_PACKAGES ||
             effectiveStates.any { it.fullScreenMode && packageName == it.fullScreenBrowserPackage }
         ) {
@@ -253,12 +253,15 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
             if (observedUrl == null && effectiveUrl != null) {
                 Log.d(TAG, "Browser URL field temporarily unavailable; rechecking last verified host")
             }
-            blockPolicy.decideForUrlAcrossProfiles(
+            val urlDecision = blockPolicy.decideForUrlAcrossProfiles(
                 packageName, effectiveUrl, effectiveStates, neverBlockPackages = neverBlock,
             )
+            // Capture verified approved URLs even during a brief login handoff,
+            // so the first check after the handoff does not lose the active page.
+            if (browserAuthGrace) BlockDecision.Allow else urlDecision
         } else {
             browserUrlContinuity.clear()
-            blockPolicy.decideForAppAcrossProfiles(
+            if (browserAuthGrace) BlockDecision.Allow else blockPolicy.decideForAppAcrossProfiles(
                 packageName, effectiveStates, neverBlockPackages = neverBlock,
                 protectedSettingsScreen = protectedSettingsScreen,
             )

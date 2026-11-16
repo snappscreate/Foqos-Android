@@ -206,7 +206,11 @@ class AccessibilityBlockPolicy @Inject constructor() {
                 return if (matched || navigating) BlockDecision.Allow
                     else BlockDecision.BlockDomain(packageName, host)
             }
-            return appDecision
+            // URL accessibility can disappear on a still-approved page (scrolling, browser UI).
+            // An unknown host is not evidence of a forbidden destination. The accessibility
+            // service may keep the browser open until it actually reads a disallowed host.
+            // Other active profiles' app/domain restrictions are evaluated separately.
+            return BlockDecision.Allow
         }
         // App-level pause/break must also suspend URL filtering.
         if (state?.pauseActive == true || state?.breakActive == true) return BlockDecision.Allow

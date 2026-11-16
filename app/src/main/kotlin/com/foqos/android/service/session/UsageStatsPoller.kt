@@ -102,11 +102,20 @@ class UsageStatsPoller @Inject constructor(
         val browserAuthGrace = BrowserAuthGrace.tracker.observe(
             packageName, browsers, allowedSources,
         )
-        // UsageStats cannot read the URL bar, but shares the same handoff clock.
+        // UsageStats cannot read the address bar. When accessibility is connected,
+        // let its URL-aware checks decide whether this browser is on an approved site.
+        // Keep enforcing *other* active profiles' app restrictions independently.
+        // When accessibility isn't connected, fail closed on URL-restricted browsers.
         val decision = if (browserAuthGrace) BlockDecision.Allow else
-            blockPolicy.decideForAppAcrossProfiles(
-                packageName, effectiveStates, neverBlockPackages = neverBlock,
-            )
+            if (com.foqos.android.service.accessibility.ForegroundAppAccessibilityService.urlInspectionReady) {
+                blockPolicy.decideForAppWithBrowserUrlInspection(
+                    packageName, effectiveStates, neverBlockPackages = neverBlock,
+                )
+            } else {
+                blockPolicy.decideForAppAcrossProfiles(
+                    packageName, effectiveStates, neverBlockPackages = neverBlock,
+                )
+            }
         when (decision) {
             BlockDecision.Allow -> Unit
             is BlockDecision.BlockApp -> {

@@ -53,6 +53,31 @@ class AccessibilityBlockPolicy @Inject constructor() {
         decideForApp(packageName, state, nowMillis, neverBlockPackages, protectedSettingsScreen)
     })
 
+    /**
+     * UsageStats has no URL visibility. When accessibility is actively inspecting browser URLs,
+     * defer the URL-restricted focus profile's browser decision to that service.
+     * Every other profile still independently enforces its app-level restrictions.
+     * Without live accessibility inspection, callers must use decideForAppAcrossProfiles
+     * (fail closed for restricted browsers).
+     */
+    fun decideForAppWithBrowserUrlInspection(
+        packageName: String,
+        states: Collection<BlockingState>,
+        nowMillis: Long = System.currentTimeMillis(),
+        neverBlockPackages: Set<String> = DEFAULT_NEVER_BLOCK,
+    ): BlockDecision {
+        val appRestrictedStates = states.filterNot { state ->
+            state.fullScreenMode &&
+                packageName == state.fullScreenBrowserPackage &&
+                state.fullScreenAllowedUrls.isNotEmpty() &&
+                packageName !in state.fullScreenAllowedPackages &&
+                !state.pauseActive && !state.breakActive && !state.locationSuspended
+        }
+        return decideForAppAcrossProfiles(
+            packageName, appRestrictedStates, nowMillis, neverBlockPackages,
+        )
+    }
+
     fun decideForUrlAcrossProfiles(
         packageName: String,
         url: String?,

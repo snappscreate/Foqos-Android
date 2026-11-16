@@ -75,6 +75,77 @@ class AccessibilityBlockPolicyTest {
         )).isEqualTo(BlockDecision.Allow)
     }
 
+    @Test fun `focus browser with approved domain remains available after initial startup grace`() {
+        val focus = state().copy(
+            fullScreenMode = true,
+            fullScreenAllowedUrls = setOf("https://eden.ac"),
+            fullScreenBrowserPackage = "com.android.chrome",
+            fullScreenBrowserStartupUntil = 1_000L,
+        )
+        val now = 30_000L
+        val browser = "com.android.chrome"
+        // The app-only fallback would block after startup, even though the address
+        // bar can verify this allowed domain. Accessibility handles URL decisions.
+        assertThat(policy.decideForApp(browser, focus, nowMillis = now))
+            .isEqualTo(BlockDecision.BlockApp(browser))
+        assertThat(policy.decideForAppWithBrowserUrlInspection(
+            browser, listOf(focus), nowMillis = now,
+        )).isEqualTo(BlockDecision.Allow)
+        listOf(
+            "https://eden.ac",
+            "https://eden.ac/courses/123",
+            "https://www.eden.ac/lessons/456",
+            "https://sub.eden.ac/path",
+        ).forEach { allowedUrl ->
+            assertThat(policy.decideForUrl(browser, allowedUrl, focus, nowMillis = now))
+                .isEqualTo(BlockDecision.Allow)
+        }
+        assertThat(policy.decideForUrl(browser, "https://unrelated.ac", focus, nowMillis = now))
+            .isEqualTo(BlockDecision.BlockDomain(browser, "unrelated.ac"))
+    }
+
+    @Test fun `empty URL list in regular app-block profile adds no website restrictions`() {
+        val focus = state().copy(
+            profileId = "focus", sessionId = "focus-session",
+            fullScreenMode = true,
+            fullScreenAllowedUrls = setOf("https://eden.ac"),
+            fullScreenBrowserPackage = "com.android.chrome",
+        )
+        val ordinary = state().copy(
+            profileId = "ordinary", sessionId = "ordinary-session",
+            blockedDomains = emptyList(), allowModeDomains = false,
+        )
+        val browser = "com.android.chrome"
+        assertThat(policy.decideForAppWithBrowserUrlInspection(
+            browser, listOf(focus, ordinary), nowMillis = 30_000L,
+        )).isEqualTo(BlockDecision.Allow)
+        assertThat(policy.decideForUrlAcrossProfiles(
+            browser, "https://eden.ac/page", listOf(focus, ordinary), nowMillis = 30_000L,
+        )).isEqualTo(BlockDecision.Allow)
+        assertThat(policy.decideForUrlAcrossProfiles(
+            browser, "https://outside.example", listOf(focus, ordinary), nowMillis = 30_000L,
+        )).isEqualTo(BlockDecision.BlockDomain(browser, "outside.example"))
+    }
+
+    @Test fun `another profile browser block still wins over focus approved website`() {
+        val focus = state().copy(
+            profileId = "focus", sessionId = "focus-session",
+            fullScreenMode = true,
+            fullScreenAllowedUrls = setOf("https://eden.ac"),
+            fullScreenBrowserPackage = "com.android.chrome",
+        )
+        val blocksChrome = state(blockedPackages = setOf("com.android.chrome")).copy(
+            profileId = "block", sessionId = "block-session",
+        )
+        val browser = "com.android.chrome"
+        assertThat(policy.decideForAppWithBrowserUrlInspection(
+            browser, listOf(focus, blocksChrome), nowMillis = 30_000L,
+        )).isEqualTo(BlockDecision.BlockApp(browser))
+        assertThat(policy.decideForUrlAcrossProfiles(
+            browser, "https://eden.ac/course", listOf(focus, blocksChrome), nowMillis = 30_000L,
+        )).isEqualTo(BlockDecision.BlockApp(browser))
+    }
+
     @Test fun `one profile can still block a URL allowed by another`() {
         val allowed = state().copy(profileId = "one", sessionId = "s-one",
             fullScreenMode = true, fullScreenAllowedPackages = setOf("com.android.chrome"))

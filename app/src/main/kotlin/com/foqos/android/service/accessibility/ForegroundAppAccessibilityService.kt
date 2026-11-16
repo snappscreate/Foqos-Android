@@ -73,6 +73,7 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
         blockPolicy = entryPoint.blockPolicy()
         sessionManager = entryPoint.sessionManager()
         connected = true
+        urlInspectionReady = true
         // Timed access may end without any new foreground app event.
         observerScope.launch {
             blockingStateHolder.states.collect { current ->
@@ -364,12 +365,17 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         observerScope.cancel()
         connected = false
+        urlInspectionReady = false
         super.onDestroy()
     }
 
     override fun onInterrupt() = Unit
 
     companion object {
+        /** True only while the URL-reading accessibility service is connected. */
+        @Volatile var urlInspectionReady: Boolean = false
+            private set
+
         private const val TAG = "ForegroundA11yService"
         private const val OVERLAY_DEBOUNCE_MILLIS = 1_500L
 

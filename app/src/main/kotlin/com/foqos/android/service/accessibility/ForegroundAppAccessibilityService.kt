@@ -256,6 +256,12 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
             val urlDecision = blockPolicy.decideForUrlAcrossProfiles(
                 packageName, effectiveUrl, effectiveStates, neverBlockPackages = neverBlock,
             )
+            // Diagnostic metadata only: never log the URL or address-bar contents.
+            if (urlDecision !is BlockDecision.Allow && !browserAuthGrace) {
+                Log.w(TAG, "Browser restriction: package=$packageName " +
+                    "urlAvailable=${observedUrl != null} cachedUrlUsed=${observedUrl == null && effectiveUrl != null} " +
+                    "kind=${urlDecision.javaClass.simpleName}")
+            }
             // Capture verified approved URLs even during a brief login handoff,
             // so the first check after the handoff does not lose the active page.
             if (browserAuthGrace) BlockDecision.Allow else urlDecision

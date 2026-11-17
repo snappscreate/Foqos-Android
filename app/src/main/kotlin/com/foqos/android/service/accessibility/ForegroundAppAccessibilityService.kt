@@ -376,7 +376,6 @@ class ForegroundAppAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         observerScope.cancel()
         connected = false
-        browserUrlContinuity.clear()
         urlInspectionReady = false
         super.onDestroy()
     }

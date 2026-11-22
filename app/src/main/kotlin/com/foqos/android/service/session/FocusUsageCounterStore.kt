@@ -38,3 +38,21 @@ object FocusUsageEligibility {
             else foregroundPackage != null && foregroundPackage in state.blockedPackages
     }
 }
+
+/**
+ * While the blocker Activity is visible the OS foreground package becomes Foqos.
+ * Preserve the attempted app identity solely for the usage counter.
+ */
+object FocusBlockedOverlayTracker {
+    @Volatile private var visibleTargetPackage: String? = null
+
+    fun onOverlayVisible(targetPackage: String?) {
+        visibleTargetPackage = targetPackage?.takeIf { it.isNotBlank() }
+    }
+
+    fun onOverlayHidden() {
+        visibleTargetPackage = null
+    }
+
+    fun attemptedAppWhileVisible(): String? = visibleTargetPackage
+}

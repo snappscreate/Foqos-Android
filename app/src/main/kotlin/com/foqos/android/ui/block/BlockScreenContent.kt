@@ -28,6 +28,8 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
+import com.foqos.android.service.session.FocusUsageCounterStore
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -82,6 +84,7 @@ fun BlockScreenContent(
     profileName: String,
     blockedLabel: String,
     sessionStartEpochMillis: Long,
+    sessionId: String? = null,
     softUnblockInfo: SoftUnblockInfo?,
     onGoBack: () -> Unit,
     onOpenFoqosHome: () -> Unit = onGoBack,
@@ -109,12 +112,12 @@ fun BlockScreenContent(
 ) {
     val message = remember(blockedLabel) { pickFunMessage(blockedLabel) }
 
-    var elapsedMillis by remember(sessionStartEpochMillis) {
-        mutableLongStateOf((System.currentTimeMillis() - sessionStartEpochMillis).coerceAtLeast(0L))
-    }
-    LaunchedEffect(sessionStartEpochMillis) {
+    val context = LocalContext.current
+    val usageCounter = remember(sessionId) { FocusUsageCounterStore(context) }
+    var elapsedMillis by remember(sessionId) { mutableLongStateOf(0L) }
+    LaunchedEffect(sessionId) {
         while (true) {
-            elapsedMillis = (System.currentTimeMillis() - sessionStartEpochMillis).coerceAtLeast(0L)
+            elapsedMillis = sessionId?.let(usageCounter::elapsedMillis) ?: 0L
             delay(1_000L)
         }
     }

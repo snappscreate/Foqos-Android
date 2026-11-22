@@ -1312,6 +1312,11 @@ class SessionManager @Inject constructor(
         // Covers legacy strategy paths as well as the new independently configured conditions.
         if (!pauseRetryAllowed(session.profileId)) return
         val now = Instant.now()
+        // Beginning any pause supersedes a pending future pause for this same session.
+        if (pauseReservationStore.read(session.profileId) != null) {
+            pauseReservationStore.clear(session.profileId)
+            alarmScheduler.cancel(AlarmActivityType.PAUSE_RESERVATION_START, session.profileId)
+        }
         sessionRepository.startPause(session.id, now)
         independentUnlock.markPauseAuthorized(session.profileId, now.toEpochMilli())
         blockingStateHolder.updateProfile(session.profileId) { it.copy(pauseActive = true) }

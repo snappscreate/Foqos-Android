@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore
+import com.foqos.android.ui.activitylab.ActivityUnlockStore
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foqos.android.R
@@ -107,7 +108,16 @@ fun ActiveSessionScreen(
         FocusUsageCounterStore(contextForReservation)
     }
     val elapsedFocusTime = Duration.ofMillis(usageCounter.elapsedMillis(currentSession.id))
-    val displayedTime = SessionTimeCalculator.displayedTime(currentSession, currentProfile, elapsedFocusTime, now)
+    val displayedTime = if (currentSession.isPauseActive(now)) {
+        // Reward-based and booked pauses may have a duration different from the
+        // legacy strategy timer. Read the actual duration recorded for this session.
+        val pauseMinutes = ActivityUnlockStore(contextForReservation).pauseMinutes(currentSession.id)
+        val pausedAt = currentSession.pauseStartTime
+        if (pauseMinutes != null && pausedAt != null) {
+            val remaining = Duration.between(now, pausedAt.plusSeconds(pauseMinutes * 60L))
+            if (remaining.isNegative) Duration.ZERO else remaining
+        } else SessionTimeCalculator.displayedTime(currentSession, currentProfile, elapsedFocusTime, now)
+    } else SessionTimeCalculator.displayedTime(currentSession, currentProfile, elapsedFocusTime, now)
     val isCountdown = SessionTimeCalculator.expectedEndTime(currentSession, currentProfile, now) != null
     val isBreakActive = currentSession.isBreakActive(now)
     val isPauseActive = currentSession.isPauseActive(now)

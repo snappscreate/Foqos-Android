@@ -84,7 +84,6 @@ fun BlockScreenContent(
     profileName: String,
     blockedLabel: String,
     sessionStartEpochMillis: Long,
-    sessionId: String? = null,
     softUnblockInfo: SoftUnblockInfo?,
     onGoBack: () -> Unit,
     onOpenFoqosHome: () -> Unit = onGoBack,
@@ -108,6 +107,7 @@ fun BlockScreenContent(
     distanceDescription: String? = null,
     nfcMessage: String? = null,
     nfcInstruction: String? = null,
+    sessionId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val message = remember(blockedLabel) { pickFunMessage(blockedLabel) }

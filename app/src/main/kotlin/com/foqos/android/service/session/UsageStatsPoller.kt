@@ -50,6 +50,7 @@ class UsageStatsPoller @Inject constructor(
     private var job: Job? = null
     private val focusUsage = FocusUsageCounterStore(context)
     private var previousUsageTick: Long = 0L
+    private var lastKnownForegroundPackage: String? = null
     private var lastOverlayPackage: String? = null
     private var lastOverlayAtElapsedMillis: Long = 0L
 
@@ -71,7 +72,12 @@ class UsageStatsPoller @Inject constructor(
     }
 
     private fun pollOnce() {
-        val packageName = mostRecentForegroundPackage()
+        val recentPackage = mostRecentForegroundPackage()
+        val interactive = (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)
+            ?.isInteractive == true
+        if (!interactive) lastKnownForegroundPackage = null
+        else if (recentPackage != null) lastKnownForegroundPackage = recentPackage
+        val packageName = if (interactive) lastKnownForegroundPackage else null
         val store = FullScreenModeStore(context)
         val location = LocationAutomationStore(context)
                 val effectiveStates = blockingStateHolder.states.value.values.map { current ->
@@ -99,8 +105,7 @@ class UsageStatsPoller @Inject constructor(
         val delta = if (previousUsageTick > 0L)
             (nowElapsed - previousUsageTick).coerceIn(0L, 1_500L) else 0L
         previousUsageTick = nowElapsed
-        val screenInteractive = (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)
-            ?.isInteractive == true
+        val screenInteractive = interactive
         if (delta > 0L) {
             effectiveStates.forEach { state ->
                 if (FocusUsageEligibility.counts(state, packageName, screenInteractive)) {

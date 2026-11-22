@@ -3,6 +3,8 @@ package com.foqos.android.domain.session
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.foqos.android.service.location.LocationAutomationStore
+import com.foqos.android.ui.activitylab.PauseReservationStore
+import com.foqos.android.ui.activitylab.PauseReservation
 import com.foqos.android.service.session.FullScreenModeStore
 import com.foqos.android.service.session.GlobalSessionProtectionStore
 import com.foqos.android.service.session.PeriodicAccessStore
@@ -160,6 +162,7 @@ class SessionManager @Inject constructor(
     }
 
     private val periodicAccessStore by lazy { PeriodicAccessStore(appContext) }
+    private val pauseReservationStore by lazy { PauseReservationStore(appContext) }
 
     private fun periodicAnchor(session: BlockedProfileSession): Long =
         maxOf(session.startTime.toEpochMilli(), session.pauseEndTime?.toEpochMilli() ?: 0L, session.breakEndTime?.toEpochMilli() ?: 0L)
@@ -305,6 +308,66 @@ class SessionManager @Inject constructor(
         val minutes = (remaining + 59_999L) / 60_000L
         emitError("一時休止の再挑戦まであと${minutes / 60}時間${minutes % 60}分")
         return false
+    }
+
+    /**
+     * Book a pause in advance. The delay must meet the profile minimum; the alarm
+     * is tied to the current session so a stopped/restarted profile cannot inherit it.
+     * Existing retry restrictions are checked again when the reservation fires.
+     */
+    suspend fun reservePause(
+        profileId: String, delayMinutes: Int, durationMinutes: Int,
+    ): Boolean = withContext(ioDispatcher) {
+        val session = sessionForProfile(profileId) ?: return@withContext false
+        if (session.isPauseActive() || locationStoreOutside(profileId)) return@withContext false
+        val minimumDelay = independentUnlock.read(profileId).reservationMinimumDelayMinutes
+        if (delayMinutes !in minimumDelay..10080 || durationMinutes !in 1..1440)
+            return@withContext false
+        val start = Instant.now().plusSeconds(delayMinutes * 60L)
+        pauseReservationStore.save(profileId, PauseReservation(session.id, start.toEpochMilli(), durationMinutes))
+        alarmScheduler.scheduleExactAt(
+            AlarmActivityType.PAUSE_RESERVATION_START, profileId, start,
+            mapOf("sessionId" to session.id),
+        )
+        true
+    }
+
+    suspend fun cancelPauseReservation(profileId: String) = withContext(ioDispatcher) {
+        pauseReservationStore.clear(profileId)
+        alarmScheduler.cancel(AlarmActivityType.PAUSE_RESERVATION_START, profileId)
+    }
+
+    fun pauseReservation(profileId: String): PauseReservation? =
+        pauseReservationStore.read(profileId)?.takeIf { reservation ->
+            sessionForProfile(profileId)?.id == reservation.sessionId
+        }
+
+    private suspend fun handleReservedPause(
+        profileId: String, extras: Map<String, String>, at: Instant,
+    ) {
+        val scheduled = pauseReservationStore.read(profileId) ?: return
+        val session = sessionForProfile(profileId) ?: return
+        if (session.id != scheduled.sessionId || extras["sessionId"] != session.id) {
+            pauseReservationStore.clear(profileId)
+            return
+        }
+        // Reject early/stale alarm delivery and never override another active pause.
+        if (at.toEpochMilli() < scheduled.startAtMillis || session.isPauseActive(at) ||
+            locationStoreOutside(profileId)) return
+        val remaining = pauseRetryRemainingMillis(profileId)
+        if (remaining > 0L) {
+            val retryAt = Instant.now().plusMillis(remaining)
+            pauseReservationStore.save(profileId, scheduled.copy(startAtMillis = retryAt.toEpochMilli()))
+            alarmScheduler.scheduleExactAt(
+                AlarmActivityType.PAUSE_RESERVATION_START, profileId, retryAt,
+                mapOf("sessionId" to session.id),
+            )
+            return
+        }
+        pauseReservationStore.clear(profileId)
+        com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
+            .savePauseMinutes(session.id, scheduled.pauseMinutes)
+        beginPause(session, scheduled.pauseMinutes)
     }
 
     /** Start a timed pause under the dedicated, independent main condition. */
@@ -955,6 +1018,7 @@ class SessionManager @Inject constructor(
             AlarmActivityType.STRATEGY_TIMER_END -> handleStrategyTimerEnd(profileId, extras, at)
             AlarmActivityType.BREAK_END -> handleBreakEnd(profileId, extras, at)
             AlarmActivityType.PAUSE_END -> handlePauseEnd(profileId, extras, at)
+            AlarmActivityType.PAUSE_RESERVATION_START -> handleReservedPause(profileId, extras, at)
             AlarmActivityType.PERIODIC_ACCESS_BOUNDARY -> handlePeriodicAccessBoundary(profileId, extras, at)
             AlarmActivityType.GRANT_EXPIRY -> handleGrantExpiry(profileId, extras, at)
             AlarmActivityType.EMERGENCY_ALLOWANCE_RESET -> handleEmergencyAllowanceReset(at)
@@ -1133,6 +1197,22 @@ class SessionManager @Inject constructor(
             }
         }
 
+        pauseReservationStore.read(profile.id)?.takeIf { it.sessionId == session.id }?.let { scheduled ->
+            if (scheduled.startAtMillis > now.toEpochMilli()) {
+                alarmScheduler.scheduleExactAt(
+                    AlarmActivityType.PAUSE_RESERVATION_START, profile.id,
+                    Instant.ofEpochMilli(scheduled.startAtMillis),
+                    mapOf("sessionId" to session.id),
+                )
+            } else {
+                // Re-arm an overdue reservation so it is handled after an app/service restart.
+                alarmScheduler.scheduleExactAt(
+                    AlarmActivityType.PAUSE_RESERVATION_START, profile.id,
+                    now.plusMillis(1_000L), mapOf("sessionId" to session.id),
+                )
+            }
+        }
+
         if (session.isPauseActive(now)) {
             val pauseDurationMinutes = com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext)
                 .pauseMinutes(session.id)
@@ -1202,6 +1282,7 @@ class SessionManager @Inject constructor(
         markCompletelyStopped(session.profileId)
         sessionRepository.endSession(session.id, at)
         alarmScheduler.cancelAllForProfile(session.profileId)
+        pauseReservationStore.clear(session.profileId)
         softUnblockRepository.clearForSession(session.id)
         com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext).apply {
             clear(session.profileId)

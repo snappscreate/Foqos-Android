@@ -338,7 +338,7 @@ fun PauseRetryCooldownSection(profileId: String, editingLocked: Boolean, editor:
     val policy = editor.policy.copy(retryCooldownMinutes = editor.cooldownMinutes)
     fun save(value: Int) { editor.cooldownMinutes = value.coerceIn(0, 24 * 60 + 59) }
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("一時休止の成功時刻から計測。待機中は再挑戦できない。0時間0分なら制限なし。",
+        Text("一時休止が終了して再ブロックされた時刻から計測。待機中は再挑戦できない。0時間0分なら制限なし。",
             style = MaterialTheme.typography.bodySmall)
         Text("${policy.retryCooldownMinutes / 60}時間 ${policy.retryCooldownMinutes % 60}分",
             style = MaterialTheme.typography.titleMedium)

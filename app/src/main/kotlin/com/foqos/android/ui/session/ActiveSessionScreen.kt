@@ -23,6 +23,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
@@ -45,6 +46,9 @@ import com.foqos.android.service.session.GlobalSessionProtectionStore
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import com.foqos.android.ui.activitylab.ProfileUnlockPolicyStore
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foqos.android.R
@@ -110,6 +114,14 @@ fun ActiveSessionScreen(
 
     var showBreakSheet by remember { mutableStateOf(false) }
     var showEmergencySheet by remember { mutableStateOf(false) }
+    val contextForReservation = LocalContext.current
+    var showReservationSheet by remember { mutableStateOf(false) }
+    val minReservationDelay = remember(currentProfile.id) {
+        ProfileUnlockPolicyStore(
+            // The application context is stable across recompositions.
+            context = contextForReservation
+        ).read(currentProfile.id).reservationMinimumDelayMinutes
+    }
 
     val infiniteTransition = rememberInfiniteTransition(label = "gradient")
     val gradientProgress by infiniteTransition.animateFloat(
@@ -200,6 +212,23 @@ fun ActiveSessionScreen(
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
                         ) { Text(stringResource(R.string.active_session_end_break_action)) }
                     }
+                    if (!isPauseActive) {
+                        val reservation = viewModel.pauseReservation(currentProfile.id)
+                        if (reservation == null) {
+                            OutlinedButton(
+                                onClick = { showReservationSheet = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                            ) { Text("一時休止を予約") }
+                        } else {
+                            val until = (reservation.startAtMillis - now.toEpochMilli()).coerceAtLeast(0L)
+                            Text("一時休止予約：あと ${until / 3_600_000}時間 ${(until / 60_000) % 60}分",
+                                color = Color.White)
+                            TextButton(onClick = { viewModel.cancelPauseReservation(currentProfile.id) }) {
+                                Text("予約を取り消す", color = Color.White)
+                            }
+                        }
+                    }
                     if (canShowStop) {
                         Button(
                             onClick = viewModel::stopSession,
@@ -217,6 +246,68 @@ fun ActiveSessionScreen(
                 }
             }
         }
+    }
+
+    if (showReservationSheet) {
+        var afterHours by remember(currentProfile.id) { mutableStateOf((minReservationDelay / 60).toString()) }
+        var afterMinutes by remember(currentProfile.id) { mutableStateOf((minReservationDelay % 60).toString()) }
+        var pauseHours by remember(currentProfile.id) { mutableStateOf("0") }
+        var pauseMinutes by remember(currentProfile.id) { mutableStateOf("20") }
+        val delayTotal = afterHours.toIntOrNull()?.let { hours ->
+            afterMinutes.toIntOrNull()?.let { minutes ->
+                if (hours in 0..168 && minutes in 0..59) hours * 60 + minutes else null
+            }
+        }
+        val pauseTotal = pauseHours.toIntOrNull()?.let { hours ->
+            pauseMinutes.toIntOrNull()?.let { minutes ->
+                if (hours in 0..24 && minutes in 0..59) hours * 60 + minutes else null
+            }
+        }
+        val valid = delayTotal != null && delayTotal in minReservationDelay..10080 &&
+            pauseTotal != null && pauseTotal in 1..1440
+        AlertDialog(
+            onDismissRequest = { showReservationSheet = false },
+            title = { Text("一時休止予約") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("最低待機時間：${minReservationDelay / 60}時間${minReservationDelay % 60}分")
+                    Text("何時間何分後に休止を開始する？")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = afterHours, onValueChange = { if (it.length <= 3 && it.all(Char::isDigit)) afterHours = it },
+                            label = { Text("時間後") }, modifier = Modifier.weight(1f),
+                            singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                        OutlinedTextField(
+                            value = afterMinutes, onValueChange = { if (it.length <= 2 && it.all(Char::isDigit)) afterMinutes = it },
+                            label = { Text("分後") }, modifier = Modifier.weight(1f),
+                            singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    }
+                    Text("休止する長さ")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = pauseHours, onValueChange = { if (it.length <= 2 && it.all(Char::isDigit)) pauseHours = it },
+                            label = { Text("時間") }, modifier = Modifier.weight(1f),
+                            singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                        OutlinedTextField(
+                            value = pauseMinutes, onValueChange = { if (it.length <= 2 && it.all(Char::isDigit)) pauseMinutes = it },
+                            label = { Text("分") }, modifier = Modifier.weight(1f),
+                            singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    }
+                    Text("予約した時刻になると自動的に一時休止する。待機中は通常どおりブロックする。")
+                    if (!valid) Text("待機時間は設定した最低時間以上、休止時間は1分〜24時間にしてね。",
+                        color = MaterialTheme.colorScheme.error)
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = valid, onClick = {
+                    viewModel.reservePause(currentProfile.id, delayTotal!!, pauseTotal!!)
+                    showReservationSheet = false
+                }) { Text("予約する") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReservationSheet = false }) { Text("キャンセル") }
+            },
+        )
     }
 
     if (showBreakSheet) {

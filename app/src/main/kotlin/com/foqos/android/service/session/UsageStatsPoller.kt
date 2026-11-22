@@ -109,8 +109,11 @@ class UsageStatsPoller @Inject constructor(
         previousUsageTick = nowElapsed
         val screenInteractive = interactive
         if (delta > 0L) {
+            val countingPackage = if (packageName == context.packageName) {
+                FocusBlockedOverlayTracker.attemptedAppWhileVisible() ?: packageName
+            } else packageName
             effectiveStates.forEach { state ->
-                if (FocusUsageEligibility.counts(state, packageName, screenInteractive)) {
+                if (FocusUsageEligibility.counts(state, countingPackage, screenInteractive)) {
                     focusUsage.add(state.sessionId, delta)
                 }
             }

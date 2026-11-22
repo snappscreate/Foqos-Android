@@ -593,14 +593,14 @@ private fun pluralizeBlockedCount(count: Int): String = if (count == 1) "1 app/s
 private fun ActiveSessionBar(profileName: String, sessionId: String) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val counter = remember(sessionId) { FocusUsageCounterStore(context) }
-    var now by remember { mutableStateOf(Instant.now()) }
+    var usageMillis by remember(sessionId) { androidx.compose.runtime.mutableLongStateOf(0L) }
     LaunchedEffect(sessionId) {
         while (true) {
-            now = Instant.now()
-            delay(1000)
+            usageMillis = counter.elapsedMillis(sessionId)
+            delay(1_000L)
         }
     }
-    val elapsed = Duration.ofMillis(counter.elapsedMillis(sessionId))
+    val elapsed = Duration.ofMillis(usageMillis)
 
     Card(
         modifier = Modifier

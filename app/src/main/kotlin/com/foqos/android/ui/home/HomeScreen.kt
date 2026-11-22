@@ -1,5 +1,7 @@
 package com.foqos.android.ui.home
 
+import com.foqos.android.service.session.FocusUsageCounterStore
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
@@ -138,7 +140,7 @@ fun HomeScreen(
                 if (session != null && profile != null) {
                     ActiveSessionBar(
                         profileName = if (uiState.activeSessions.size > 1) "${profile.name} ほか${uiState.activeSessions.size - 1}件" else profile.name,
-                        startTime = session.startTime,
+                        sessionId = session.id,
 
                     )
                 }
@@ -588,15 +590,17 @@ private fun ProfileCard(
 private fun pluralizeBlockedCount(count: Int): String = if (count == 1) "1 app/site blocked" else "$count apps/sites blocked"
 
 @Composable
-private fun ActiveSessionBar(profileName: String, startTime: Instant) {
+private fun ActiveSessionBar(profileName: String, sessionId: String) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val counter = remember(sessionId) { FocusUsageCounterStore(context) }
     var now by remember { mutableStateOf(Instant.now()) }
-    LaunchedEffect(startTime) {
+    LaunchedEffect(sessionId) {
         while (true) {
             now = Instant.now()
             delay(1000)
         }
     }
-    val elapsed = Duration.between(startTime, now).let { if (it.isNegative) Duration.ZERO else it }
+    val elapsed = Duration.ofMillis(counter.elapsedMillis(sessionId))
 
     Card(
         modifier = Modifier

@@ -14,6 +14,7 @@ data class ProfileUnlockPolicy(
     val pause: UnlockMethod = UnlockMethod.MANUAL,
     val pauseMinutes: Int = 20,
     val retryCooldownMinutes: Int = 0,
+    val reservationMinimumDelayMinutes: Int = 60,
     val stopCredentialId: String? = null,
     val pauseCredentialId: String? = null,
     val pauseMethods: Set<UnlockMethod>? = null,
@@ -48,6 +49,7 @@ class ProfileUnlockPolicyStore(context: Context) {
         pause = parse(prefs.getString("pause_$profileId", null), UnlockMethod.MANUAL),
         pauseMinutes = prefs.getInt("duration_$profileId", 20).coerceIn(1, 180),
         retryCooldownMinutes = prefs.getInt("cooldown_$profileId", 0).coerceIn(0, 10080),
+        reservationMinimumDelayMinutes = prefs.getInt("reservation_min_$profileId", 60).coerceIn(0, 10080),
         stopCredentialId = prefs.getString("stop_credential_$profileId", null),
         pauseCredentialId = prefs.getString("pause_credential_$profileId", null),
         pauseMethods = prefs.getString("pause_methods_$profileId", null)?.split(",")
@@ -100,6 +102,7 @@ class ProfileUnlockPolicyStore(context: Context) {
                 else putInt("pause_qr_minutes_$profileId", policy.pauseQrMinutes.coerceIn(1, 180)) }
             .putInt("duration_$profileId", policy.pauseMinutes.coerceIn(1, 180))
             .putInt("cooldown_$profileId", policy.retryCooldownMinutes.coerceIn(0, 10080))
+            .putInt("reservation_min_$profileId", policy.reservationMinimumDelayMinutes.coerceIn(0, 10080))
             .apply { if (policy.stopCredentialId == null) remove("stop_credential_$profileId") else putString("stop_credential_$profileId", policy.stopCredentialId) }
             .apply { if (policy.pauseCredentialId == null) remove("pause_credential_$profileId") else putString("pause_credential_$profileId", policy.pauseCredentialId) }
             .commit()) { "解除条件の保存に失敗" }
@@ -174,7 +177,7 @@ class ProfileUnlockPolicyStore(context: Context) {
     fun delete(profileId: String) {
         prefs.edit().remove("enabled_$profileId").remove("stop_$profileId")
             .remove("pause_$profileId").remove("duration_$profileId")
-            .remove("cooldown_$profileId").remove("last_pause_at_$profileId")
+            .remove("cooldown_$profileId").remove("reservation_min_$profileId").remove("last_pause_at_$profileId")
             .remove("last_reblock_at_$profileId")
             .remove("stop_credential_$profileId").remove("pause_credential_$profileId")
             .remove("pause_methods_$profileId").remove("pause_nfc_credential_$profileId")

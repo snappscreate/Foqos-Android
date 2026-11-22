@@ -110,6 +110,11 @@ class ProfileUnlockPolicyStoreTest {
         try {
             store.markPauseAuthorized(first, nowMillis = 1_000_000L)
             val fresh = ProfileUnlockPolicyStore(context)
+            // No wait while the session is paused.
+            assertThat(fresh.pauseRetryRemainingMillis(first, nowMillis = 1_000_000L + 1_000L))
+                .isEqualTo(0L)
+            // Re-blocking (pause end), not authorization, starts the retry countdown.
+            store.markBlockingResumed(first, nowMillis = 1_000_000L)
             assertThat(fresh.pauseRetryRemainingMillis(first, nowMillis = 1_000_000L + 1_000L))
                 .isEqualTo(90 * 60_000L - 1_000L)
             assertThat(fresh.pauseRetryRemainingMillis(second, nowMillis = 1_000_000L + 1_000L))
@@ -120,6 +125,16 @@ class ProfileUnlockPolicyStoreTest {
             store.delete(first)
             store.delete(second)
         }
+    }
+
+    @Test fun reservationMinimumDelayPersistsAcrossStoreRecreation() {
+        val id = uniqueProfile()
+        val store = ProfileUnlockPolicyStore(context)
+        try {
+            store.save(id, ProfileUnlockPolicy(reservationMinimumDelayMinutes = 125))
+            assertThat(ProfileUnlockPolicyStore(context).read(id).reservationMinimumDelayMinutes)
+                .isEqualTo(125)
+        } finally { store.delete(id) }
     }
 
     @Test fun validMovementSetCanBeStartedWithoutStandaloneMainMovement() {

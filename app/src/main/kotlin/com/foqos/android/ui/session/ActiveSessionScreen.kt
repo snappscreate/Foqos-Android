@@ -101,6 +101,7 @@ fun ActiveSessionScreen(
         }
     }
 
+    val contextForReservation = LocalContext.current
     val strategy = StrategyRegistry.byId(currentProfile.strategyId)
     val usageCounter = remember(currentSession.id) {
         FocusUsageCounterStore(contextForReservation)
@@ -118,7 +119,6 @@ fun ActiveSessionScreen(
 
     var showBreakSheet by remember { mutableStateOf(false) }
     var showEmergencySheet by remember { mutableStateOf(false) }
-    val contextForReservation = LocalContext.current
     var showReservationSheet by remember { mutableStateOf(false) }
     val minReservationDelay = remember(currentProfile.id) {
         ProfileUnlockPolicyStore(

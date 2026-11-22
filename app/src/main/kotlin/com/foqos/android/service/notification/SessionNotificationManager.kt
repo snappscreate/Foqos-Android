@@ -24,9 +24,9 @@ class SessionNotificationManager @Inject constructor(
 ) {
 
     /**
-     * Builds the ongoing session notification for [profileName], using a chronometer anchored at
-     * [startedAtEpochMillis] so the displayed elapsed time keeps ticking without needing repeated
-     * updates. [breakActive]/[pauseActive] only affect the status line, not the chronometer.
+     * Builds the ongoing session notification for [profileName]. Eligible focus time is
+     * accumulated separately by UsageStatsPoller; a system chronometer would incorrectly
+     * count screen-off and excluded-app periods, so no wall-clock timer is shown here.
      */
     fun buildSessionNotification(
         profileName: String,
@@ -68,8 +68,8 @@ class SessionNotificationManager @Inject constructor(
             .setContentText(statusText)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)
-            .setUsesChronometer(true)
-            .setWhen(startedAtEpochMillis)
+            .setUsesChronometer(false)
+            .setShowWhen(false)
             .setContentIntent(contentIntent)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPendingIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)

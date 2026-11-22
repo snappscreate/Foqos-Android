@@ -131,8 +131,8 @@ fun ProfileEditScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
+            Column {
             TopAppBar(
                 title = { Text(if (!uiState.isPersisted) stringResource(R.string.profile_edit_title_new) else stringResource(R.string.profile_edit_title_edit)) },
                 navigationIcon = {
@@ -165,6 +165,8 @@ fun ProfileEditScreen(
                     }
                 },
             )
+            SnackbarHost(hostState = snackbarHostState, modifier = Modifier.fillMaxWidth())
+            }
         },
     ) { innerPadding ->
         Column(

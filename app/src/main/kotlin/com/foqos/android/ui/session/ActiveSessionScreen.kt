@@ -43,6 +43,7 @@ import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import com.foqos.android.service.session.GlobalSessionProtectionStore
+import com.foqos.android.service.session.FocusUsageCounterStore
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -101,7 +102,10 @@ fun ActiveSessionScreen(
     }
 
     val strategy = StrategyRegistry.byId(currentProfile.strategyId)
-    val elapsedFocusTime = SessionTimeCalculator.elapsedFocusTime(currentSession, currentProfile, now)
+    val usageCounter = remember(currentSession.id) {
+        FocusUsageCounterStore(contextForReservation)
+    }
+    val elapsedFocusTime = Duration.ofMillis(usageCounter.elapsedMillis(currentSession.id))
     val displayedTime = SessionTimeCalculator.displayedTime(currentSession, currentProfile, elapsedFocusTime, now)
     val isCountdown = SessionTimeCalculator.expectedEndTime(currentSession, currentProfile, now) != null
     val isBreakActive = currentSession.isBreakActive(now)

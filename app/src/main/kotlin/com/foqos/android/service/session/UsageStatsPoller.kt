@@ -8,6 +8,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
+import android.os.PowerManager
 import android.util.Log
 import android.provider.Settings
 import com.foqos.android.service.accessibility.AccessibilityBlockPolicy
@@ -47,6 +48,8 @@ class UsageStatsPoller @Inject constructor(
 ) {
 
     private var job: Job? = null
+    private val focusUsage = FocusUsageCounterStore(context)
+    private var previousUsageTick: Long = 0L
     private var lastOverlayPackage: String? = null
     private var lastOverlayAtElapsedMillis: Long = 0L
 
@@ -68,7 +71,7 @@ class UsageStatsPoller @Inject constructor(
     }
 
     private fun pollOnce() {
-        val packageName = mostRecentForegroundPackage() ?: return
+        val packageName = mostRecentForegroundPackage()
         val store = FullScreenModeStore(context)
         val location = LocationAutomationStore(context)
                 val effectiveStates = blockingStateHolder.states.value.values.map { current ->
@@ -89,6 +92,23 @@ class UsageStatsPoller @Inject constructor(
                         (location.manualInside(configured.profileId) ?: location.lastInside(configured.profileId)) == false),
             )
         }
+        // Count foreground usage independently for every active profile.
+        // The first poll establishes a baseline; cap each tick so process suspension
+        // or device sleep never fabricates minutes of activity on resume.
+        val nowElapsed = SystemClock.elapsedRealtime()
+        val delta = if (previousUsageTick > 0L)
+            (nowElapsed - previousUsageTick).coerceIn(0L, 1_500L) else 0L
+        previousUsageTick = nowElapsed
+        val screenInteractive = (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)
+            ?.isInteractive == true
+        if (delta > 0L) {
+            effectiveStates.forEach { state ->
+                if (FocusUsageEligibility.counts(state, packageName, screenInteractive)) {
+                    focusUsage.add(state.sessionId, delta)
+                }
+            }
+        }
+        if (packageName == null) return
         val neverBlock = AccessibilityBlockPolicy.neverBlockWithLauncher(currentLauncherPackageName())
         val browsers = AccessibilityBlockPolicy.BROWSER_PACKAGES +
             effectiveStates.mapNotNull { it.fullScreenBrowserPackage }

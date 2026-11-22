@@ -69,6 +69,8 @@ class UsageStatsPoller @Inject constructor(
     fun stop() {
         job?.cancel()
         job = null
+        previousUsageTick = 0L
+        lastKnownForegroundPackage = null
     }
 
     private fun pollOnce() {

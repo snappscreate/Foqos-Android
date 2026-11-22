@@ -172,7 +172,9 @@ class ActivityUnlockStore(context: Context) {
     }
 
     fun savePauseMinutes(sessionId: String, minutes: Int) {
-        prefs.edit().putInt("pause_$sessionId", minutes.coerceIn(1, 180)).commit()
+        // One-time reservations may last up to 24 hours; normal challenge rewards
+        // are still limited to 180 minutes by their own configuration UI.
+        check(prefs.edit().putInt("pause_$sessionId", minutes.coerceIn(1, 1440)).commit())
     }
 
     fun pauseMinutes(sessionId: String): Int? =

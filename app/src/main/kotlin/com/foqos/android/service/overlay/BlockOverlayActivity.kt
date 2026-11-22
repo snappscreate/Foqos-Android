@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.mutableIntStateOf
 import com.foqos.android.service.session.FullScreenModeStore
 import com.foqos.android.service.session.DefaultBrowserResolver
+import com.foqos.android.service.session.FocusBlockedOverlayTracker
 import android.content.Intent
 import android.net.Uri
 import android.Manifest
@@ -664,6 +665,7 @@ class BlockOverlayActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         shieldResumed = true
+        FocusBlockedOverlayTracker.onOverlayVisible(intent.getStringExtra(EXTRA_PACKAGE_NAME))
         // Reader mode delivers a Tag directly to this visible shield. Foreground
         // dispatch alone can be bypassed by NDEF intent routing on Pixel devices.
         val adapter = NfcAdapter.getDefaultAdapter(this)
@@ -711,6 +713,7 @@ class BlockOverlayActivity : ComponentActivity() {
 
     override fun onPause() {
         shieldResumed = false
+        FocusBlockedOverlayTracker.onOverlayHidden()
         runCatching { NfcAdapter.getDefaultAdapter(this)?.disableReaderMode(this) }
         super.onPause()
     }

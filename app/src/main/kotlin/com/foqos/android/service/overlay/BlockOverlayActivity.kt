@@ -452,6 +452,7 @@ class BlockOverlayActivity : ComponentActivity() {
                     profileName = state?.profileName.orEmpty(),
                     blockedLabel = blockedLabel,
                     sessionStartEpochMillis = state?.sessionStartEpochMillis ?: System.currentTimeMillis(),
+                    sessionId = state?.sessionId,
                     softUnblockInfo = softUnblockInfo,
                     periodicPauseAvailable = state?.let { current ->
                         PeriodicAccessSchedule.isAvailable(

@@ -1377,6 +1377,7 @@ class SessionManager @Inject constructor(
         if (!current.isPauseActive(at)) return
 
         sessionRepository.endPause(current.id, at)
+        independentUnlock.markBlockingResumed(profileId, at.toEpochMilli())
         com.foqos.android.ui.activitylab.ActivityUnlockStore(appContext).clearPauseMinutes(current.id)
         val resumed = current.copy(pauseEndTime = at)
         cacheSession(resumed)

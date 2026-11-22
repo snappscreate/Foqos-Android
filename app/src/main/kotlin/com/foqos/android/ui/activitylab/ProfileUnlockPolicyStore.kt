@@ -149,17 +149,25 @@ class ProfileUnlockPolicyStore(context: Context) {
         }
     }
 
-    /** The lock begins when a successful timed pause starts, not after it expires. */
+    /** Retry cooldown starts only after blocking has actually resumed. */
     fun pauseRetryRemainingMillis(profileId: String, nowMillis: Long = System.currentTimeMillis()): Long {
-        val since = prefs.getLong("last_pause_at_$profileId", 0L)
+        val since = prefs.getLong("last_reblock_at_$profileId", 0L)
         if (since <= 0L) return 0L
         val interval = read(profileId).retryCooldownMinutes * 60_000L
         return (since + interval - nowMillis).coerceAtLeast(0L)
     }
 
     fun markPauseAuthorized(profileId: String, nowMillis: Long = System.currentTimeMillis()) {
-        check(prefs.edit().putLong("last_pause_at_$profileId", nowMillis).commit()) {
-            "一時休止の待機時間を保存できなかった"
+        // Authorization marks the beginning of the pause, not the retry cooldown.
+        // Clear the prior cooldown so a new pause can never inherit an old deadline.
+        check(prefs.edit().remove("last_reblock_at_$profileId").commit()) {
+            "一時休止の待機時間を更新できなかった"
+        }
+    }
+
+    fun markBlockingResumed(profileId: String, nowMillis: Long = System.currentTimeMillis()) {
+        check(prefs.edit().putLong("last_reblock_at_$profileId", nowMillis).commit()) {
+            "再ブロック開始時刻を保存できなかった"
         }
     }
 
@@ -167,6 +175,7 @@ class ProfileUnlockPolicyStore(context: Context) {
         prefs.edit().remove("enabled_$profileId").remove("stop_$profileId")
             .remove("pause_$profileId").remove("duration_$profileId")
             .remove("cooldown_$profileId").remove("last_pause_at_$profileId")
+            .remove("last_reblock_at_$profileId")
             .remove("stop_credential_$profileId").remove("pause_credential_$profileId")
             .remove("pause_methods_$profileId").remove("pause_nfc_credential_$profileId")
             .remove("pause_qr_credential_$profileId").remove("pause_nfc_minutes_$profileId")

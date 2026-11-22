@@ -23,6 +23,16 @@ class ActiveSessionViewModel @Inject constructor(
     val emergencyUnblocksRemaining: StateFlow<Int> = settingsDataStore.emergencyUnblocksRemaining
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
+    fun reservePause(profileId: String, delayMinutes: Int, durationMinutes: Int) {
+        viewModelScope.launch { sessionManager.reservePause(profileId, delayMinutes, durationMinutes) }
+    }
+
+    fun cancelPauseReservation(profileId: String) {
+        viewModelScope.launch { sessionManager.cancelPauseReservation(profileId) }
+    }
+
+    fun pauseReservation(profileId: String) = sessionManager.pauseReservation(profileId)
+
     fun startBreak() {
         viewModelScope.launch { sessionManager.startBreak() }
     }

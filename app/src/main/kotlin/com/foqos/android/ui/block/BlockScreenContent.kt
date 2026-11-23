@@ -18,7 +18,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.viewinterop.AndroidView
+import android.widget.ImageView
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -165,8 +166,17 @@ fun BlockScreenContent(
                     onClick = onOpenAndroidSettings,
                     modifier = Modifier.size(44.dp),
                 ) {
-                    Icon(Icons.Filled.Settings, contentDescription = "Androidの設定を開く",
-                        tint = Color.White)
+                    AndroidView(
+                        factory = { context ->
+                            ImageView(context).apply {
+                                contentDescription = "Androidの設定を開く"
+                                setImageDrawable(runCatching {
+                                    context.packageManager.getApplicationIcon("com.android.settings")
+                                }.getOrNull())
+                            }
+                        },
+                        modifier = Modifier.size(28.dp),
+                    )
                 }
             }
         }
@@ -176,7 +186,7 @@ fun BlockScreenContent(
                 .padding(start = 24.dp, end = 24.dp, top = 64.dp, bottom = 24.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (!fullScreenMode) {
                 Box(

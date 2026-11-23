@@ -56,8 +56,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
-import com.foqos.android.service.session.FullScreenModeStore
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -131,12 +129,6 @@ fun ProfileEditScreen(
     var showFullScreenAllowedPicker by remember { mutableStateOf(false) }
     var newAllowedUrl by remember { mutableStateOf("") }
     var newBlockedUrl by remember { mutableStateOf("") }
-    val bookmarkContext = LocalContext.current
-    val bookmarkStore = remember(bookmarkContext) { FullScreenModeStore(bookmarkContext) }
-    var bookmarkTitle by remember { mutableStateOf("") }
-    var bookmarkUrl by remember { mutableStateOf("") }
-    var bookmarkError by remember { mutableStateOf<String?>(null) }
-    var bookmarkVersion by remember { androidx.compose.runtime.mutableIntStateOf(0) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -301,68 +293,6 @@ fun ProfileEditScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                    }
-                }
-            }
-
-            if (uiState.fullScreenEnabled) {
-                SectionCard(title = "ブックマーク") {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text("名前とURLを登録。許可サイトのブックマークは全画面ブロックの「許可されたアプリ」に表示される。",
-                            style = MaterialTheme.typography.bodySmall)
-                        OutlinedTextField(
-                            value = bookmarkTitle,
-                            onValueChange = { bookmarkTitle = it },
-                            label = { Text("ブックマーク名") },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !uiState.editingLocked,
-                            singleLine = true,
-                        )
-                        OutlinedTextField(
-                            value = bookmarkUrl,
-                            onValueChange = { bookmarkUrl = it },
-                            label = { Text("URL（https://...）") },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !uiState.editingLocked,
-                            singleLine = true,
-                        )
-                        OutlinedButton(
-                            enabled = !uiState.editingLocked && bookmarkTitle.isNotBlank() && bookmarkUrl.isNotBlank(),
-                            onClick = {
-                                val normalized = FullScreenModeStore.normalizeUrl(bookmarkUrl)
-                                val saved = bookmarkStore.saveBookmark(uiState.draft.id, bookmarkTitle, bookmarkUrl)
-                                if (saved && normalized != null) {
-                                    viewModel.addFullScreenAllowedUrl(normalized)
-                                    bookmarkTitle = ""
-                                    bookmarkUrl = ""
-                                    bookmarkError = null
-                                    bookmarkVersion++
-                                } else {
-                                    bookmarkError = "HTTPSのURLと名前を正しく入力してね"
-                                }
-                            },
-                        ) { Text("ブックマークを登録・許可") }
-                        bookmarkError?.let {
-                            Text(it, color = MaterialTheme.colorScheme.error)
-                        }
-                        bookmarkVersion
-                        bookmarkStore.bookmarks(uiState.draft.id).forEach { (address, label) ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(label, style = MaterialTheme.typography.bodyMedium)
-                                    Text(address, style = MaterialTheme.typography.bodySmall)
-                                }
-                                if (!uiState.editingLocked) TextButton(
-                                    onClick = {
-                                        bookmarkStore.removeBookmark(uiState.draft.id, address)
-                                        bookmarkVersion++
-                                    },
-                                ) { Text("削除") }
-                            }
-                        }
                     }
                 }
             }

@@ -11,6 +11,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -137,10 +145,35 @@ fun BlockScreenContent(
             ),
         contentAlignment = Alignment.Center,
     ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(
+                onClick = onOpenFoqosHome,
+                modifier = Modifier.size(44.dp),
+            ) {
+                Icon(Icons.Filled.Home, contentDescription = "Foqosのホームを開く",
+                    tint = Color.White)
+            }
+            if (onOpenAndroidSettings != null) {
+                IconButton(
+                    onClick = onOpenAndroidSettings,
+                    modifier = Modifier.size(44.dp),
+                ) {
+                    Icon(Icons.Filled.Settings, contentDescription = "Androidの設定を開く",
+                        tint = Color.White)
+                }
+            }
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp)
+                .padding(start = 24.dp, end = 24.dp, top = 64.dp, bottom = 24.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -164,20 +197,22 @@ fun BlockScreenContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(text = profileName, fontSize = 14.sp, color = Color.White.copy(alpha = 0.7f))
-                Text(text = "${blockedLabel} をブロック中", fontSize = 14.sp, color = Color.White.copy(alpha = 0.7f))
-                Text(text = formatElapsed(elapsedMillis), fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
-            }
-
-            if (distanceDescription != null) {
-                Text(distanceDescription, fontSize = 14.sp, color = Color.White, textAlign = TextAlign.Center)
-            }
             if (nfcReady) {
                 Text(nfcInstruction ?: "登録したNFCをかざすと一時休止・解除できます",
                     fontSize = 14.sp, color = Color.White, textAlign = TextAlign.Center)
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(text = profileName, fontSize = 14.sp,
+                    color = Color.White.copy(alpha = 0.7f))
+                Text(text = "${blockedLabel} をブロック中", fontSize = 14.sp,
+                    color = Color.White.copy(alpha = 0.7f))
+                Text(text = formatElapsed(elapsedMillis), fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold, color = Color.White)
+            }
+            if (distanceDescription != null) {
+                Text(distanceDescription, fontSize = 14.sp,
+                    color = Color.White, textAlign = TextAlign.Center)
             }
             if (!nfcMessage.isNullOrBlank()) {
                 Text(nfcMessage, fontSize = 14.sp, color = Color.White, textAlign = TextAlign.Center)
@@ -212,13 +247,13 @@ fun BlockScreenContent(
                 }
             }
 
-            if (onReservePause != null) {
+            if (onActivityChallenge != null) {
                 OutlinedButton(
-                    onClick = onReservePause,
+                    onClick = onActivityChallenge,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
                 ) {
-                    Text(reservationLabel ?: "一時休止を予約")
+                    Text("動作判定の条件を選ぶ")
                 }
             }
 
@@ -231,22 +266,6 @@ fun BlockScreenContent(
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
                 ) { Text("許可アプリを開く") }
             }
-            if (onOpenAndroidSettings != null) {
-                OutlinedButton(
-                    onClick = onOpenAndroidSettings,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                ) { Text("Androidの設定を開く") }
-            }
-
-            OutlinedButton(
-                onClick = onOpenFoqosHome,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-            ) {
-                Text("Foqosのホームを開く")
-            }
-
             if (configuredStopAvailable) {
                 OutlinedButton(
                     onClick = onSelectConfiguredStop,
@@ -264,16 +283,6 @@ fun BlockScreenContent(
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
                 ) { Text("別の動作判定（サブ条件）に切り替える") }
             }
-            if (onActivityChallenge != null) {
-                OutlinedButton(
-                    onClick = onActivityChallenge,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(selectedActivityLabel?.let { "動作チャレンジ：$it" }
-                        ?: "サブ条件で一時休止する")
-                }
-            }
 
             if (softUnblockInfo != null && softUnblockInfo.remainingOpens > 0) {
                 OutlinedButton(
@@ -282,6 +291,15 @@ fun BlockScreenContent(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(text = "Open for ${softUnblockInfo.accessMinutes} min (${softUnblockInfo.remainingOpens} left)")
+                }
+            }
+            if (onReservePause != null) {
+                OutlinedButton(
+                    onClick = onReservePause,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                ) {
+                    Text(reservationLabel ?: "一時休止を予約")
                 }
             }
         }

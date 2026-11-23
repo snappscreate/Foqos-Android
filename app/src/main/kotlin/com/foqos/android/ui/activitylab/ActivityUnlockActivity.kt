@@ -230,7 +230,7 @@ private fun ActivityUnlockCapture(
     val canRequest = if (settings.useRelay) settings.endpoint.startsWith("https://")
         else credentials.hasKey()
     val recordingSecondsLeft = ((recordingRemainingMs + 999L) / 1000L).coerceAtLeast(0L)
-    val timeLabel = if (unlimited) "長時間・間欠撮影" else if (continuousCount) "回数判定・連続録画" else
+    val timeLabel = if (unlimited) "長時間・間欠撮影" else if (longTimedContinuous) "時間判定・連続録画" else if (continuousCount) "回数判定・連続録画" else
         "%02d:%02d".format(recordingSecondsLeft / 60L, recordingSecondsLeft % 60L)
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -361,7 +361,7 @@ private fun ActivityUnlockCapture(
                 }
             }
             if (phase == CapturePhase.RECORDING || phase == CapturePhase.PAUSED || phase == CapturePhase.RESUME_COUNTDOWN) {
-                Text(if (unlimited || continuousCount || shortTimed)
+                Text(if (unlimited || continuousCount || shortTimed || longTimedContinuous)
                     "活動経過時間：%02d:%02d".format(
                         activityElapsedMs / 60_000L, (activityElapsedMs / 1000L) % 60L)
                     else "残り撮影時間：$timeLabel" +

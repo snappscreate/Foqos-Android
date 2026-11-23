@@ -6,6 +6,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Column
@@ -194,6 +197,12 @@ class BlockOverlayActivity : ComponentActivity() {
                     ?.let(fullScreenStore::allowedUrls).orEmpty()
                 var showAllowedApps by remember { mutableStateOf(false) }
                 var showFeaturedPicker by remember { mutableStateOf(false) }
+                var showPauseReservation by remember { mutableStateOf(false) }
+                var reservationDelayHours by remember { mutableStateOf("1") }
+                var reservationDelayMinutes by remember { mutableStateOf("0") }
+                var reservationDurationMinutes by remember { mutableStateOf("15") }
+                var reservationError by remember { mutableStateOf<String?>(null) }
+                var reservationUpdate by remember { mutableIntStateOf(0) }
                 var featuredShortcuts by remember(state?.profileId, allowedPackages, allowedUrls) {
                     mutableStateOf(state?.profileId?.let(fullScreenStore::featuredShortcuts).orEmpty())
                 }
@@ -274,11 +283,11 @@ class BlockOverlayActivity : ComponentActivity() {
                 }
                 LaunchedEffect(
                     state?.sessionId, targetPackage, shieldResumed,
-                    showFeaturedPicker, showAllowedApps, showActivityChoices, launchableFeatured,
+                    showFeaturedPicker, showAllowedApps, showActivityChoices, showPauseReservation, launchableFeatured,
                 ) {
                     // Pause during other dialogs; restart the countdown from 10 on close.
                     if (!fullScreen || !shieldResumed || locationPauseRequest ||
-                        showFeaturedPicker || showAllowedApps || showActivityChoices || launchableFeatured.isEmpty()) {
+                        showFeaturedPicker || showAllowedApps || showActivityChoices || showPauseReservation || launchableFeatured.isEmpty()) {
                         return@LaunchedEffect
                     }
                     autoOpenCountdown = 10
@@ -456,6 +465,18 @@ class BlockOverlayActivity : ComponentActivity() {
                     sessionStartEpochMillis = state?.sessionStartEpochMillis ?: System.currentTimeMillis(),
                     sessionId = state?.sessionId,
                     softUnblockInfo = softUnblockInfo,
+                    onReservePause = if (state != null && !state.pauseActive && !state.breakActive &&
+                        !state.locationSuspended) ({
+                        reservationError = null
+                        showPauseReservation = true
+                    }) else null,
+                    reservationLabel = state?.let { current ->
+                        reservationUpdate
+                        sessionManager.pauseReservation(current.profileId)?.let { reservation ->
+                            val formatter = java.text.SimpleDateFormat("M/d HH:mm", java.util.Locale.JAPAN)
+                            "一時休止予約：${formatter.format(java.util.Date(reservation.startAtMillis))}から${reservation.pauseMinutes}分"
+                        } ?: "一時休止を予約"
+                    },
                     periodicPauseAvailable = state?.let { current ->
                         PeriodicAccessSchedule.isAvailable(
                             PeriodicAccessStore.Config(current.periodicWaitMinutes, current.periodicAccessMinutes),
@@ -498,7 +519,7 @@ class BlockOverlayActivity : ComponentActivity() {
                         when {
                             configuredStopRequested -> "停止用NFCをかざすとブロックを完全停止"
                             com.foqos.android.ui.activitylab.UnlockMethod.NFC in policy.enabledPauseMethods() ->
-                                "NFCをかざすと設定時間だけ一時休止"
+                                "NFCをかざすと${policy.pauseMinutesFor(com.foqos.android.ui.activitylab.UnlockMethod.NFC)}分間一時休止"
                             policy.stop == com.foqos.android.ui.activitylab.UnlockMethod.NFC ->
                                 "NFCをかざすとブロックを完全停止"
                             else -> null
@@ -583,6 +604,87 @@ class BlockOverlayActivity : ComponentActivity() {
                         }
                     },
                 )
+
+                if (showPauseReservation && state != null) {
+                    val minimumDelay = pausePolicies.reservationMinimumDelayMinutes
+                    val delayTotal = (reservationDelayHours.toIntOrNull() ?: -1) * 60 +
+                        (reservationDelayMinutes.toIntOrNull() ?: -1)
+                    val pauseDuration = reservationDurationMinutes.toIntOrNull()
+                    val validDelay = reservationDelayHours.toIntOrNull() != null &&
+                        reservationDelayMinutes.toIntOrNull() in 0..59 &&
+                        delayTotal in minimumDelay..10080
+                    val validDuration = pauseDuration != null && pauseDuration in 1..1440
+                    val existing = sessionManager.pauseReservation(activityProfileId)
+                    AlertDialog(
+                        onDismissRequest = { showPauseReservation = false },
+                        title = { Text("一時休止を予約") },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Text("最短待機時間：${minimumDelay / 60}時間${minimumDelay % 60}分")
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedTextField(
+                                        value = reservationDelayHours,
+                                        onValueChange = { if (it.length <= 3 && it.all(Char::isDigit)) reservationDelayHours = it },
+                                        label = { Text("開始まで・時間") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true,
+                                    )
+                                    OutlinedTextField(
+                                        value = reservationDelayMinutes,
+                                        onValueChange = { if (it.length <= 2 && it.all(Char::isDigit)) reservationDelayMinutes = it },
+                                        label = { Text("分") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true,
+                                    )
+                                }
+                                OutlinedTextField(
+                                    value = reservationDurationMinutes,
+                                    onValueChange = { if (it.length <= 4 && it.all(Char::isDigit)) reservationDurationMinutes = it },
+                                    label = { Text("一時休止する時間（分）") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true,
+                                )
+                                if (existing != null) {
+                                    val formatter = java.text.SimpleDateFormat("M/d HH:mm", java.util.Locale.JAPAN)
+                                    Text("現在の予約：${formatter.format(java.util.Date(existing.startAtMillis))}から${existing.pauseMinutes}分")
+                                    OutlinedButton(onClick = {
+                                        scope.launch {
+                                            sessionManager.cancelPauseReservation(activityProfileId)
+                                            reservationUpdate++
+                                            showPauseReservation = false
+                                        }
+                                    }) { Text("現在の予約を取り消す") }
+                                }
+                                if (!validDelay) Text("開始までの時間は最低待機時間以上、最大168時間で指定してね。",
+                                    color = MaterialTheme.colorScheme.error)
+                                if (!validDuration) Text("休止時間は1〜1440分で指定してね。",
+                                    color = MaterialTheme.colorScheme.error)
+                                reservationError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                            }
+                        },
+                        confirmButton = {
+                            Button(
+                                enabled = validDelay && validDuration,
+                                onClick = {
+                                    val minutes = pauseDuration ?: return@Button
+                                    scope.launch {
+                                        val success = sessionManager.reservePause(activityProfileId, delayTotal, minutes)
+                                        if (success) {
+                                            reservationUpdate++
+                                            showPauseReservation = false
+                                            nfcScanMessage = "一時休止を予約したよ"
+                                        } else reservationError = "予約できなかった。稼働状態・設定を確認してね。"
+                                    }
+                                },
+                            ) { Text("予約する") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showPauseReservation = false }) { Text("閉じる") }
+                        },
+                    )
+                }
 
                 if (showActivityChoices && (configuredChallengeSets.isNotEmpty() || !explicitActivitySelection) && activityConditions.isNotEmpty()) {
                     AlertDialog(

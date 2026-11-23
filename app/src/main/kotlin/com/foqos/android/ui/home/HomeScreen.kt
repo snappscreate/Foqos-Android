@@ -123,6 +123,11 @@ fun HomeScreen(
     var bookmarkUrl by remember { mutableStateOf("") }
     var bookmarkError by remember { mutableStateOf<String?>(null) }
     var bookmarkRefresh by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    LaunchedEffect(uiState.loading, uiState.profiles.map { it.id }) {
+        if (!uiState.loading && fullScreenStore.migrateProfileBookmarks(uiState.profiles.map { it.id })) {
+            bookmarkRefresh++
+        }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),

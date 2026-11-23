@@ -332,6 +332,31 @@ private fun CredentialDropdown(
     OutlinedButton(onClick = onAdd, enabled = enabled) { Text("＋ 新しく登録") }
 }
 
+/** The booking delay is independent from the retry cooldown after a pause. */
+@Composable
+fun PauseReservationSettingsSection(editingLocked: Boolean, editor: ProfileEditPending) {
+    val minimum = editor.policy.reservationMinimumDelayMinutes
+    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("休止予約はブロック画面から指定する。予約から休止開始までの最短待機時間を設定するよ。",
+            style = MaterialTheme.typography.bodySmall)
+        Text("最低 ${minimum / 60}時間 ${minimum % 60}分", style = MaterialTheme.typography.titleMedium)
+        DurationSliderField(
+            label = "予約の最低待機時間（時間）",
+            value = minimum / 60,
+            onValueChange = { editor.policy = editor.policy.copy(
+                reservationMinimumDelayMinutes = (it * 60 + minimum % 60).coerceIn(0, 10080)) },
+            range = 0..168, unit = "時間", enabled = !editingLocked,
+        )
+        DurationSliderField(
+            label = "予約の最低待機時間（分）",
+            value = minimum % 60,
+            onValueChange = { editor.policy = editor.policy.copy(
+                reservationMinimumDelayMinutes = ((minimum / 60) * 60 + it).coerceIn(0, 10080)) },
+            range = 0..59, enabled = !editingLocked,
+        )
+    }
+}
+
 /** Cooldown settings belong immediately above periodic access, not inside the proof picker. */
 @Composable
 fun PauseRetryCooldownSection(profileId: String, editingLocked: Boolean, editor: ProfileEditPending) {

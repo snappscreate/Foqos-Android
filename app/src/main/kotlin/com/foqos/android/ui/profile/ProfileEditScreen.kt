@@ -131,7 +131,8 @@ fun ProfileEditScreen(
     var showFullScreenAllowedPicker by remember { mutableStateOf(false) }
     var newAllowedUrl by remember { mutableStateOf("") }
     var newBlockedUrl by remember { mutableStateOf("") }
-    val bookmarkStore = remember { FullScreenModeStore(LocalContext.current) }
+    val bookmarkContext = LocalContext.current
+    val bookmarkStore = remember(bookmarkContext) { FullScreenModeStore(bookmarkContext) }
     var bookmarkTitle by remember { mutableStateOf("") }
     var bookmarkUrl by remember { mutableStateOf("") }
     var bookmarkError by remember { mutableStateOf<String?>(null) }

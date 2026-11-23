@@ -144,12 +144,14 @@ private fun ActivityUnlockCapture(
     val testAmount = testAmountText.toIntOrNull()?.takeIf { it in 1..testMaximum }
     val target = if (isTest) testAmount?.let { ActivityTarget(testKind, it) } else configuredTarget
     val targetMinutes = target?.takeIf { it.kind == ActivityTargetKind.MINUTES }?.amount
+    var timedContinuous by remember { mutableStateOf(false) }
     val shortTimed = targetMinutes != null && targetMinutes <= 1
-    val unlimited = (targetMinutes != null && !shortTimed) ||
+    val longTimedContinuous = targetMinutes != null && !shortTimed && timedContinuous
+    val unlimited = (targetMinutes != null && !shortTimed && !timedContinuous) ||
         (target == null && !isTest && legacyUnlimited)
     val continuousCount = target?.kind == ActivityTargetKind.COUNT
     val minimumCaptureMillis = targetMinutes?.times(60_000L)
-    val autoDurationMillis = if (shortTimed) minimumCaptureMillis ?: 60_000L
+    val autoDurationMillis = if (targetMinutes != null) minimumCaptureMillis ?: 60_000L
         else seconds * 1000L
     var granted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
@@ -170,6 +172,8 @@ private fun ActivityUnlockCapture(
     var activityElapsedMs by remember { mutableLongStateOf(0L) }
     var activityStartedAt by remember { mutableLongStateOf(0L) }
     var sampleCount by remember { mutableIntStateOf(0) }
+    var capturedWindows by remember { mutableStateOf<List<Pair<Long, Long>>>(emptyList()) }
+    var targetWindowMillis by remember { mutableLongStateOf(0L) }
     var userPaused by remember { mutableStateOf(false) }
     var samplingClip by remember { mutableStateOf(false) }
     var pauseStartedAt by remember { mutableLongStateOf(0L) }
@@ -204,10 +208,10 @@ private fun ActivityUnlockCapture(
     DisposableEffect(camera) {
         onDispose { latestResumeJob?.cancel(); latestCaptureJob?.cancel(); camera.close(); latestVideo?.delete() }
     }
-    LaunchedEffect(granted, owner, unlimited, shortTimed) {
+    LaunchedEffect(granted, owner, unlimited, shortTimed, longTimedContinuous) {
         cameraReady = false
         if (granted) {
-            try { camera.bind(owner, front = frontCamera, videoMode = true, intermittent = unlimited || shortTimed); cameraReady = true }
+            try { camera.bind(owner, front = frontCamera, videoMode = true, intermittent = unlimited || shortTimed || longTimedContinuous); cameraReady = true }
             catch (e: Exception) { status = "カメラを起動できない：${e.message}" }
         }
     }
@@ -269,7 +273,27 @@ private fun ActivityUnlockCapture(
                 if (testAmount == null) Text("1〜${testMaximum}の数値を入力してね。",
                     color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
+            if (targetMinutes != null && !shortTimed) {
+                Text("時間指定の撮影方式", style = MaterialTheme.typography.titleSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = !timedContinuous,
+                        enabled = phase == CapturePhase.READY,
+                        onClick = { timedContinuous = false },
+                        label = { Text("間欠撮影") },
+                    )
+                    FilterChip(
+                        selected = timedContinuous,
+                        enabled = phase == CapturePhase.READY,
+                        onClick = { timedContinuous = true },
+                        label = { Text("連続撮影（試験）") },
+                    )
+                }
+                if (timedContinuous) Text("連続撮影は動画サイズの上限に達すると早期終了する場合があるよ。",
+                    color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
             Text(when {
+                longTimedContinuous -> "時間判定：連続撮影で設定時間まで録画し、自動判定するよ。一時停止中の時間は含めない。"
                 unlimited -> "時間判定：平均約${targetMinutes?.let { IntermittentCapturePlan.averageIntervalMillis(it) / 1000L } ?: 90}秒間隔で3秒ずつランダム撮影。設定時間で自動終了。一時停止中は時間に含めないよ。"
                 shortTimed -> "1分以内の時間判定は連続撮影して、自動終了。一時停止中は時間に含めないよ。"
                 continuousCount -> "回数判定：連続撮影。途中で一時停止・再開できるよ。必要な回数を終えたら手動で判定。"
@@ -306,7 +330,36 @@ private fun ActivityUnlockCapture(
                     Text("カメラの使用を許可")
                 }
             }
-            Text("${if (unlimited) "ランダム間欠撮影・480p・無音" else if (continuousCount) "連続撮影・手動終了" else if (shortTimed) "連続撮影・1分で自動終了" else "撮影上限 ${seconds}秒"} / 開始前 ${countdown}秒 / ${if (frontCamera) "前面" else "背面"}カメラ")
+            Text("${if (unlimited) "ランダム間欠撮影・480p・無音" else if (longTimedContinuous) "連続撮影（試験）・480p・無音" else if (continuousCount) "連続撮影・手動終了" else if (shortTimed) "連続撮影・1分で自動終了" else "撮影上限 ${seconds}秒"} / 開始前 ${countdown}秒 / ${if (frontCamera) "前面" else "背面"}カメラ")
+            if (targetMinutes != null && (phase == CapturePhase.RECORDING ||
+                    phase == CapturePhase.PAUSED || phase == CapturePhase.RESUME_COUNTDOWN ||
+                    phase == CapturePhase.JUDGING || verdict != null)) {
+                val durationMs = minimumCaptureMillis!!.coerceAtLeast(1L)
+                val progress = (activityElapsedMs.toFloat() / durationMs).coerceIn(0f, 1f)
+                Text("活動時間：%02d:%02d / %d分".format(
+                    activityElapsedMs / 60_000L, (activityElapsedMs / 1000L) % 60L, targetMinutes))
+                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+                if (unlimited && capturedWindows.isNotEmpty()) {
+                    Text("撮影区間（緑）／未撮影区間（グレー）",
+                        style = MaterialTheme.typography.bodySmall)
+                    val totalWindowMs = targetWindowMillis.coerceAtLeast(1L)
+                    val sorted = capturedWindows.sortedBy { it.first }
+                    Row(Modifier.fillMaxWidth().height(12.dp)) {
+                        var cursor = 0L
+                        sorted.forEach { window ->
+                            val start = window.first.coerceIn(cursor, totalWindowMs)
+                            val end = window.second.coerceIn(start, totalWindowMs)
+                            if (start > cursor) Box(Modifier.weight((start - cursor).toFloat()).fillMaxHeight()
+                                .background(MaterialTheme.colorScheme.surfaceVariant))
+                            if (end > start) Box(Modifier.weight((end - start).toFloat()).fillMaxHeight()
+                                .background(Color(0xFF4CAF50)))
+                            cursor = end
+                        }
+                        if (cursor < totalWindowMs) Box(Modifier.weight((totalWindowMs - cursor).toFloat()).fillMaxHeight()
+                            .background(MaterialTheme.colorScheme.surfaceVariant))
+                    }
+                }
+            }
             if (phase == CapturePhase.RECORDING || phase == CapturePhase.PAUSED || phase == CapturePhase.RESUME_COUNTDOWN) {
                 Text(if (unlimited || continuousCount || shortTimed)
                     "活動経過時間：%02d:%02d".format(
@@ -335,6 +388,8 @@ private fun ActivityUnlockCapture(
                             activityElapsedMs = 0L
                             activityStartedAt = 0L
                             sampleCount = 0
+                            capturedWindows = emptyList()
+                            targetWindowMillis = minimumCaptureMillis ?: 0L
                             userPaused = false
                             samplingClip = false
                             pauseStartedAt = 0L
@@ -366,7 +421,8 @@ private fun ActivityUnlockCapture(
                                             while (true) {
                                                 while (userPaused) delay(100L)
                                                 samplingClip = true
-                                                sampleTimes.add(activeElapsedNow())
+                                                val clipStartMs = activeElapsedNow()
+                                                sampleTimes.add(clipStartMs)
                                                 sampleCount = sampleTimes.size
                                                 var clipRemaining = IntermittentCapturePlan.CLIP_MILLIS
                                                 while (clipRemaining > 0L) {
@@ -378,6 +434,8 @@ private fun ActivityUnlockCapture(
                                                         if (!userPaused) clipRemaining -= step
                                                     }
                                                 }
+                                                capturedWindows = capturedWindows +
+                                                    (clipStartMs to activeElapsedNow().coerceAtMost(minimumCaptureMillis ?: Long.MAX_VALUE))
                                                 camera.pauseRecording()
                                                 samplingClip = false
                                                 var gapRemaining = if (targetMinutes != null)
@@ -411,10 +469,27 @@ private fun ActivityUnlockCapture(
                                         try { recording.await() }
                                         finally { sampleLoop.cancel(); elapsedTicker.cancel() }
                                     }
+                                } else if (longTimedContinuous) {
+                                    coroutineScope {
+                                        val recording = async { camera.recordFor(0L) }
+                                        val ticker = launch {
+                                            while (true) {
+                                                if (activeElapsedNow() >= (minimumCaptureMillis ?: Long.MAX_VALUE)) {
+                                                    camera.finishRecordingNow()
+                                                    break
+                                                }
+                                                delay(100L)
+                                            }
+                                        }
+                                        try { recording.await() } finally { ticker.cancel() }
+                                    }
                                 } else {
                                     camera.recordFor(if (continuousCount) 0L else autoDurationMillis)
                                 }
                                 val elapsed = activeElapsedNow()
+                                if (unlimited && samplingClip && sampleTimes.isNotEmpty()) {
+                                    capturedWindows = capturedWindows + (sampleTimes.last() to elapsed)
+                                }
                                 captureSound(start = false)
                                 activityElapsedMs = elapsed
                                 video = recorded
@@ -431,6 +506,8 @@ private fun ActivityUnlockCapture(
                                 status = "撮影終了！ Geminiで判定中…"
                                 val activityPrompt = if (unlimited)
                                     IntermittentCapturePlan.evidenceDescription("$description ${target?.description().orEmpty()}".trim(), elapsed, sampleTimes)
+                                    else if (longTimedContinuous)
+                                        "${description} ${target?.description().orEmpty()}。連続録画の範囲内で活動が継続しているか確認し、十分な映像証拠がない場合は判断不能。"
                                     else if (continuousCount)
                                         "${description} ${target?.description().orEmpty()}。動画の中で完了した回数を実際に数え、指示された回数未満なら必ず「不一致」。姿勢だけで回数を推定しない。途中の繰り返しを数え漏らしたり動画が不足している場合は「判断不能」。"
                                     else if (shortTimed)

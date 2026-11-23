@@ -93,6 +93,7 @@ import com.foqos.android.ui.common.strategyOneLiner
 import com.foqos.android.ui.activitylab.ActivityUnlockSettingsSection
 import com.foqos.android.ui.activitylab.ActivityChallengeSetEditor
 import com.foqos.android.ui.activitylab.PauseRetryCooldownSection
+import com.foqos.android.ui.activitylab.PauseReservationSettingsSection
 import com.foqos.android.ui.activitylab.ProfileUnlockPolicySection
 import com.foqos.android.ui.physicalunlock.PhysicalUnlockEditor
 import com.foqos.android.ui.settings.LocationAutomationSection

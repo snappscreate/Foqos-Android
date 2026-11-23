@@ -38,6 +38,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -115,6 +118,11 @@ fun HomeScreen(
         }
     }
     var deleteCandidate by remember { mutableStateOf<BlockedProfile?>(null) }
+    var showBookmarkDialog by remember { mutableStateOf(false) }
+    var bookmarkTitle by remember { mutableStateOf("") }
+    var bookmarkUrl by remember { mutableStateOf("") }
+    var bookmarkError by remember { mutableStateOf<String?>(null) }
+    var bookmarkRefresh by remember { androidx.compose.runtime.mutableIntStateOf(0) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -122,6 +130,9 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
+                    IconButton(onClick = { showBookmarkDialog = true }) {
+                        Icon(Icons.Filled.Bookmarks, contentDescription = "ブックマークを管理")
+                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.home_settings_action))
                     }
@@ -202,6 +213,30 @@ fun HomeScreen(
                 }
             }
 
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text("ブックマーク", style = MaterialTheme.typography.titleMedium)
+                            TextButton(onClick = { showBookmarkDialog = true }) { Text("登録・管理") }
+                        }
+                        bookmarkRefresh
+                        val bookmarks = fullScreenStore.globalBookmarks()
+                        Text(
+                            if (bookmarks.isEmpty()) "登録されたブックマークはありません"
+                            else "${bookmarks.size}件登録済み。許可したサイトのみ全画面ブロックに表示される。",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
             item {
                 ActivityChartCard(
                     uiState = uiState,
@@ -301,6 +336,70 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    if (showBookmarkDialog) {
+        AlertDialog(
+            onDismissRequest = { showBookmarkDialog = false },
+            title = { Text("ブックマークの登録・管理") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 450.dp)
+                        .verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text("登録先はFoqos共通。ブロック画面に表示するには、対象プロファイルでサイトの許可も必要。",
+                        style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(
+                        value = bookmarkTitle,
+                        onValueChange = { bookmarkTitle = it },
+                        label = { Text("名前") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = bookmarkUrl,
+                        onValueChange = { bookmarkUrl = it },
+                        label = { Text("URL（https://...）") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Button(
+                        enabled = bookmarkTitle.isNotBlank() && bookmarkUrl.isNotBlank(),
+                        onClick = {
+                            if (fullScreenStore.saveGlobalBookmark(bookmarkTitle, bookmarkUrl)) {
+                                bookmarkTitle = ""
+                                bookmarkUrl = ""
+                                bookmarkError = null
+                                bookmarkRefresh++
+                            } else bookmarkError = "名前と有効なHTTPS URLを入力してね"
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("登録") }
+                    bookmarkError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    fullScreenStore.globalBookmarks().toSortedMap().forEach { (url, label) ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(label, style = MaterialTheme.typography.bodyMedium)
+                                Text(url, style = MaterialTheme.typography.bodySmall)
+                            }
+                            TextButton(onClick = {
+                                fullScreenStore.removeGlobalBookmark(url)
+                                bookmarkRefresh++
+                            }) { Text("削除") }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showBookmarkDialog = false }) { Text("閉じる") }
+            },
+        )
     }
 
     deleteCandidate?.let { profile ->

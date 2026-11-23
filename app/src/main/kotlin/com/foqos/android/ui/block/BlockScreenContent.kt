@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
@@ -31,14 +32,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
-import com.foqos.android.service.session.FocusUsageCounterStore
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -46,7 +42,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 
 /** Remaining soft-unblock allowance to offer on the block screen, if any. */
 data class SoftUnblockInfo(val remainingOpens: Int, val accessMinutes: Int)
@@ -123,16 +118,6 @@ fun BlockScreenContent(
 ) {
     val message = remember(blockedLabel) { pickFunMessage(blockedLabel) }
 
-    val context = LocalContext.current
-    val usageCounter = remember(sessionId) { FocusUsageCounterStore(context) }
-    var elapsedMillis by remember(sessionId) { mutableLongStateOf(0L) }
-    LaunchedEffect(sessionId) {
-        while (true) {
-            elapsedMillis = sessionId?.let(usageCounter::elapsedMillis) ?: 0L
-            delay(1_000L)
-        }
-    }
-
     val primary = MaterialTheme.colorScheme.primary
     val background = MaterialTheme.colorScheme.background
 
@@ -150,6 +135,7 @@ fun BlockScreenContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
+                .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
@@ -184,7 +170,9 @@ fun BlockScreenContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 24.dp, end = 24.dp, top = 64.dp, bottom = if (onReservePause != null) 104.dp else 24.dp)
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(start = 24.dp, end = 24.dp, top = 64.dp, bottom = 24.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -212,15 +200,6 @@ fun BlockScreenContent(
                 Text(nfcInstruction ?: "登録したNFCをかざすと一時休止・解除できます",
                     fontSize = 14.sp, color = Color.White, textAlign = TextAlign.Center)
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(text = profileName, fontSize = 14.sp,
-                    color = Color.White.copy(alpha = 0.7f))
-                Text(text = "${blockedLabel} をブロック中", fontSize = 14.sp,
-                    color = Color.White.copy(alpha = 0.7f))
-                Text(text = formatElapsed(elapsedMillis), fontSize = 22.sp,
-                    fontWeight = FontWeight.SemiBold, color = Color.White)
-            }
             if (distanceDescription != null) {
                 Text(distanceDescription, fontSize = 14.sp,
                     color = Color.White, textAlign = TextAlign.Center)
@@ -245,26 +224,29 @@ fun BlockScreenContent(
             }
 
             if (periodicPauseAvailable) {
-                Button(
+                OutlinedButton(
                     onClick = onActivatePeriodicPause,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White, contentColor = Color.Black,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color.White.copy(alpha = 0.76f),
                     ),
                 ) {
                     val minutes = periodicPauseRemainingSeconds / 60
                     val seconds = periodicPauseRemainingSeconds % 60
-                    Text("周期休憩を開始（残り %d:%02d）".format(minutes, seconds))
+                    Text("周期休憩（%d:%02d）".format(minutes, seconds))
                 }
             }
 
             if (onActivityChallenge != null) {
-                OutlinedButton(
+                Button(
                     onClick = onActivityChallenge,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White,
+                        contentColor = Color.Black,
+                    ),
                 ) {
-                    Text("動作判定の条件を選ぶ")
+                    Text("動作判定の条件を選ぶ", fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -304,15 +286,7 @@ fun BlockScreenContent(
                     Text(text = "Open for ${softUnblockInfo.accessMinutes} min (${softUnblockInfo.remainingOpens} left)")
                 }
             }
-
-        }
-        if (onReservePause != null) {
-            Box(
-                modifier = Modifier.fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .background(background.copy(alpha = 0.97f))
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
-            ) {
+            if (onReservePause != null) {
                 OutlinedButton(
                     onClick = onReservePause,
                     modifier = Modifier.fillMaxWidth(),

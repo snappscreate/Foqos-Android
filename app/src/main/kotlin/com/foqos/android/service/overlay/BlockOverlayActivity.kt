@@ -274,13 +274,14 @@ class BlockOverlayActivity : ComponentActivity() {
                 }
                 LaunchedEffect(
                     state?.sessionId, targetPackage, shieldResumed,
-                    showFeaturedPicker, showAllowedApps, launchableFeatured,
+                    showFeaturedPicker, showAllowedApps, showActivityChoices, launchableFeatured,
                 ) {
-                    // Preserve remaining seconds while panels are open; resume on close.
+                    // Pause during other dialogs; restart the countdown from 10 on close.
                     if (!fullScreen || !shieldResumed || locationPauseRequest ||
-                        showFeaturedPicker || showAllowedApps || launchableFeatured.isEmpty()) {
+                        showFeaturedPicker || showAllowedApps || showActivityChoices || launchableFeatured.isEmpty()) {
                         return@LaunchedEffect
                     }
+                    autoOpenCountdown = 10
                     while (autoOpenCountdown > 0) {
                         delay(1_000L)
                         autoOpenCountdown -= 1
@@ -604,7 +605,10 @@ class BlockOverlayActivity : ComponentActivity() {
                                                 selectedActivityId = group.id
                                                 showActivityChoices = false
                                                 showActivityChoices = true
-                                            }) { Text("このセットを選択") }
+                                            }) { Text("選択："+group.conditionIds.joinToString(" ＋ ") { id ->
+                                                    val move = activityConditions.firstOrNull { it.id == id }
+                                                    "${move?.description ?: "未登録の動作"} ${group.targets[id]?.description().orEmpty()}"
+                                                }+" / 達成時${group.pauseMinutes}分休止") }
                                         } else {
                                             group.conditionIds.filterNot { it in completed }.forEach { id ->
                                                 activityConditions.firstOrNull { it.id == id }?.let { move ->

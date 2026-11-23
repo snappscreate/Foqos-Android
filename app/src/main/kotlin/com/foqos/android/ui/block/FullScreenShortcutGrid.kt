@@ -62,6 +62,7 @@ import kotlinx.coroutines.withContext
 fun FullScreenShortcutGrid(
     packages: Set<String>,
     urls: Set<String>,
+    bookmarkLabels: Map<String, String> = emptyMap(),
     appLabel: (String) -> String,
     onApp: (String) -> Unit,
     onPhone: () -> Unit,
@@ -74,7 +75,7 @@ fun FullScreenShortcutGrid(
     allowedAppsExpanded: Boolean = false,
     onToggleAllowedApps: (() -> Unit)? = null,
 ) {
-    val all = FocusShortcut.all(packages, urls)
+    val all = FocusShortcut.all(packages, urls) + bookmarkLabels.keys.map(FocusShortcut::url)
     val featured = featuredShortcuts.intersect(all)
     val regular = (all - featured).sorted()
     var featuredBounds by remember { mutableStateOf(Rect.Zero) }
@@ -120,6 +121,7 @@ fun FullScreenShortcutGrid(
                         key(id) {
                             ShortcutTile(
                                 id = id, featured = true, appLabel = appLabel,
+                                bookmarkLabels = bookmarkLabels,
                                 editing = editingFeatured, onApp = onApp, onPhone = onPhone, onUrl = onUrl,
                                 onDrop = { position ->
                                     if (regularBounds.contains(position))
@@ -166,6 +168,7 @@ fun FullScreenShortcutGrid(
                                 key(id) {
                                     ShortcutTile(
                                         id = id, featured = false, appLabel = appLabel,
+                                        bookmarkLabels = bookmarkLabels,
                                         editing = editingFeatured, onApp = onApp,
                                         onPhone = onPhone, onUrl = onUrl,
                                         onDrop = { position ->
@@ -186,6 +189,7 @@ fun FullScreenShortcutGrid(
 @Composable
 private fun ShortcutTile(
     id: String,
+    bookmarkLabels: Map<String, String> = emptyMap(),
     featured: Boolean,
     appLabel: (String) -> String,
     editing: Boolean,
@@ -201,7 +205,7 @@ private fun ShortcutTile(
     val label = when {
         id == FocusShortcut.PHONE -> "電話"
         pkg != null -> appLabel(pkg)
-        url != null -> url.removePrefix("https://").removePrefix("http://")
+        url != null -> bookmarkLabels[url] ?: url.removePrefix("https://").removePrefix("http://")
         else -> id
     }
     val width = if (featured) 76.dp else 57.dp
@@ -260,7 +264,7 @@ private fun ShortcutTile(
                 val favicon by produceState<android.graphics.Bitmap?>(null, url) {
                     value = withContext(Dispatchers.IO) {
                         runCatching {
-                            val connection = URL("$url/favicon.ico")
+                            val connection = URL(java.net.URI(url).resolve("/favicon.ico").toString())
                                 .openConnection() as HttpURLConnection
                             connection.connectTimeout = 1800
                             connection.readTimeout = 1800

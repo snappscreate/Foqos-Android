@@ -220,6 +220,10 @@ fun HomeScreen(
                 }
             }
 
+            if (uiState.profiles.isEmpty()) {
+                item { EmptyProfilesState(onCreateProfile = onCreateProfile) }
+            }
+
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
@@ -251,9 +255,7 @@ fun HomeScreen(
                 )
             }
 
-            if (uiState.profiles.isEmpty()) {
-                item { EmptyProfilesState(onCreateProfile = onCreateProfile) }
-            } else {
+            if (uiState.profiles.isNotEmpty()) {
                 items(uiState.profiles, key = { it.id }) { profile ->
                     val session = uiState.activeSessions.firstOrNull { it.profileId == profile.id }
                     val recurringConfig = periodicStore.read(profile.id)

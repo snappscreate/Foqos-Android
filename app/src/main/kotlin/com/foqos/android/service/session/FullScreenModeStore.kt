@@ -56,6 +56,51 @@ class FullScreenModeStore(context: Context) {
             (0 until json.length()).map { json.getString(it) }.toSet()
         }.getOrDefault(emptySet())
 
+    /** Named destinations. A bookmark is not an independent permission grant. */
+    fun bookmarks(profileId: String): Map<String, String> = runCatching {
+        val json = org.json.JSONObject(prefs.getString("${profileId}_bookmarks", "{}") ?: "{}")
+        json.keys().asSequence().associateWith { key -> json.getString(key) }
+    }.getOrDefault(emptyMap())
+
+    fun saveBookmark(profileId: String, title: String, address: String): Boolean {
+        val normalized = normalizeBookmarkUrl(address) ?: return false
+        val label = title.trim().take(80)
+        if (label.isEmpty()) return false
+        val updated = bookmarks(profileId).toMutableMap()
+        updated[normalized] = label
+        return prefs.edit().putString("${profileId}_bookmarks",
+            org.json.JSONObject(updated).toString()).commit()
+    }
+
+    fun removeBookmark(profileId: String, address: String) {
+        val updated = bookmarks(profileId).toMutableMap()
+        updated.remove(address)
+        prefs.edit().putString("${profileId}_bookmarks",
+            org.json.JSONObject(updated).toString()).commit()
+        saveFeaturedShortcuts(profileId, featuredShortcuts(profileId) - FocusShortcut.url(address))
+    }
+
+    fun approvedBookmarkUrls(profileId: String): Map<String, String> =
+        bookmarks(profileId).filterKeys { address ->
+            normalizeUrl(address) in allowedUrls(profileId)
+        }
+
+    companion object {
+        fun normalizeBookmarkUrl(input: String): String? = runCatching {
+            val candidate = input.trim().let {
+                if (it.startsWith("https://", true) || it.startsWith("http://", true)) it
+                else "https://$it"
+            }
+            val uri = URI(candidate)
+            val host = uri.host?.lowercase()?.removePrefix("www.") ?: return@runCatching null
+            if (uri.scheme?.lowercase() != "https" || !host.contains('.') ||
+                uri.userInfo != null || uri.port != -1) return@runCatching null
+            "https://$host" + (uri.rawPath ?: "") +
+                (uri.rawQuery?.let { "?$it" } ?: "") +
+                (uri.rawFragment?.let { "#$it" } ?: "")
+        }.getOrNull()
+    }
+
     /**
      * A short grace period is needed while the browser opens the requested URL, before its
      * address bar reports the destination. It is not a permanent browser allowance.
@@ -107,6 +152,6 @@ class FullScreenModeStore(context: Context) {
     }
 
     fun delete(profileId: String) {
-        prefs.edit().remove("${profileId}_enabled").remove("${profileId}_allowed").remove("${profileId}_featured").remove("${profileId}_urls").remove("${profileId}_browser").remove("${profileId}_browser_until").apply()
+        prefs.edit().remove("${profileId}_enabled").remove("${profileId}_allowed").remove("${profileId}_featured").remove("${profileId}_urls").remove("${profileId}_browser").remove("${profileId}_browser_until").remove("${profileId}_bookmarks").apply()
     }
 }

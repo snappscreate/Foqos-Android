@@ -72,6 +72,20 @@ class FullScreenModeStore(context: Context) {
             org.json.JSONObject(updated).toString()).commit()
     }
 
+    /** Move previously saved profile bookmarks into the shared home library once. */
+    fun migrateProfileBookmarks(profileIds: Collection<String>): Boolean {
+        if (prefs.getBoolean("global_bookmarks_migrated", false)) return false
+        val merged = globalBookmarks().toMutableMap()
+        profileIds.forEach { id ->
+            bookmarks(id).forEach { (url, title) -> merged.putIfAbsent(url, title) }
+        }
+        val editor = prefs.edit().putString("global_bookmarks",
+            org.json.JSONObject(merged).toString())
+            .putBoolean("global_bookmarks_migrated", true)
+        profileIds.forEach { editor.remove("${it}_bookmarks") }
+        return editor.commit()
+    }
+
     fun removeGlobalBookmark(address: String) {
         val updated = globalBookmarks().toMutableMap()
         updated.remove(address)

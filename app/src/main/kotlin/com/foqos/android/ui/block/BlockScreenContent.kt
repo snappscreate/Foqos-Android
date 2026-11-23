@@ -172,7 +172,8 @@ fun BlockScreenContent(
                                 contentDescription = "Androidの設定を開く"
                                 setImageDrawable(runCatching {
                                     context.packageManager.getApplicationIcon("com.android.settings")
-                                }.getOrNull())
+                                }.getOrNull() ?: androidx.core.content.ContextCompat.getDrawable(
+                                    context, android.R.drawable.ic_menu_preferences))
                             }
                         },
                         modifier = Modifier.size(28.dp),

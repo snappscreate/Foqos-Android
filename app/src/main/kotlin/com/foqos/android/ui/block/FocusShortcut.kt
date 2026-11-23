@@ -12,7 +12,11 @@ object FocusShortcut {
     fun valid(id: String, packages: Set<String>, urls: Set<String>): Boolean = when {
         id == PHONE -> true
         id.startsWith(APP_PREFIX) -> id.removePrefix(APP_PREFIX) in packages
-        id.startsWith(URL_PREFIX) -> id.removePrefix(URL_PREFIX) in urls
+        id.startsWith(URL_PREFIX) -> {
+            val destination = id.removePrefix(URL_PREFIX)
+            destination in urls ||
+                com.foqos.android.service.session.FullScreenModeStore.normalizeUrl(destination) in urls
+        }
         else -> false
     }
 

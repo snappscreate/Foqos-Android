@@ -63,7 +63,7 @@ class FullScreenModeStore(context: Context) {
     }.getOrDefault(emptyMap())
 
     fun saveBookmark(profileId: String, title: String, address: String): Boolean {
-        val normalized = normalizeBookmarkUrl(address) ?: return false
+        val normalized = BookmarkNormalizer.normalizeBookmarkUrl(address) ?: return false
         val label = title.trim().take(80)
         if (label.isEmpty()) return false
         val updated = bookmarks(profileId).toMutableMap()
@@ -85,7 +85,7 @@ class FullScreenModeStore(context: Context) {
             normalizeUrl(address) in allowedUrls(profileId)
         }
 
-    companion object {
+    private object BookmarkNormalizer {
         fun normalizeBookmarkUrl(input: String): String? = runCatching {
             val candidate = input.trim().let {
                 if (it.startsWith("https://", true) || it.startsWith("http://", true)) it

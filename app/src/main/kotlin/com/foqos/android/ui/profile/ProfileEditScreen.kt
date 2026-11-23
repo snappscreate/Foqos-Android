@@ -401,6 +401,13 @@ fun ProfileEditScreen(
                 }
             }
 
+            SectionCard(title = "休止予約の設定") {
+                PauseReservationSettingsSection(
+                    editingLocked = uiState.editingLocked,
+                    editor = viewModel.pending,
+                )
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
         }
     }

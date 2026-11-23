@@ -195,6 +195,8 @@ class BlockOverlayActivity : ComponentActivity() {
                 val defaultBrowser = DefaultBrowserResolver.packageName(this@BlockOverlayActivity)
                 val allowedUrls = state?.profileId
                     ?.let(fullScreenStore::allowedUrls).orEmpty()
+                val bookmarkLabels = state?.profileId
+                    ?.let(fullScreenStore::approvedBookmarkUrls).orEmpty()
                 var showAllowedApps by remember { mutableStateOf(false) }
                 var showFeaturedPicker by remember { mutableStateOf(false) }
                 var showPauseReservation by remember { mutableStateOf(false) }
@@ -207,7 +209,8 @@ class BlockOverlayActivity : ComponentActivity() {
                     mutableStateOf(state?.profileId?.let(fullScreenStore::featuredShortcuts).orEmpty())
                 }
                 // A featured URL must still be allowed, and phone is always safe to launch.
-                val availableShortcuts = FocusShortcut.all(allowedPackages, allowedUrls)
+                val availableShortcuts = FocusShortcut.all(allowedPackages, allowedUrls) +
+                    bookmarkLabels.keys.map(FocusShortcut::url)
                 val launchableFeatured = featuredShortcuts.intersect(availableShortcuts).filter { id ->
                     when {
                         id == FocusShortcut.PHONE -> true
@@ -223,7 +226,8 @@ class BlockOverlayActivity : ComponentActivity() {
                 fun openApprovedUrl(url: String) {
                     val profileId = state?.profileId
                     val resolved = DefaultBrowserResolver.packageName(this@BlockOverlayActivity)
-                    if (profileId == null || resolved == null || url !in allowedUrls) {
+                    if (profileId == null || resolved == null ||
+                        !FocusShortcut.valid(FocusShortcut.url(url), allowedPackages, allowedUrls)) {
                         nfcScanMessage = "許可されたURLを開けませんでした"
                         return
                     }
@@ -563,6 +567,7 @@ class BlockOverlayActivity : ComponentActivity() {
                         FullScreenShortcutGrid(
                             packages = allowedPackages,
                             urls = allowedUrls,
+                            bookmarkLabels = bookmarkLabels,
                             featuredShortcuts = featuredShortcuts,
                             autoOpenSeconds = if (shieldResumed && !showFeaturedPicker && launchableFeatured.isNotEmpty()) autoOpenCountdown else null,
                             editingFeatured = showFeaturedPicker,

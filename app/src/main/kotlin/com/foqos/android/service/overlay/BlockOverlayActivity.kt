@@ -700,28 +700,59 @@ class BlockOverlayActivity : ComponentActivity() {
                                 .verticalScroll(rememberScrollState()),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 if (configuredChallengeSets.isNotEmpty()) {
-                                    Text("セット内の動作はすべて達成。セットを選び、残りの動作を進めてね。")
+                                    Text("セット内の動作をすべて達成すると一時休止できるよ。")
                                     configuredChallengeSets.forEachIndexed { index, group ->
                                         val completed = if (challengeProgress?.setId == group.id)
                                             challengeProgress.completedIds else emptySet()
-                                        Text("セット ${index+1}：${completed.size}/${group.conditionIds.size}達成 / 全達成で${group.pauseMinutes}分休止",
-                                            style = MaterialTheme.typography.titleSmall)
-                                        if (challengeProgress?.setId != group.id) {
-                                            OutlinedButton(onClick = {
-                                                challengeSetStore.chooseSet(activityProfileId, activitySessionId, group.id)
-                                                selectedActivityId = group.id
-                                                showActivityChoices = false
-                                                showActivityChoices = true
-                                            }) { Text("選択："+group.conditionIds.joinToString(" ＋ ") { id ->
-                                                    val move = activityConditions.firstOrNull { it.id == id }
-                                                    "${move?.description ?: "未登録の動作"} ${group.targets[id]?.description().orEmpty()}"
-                                                }+" / 達成時${group.pauseMinutes}分休止") }
-                                        } else {
-                                            group.conditionIds.filterNot { it in completed }.forEach { id ->
-                                                activityConditions.firstOrNull { it.id == id }?.let { move ->
-                                                    Button(onClick = { openActivityChallenge(move) },
-                                                        modifier = Modifier.fillMaxWidth()) {
-                                                        Text("挑戦：${move.description} ${group.targets[id]?.description().orEmpty()}")
+                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text(
+                                                "セット ${index + 1}・${completed.size}/${group.conditionIds.size}達成",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                            )
+                                            Text(
+                                                "全達成で ${group.pauseMinutes}分 一時休止",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                            )
+                                            if (challengeProgress?.setId != group.id) {
+                                                OutlinedButton(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    onClick = {
+                                                        val chosen = challengeSetStore.chooseSet(
+                                                            activityProfileId, activitySessionId, group.id)
+                                                        if (!chosen) {
+                                                            nfcScanMessage = "セットを開始できなかったよ"
+                                                            return@OutlinedButton
+                                                        }
+                                                        selectedActivityId = group.id
+                                                        val onlyId = group.conditionIds.singleOrNull()
+                                                        val onlyMove = onlyId?.let { id ->
+                                                            activityConditions.firstOrNull { it.id == id }
+                                                        }
+                                                        if (onlyMove != null) {
+                                                            openActivityChallenge(onlyMove)
+                                                        } else {
+                                                            // A multi-movement set expands to its remaining moves.
+                                                            showActivityChoices = false
+                                                            showActivityChoices = true
+                                                        }
+                                                    },
+                                                ) {
+                                                    Text(group.conditionIds.joinToString(" ＋ ") { id ->
+                                                        val move = activityConditions.firstOrNull { it.id == id }
+                                                        "${move?.description ?: "未登録の動作"} ${group.targets[id]?.description().orEmpty()}"
+                                                    })
+                                                }
+                                            } else {
+                                                group.conditionIds.filterNot { it in completed }.forEach { id ->
+                                                    activityConditions.firstOrNull { it.id == id }?.let { move ->
+                                                        Button(
+                                                            onClick = { openActivityChallenge(move) },
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                        ) {
+                                                            Text("${move.description} ${group.targets[id]?.description().orEmpty()}")
+                                                        }
                                                     }
                                                 }
                                             }
@@ -736,12 +767,7 @@ class BlockOverlayActivity : ComponentActivity() {
                                         onClick = { openActivityChallenge(condition) },
                                         modifier = Modifier.fillMaxWidth(),
                                     ) {
-                                        val policyMinutes = independentPolicy?.pauseMinutes ?: 20
-                                        val pauseDuration = if (activityUnlockStore.mainConditionId(activityProfileId) == condition.id)
-                                            policyMinutes
-                                        else activityUnlockStore.conditionPauseMinutes(
-                                            activityProfileId, condition.id, policyMinutes)
-                                        Text("${condition.description} / ${pauseDuration}分")
+                                        Text(condition.description)
                                     }
                                 }
                                 }

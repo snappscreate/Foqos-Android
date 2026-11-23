@@ -129,7 +129,11 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onCreateProfile) {
+            FloatingActionButton(
+                onClick = onCreateProfile,
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            ) {
                 Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.home_create_profile_action))
             }
         },

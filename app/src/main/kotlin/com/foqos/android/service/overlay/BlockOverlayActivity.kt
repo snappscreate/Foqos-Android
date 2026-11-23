@@ -408,6 +408,10 @@ class BlockOverlayActivity : ComponentActivity() {
                     !challengeSetStore.hasMainSetConfig(activityProfileId) &&
                     !challengeSetStore.hasSubSetConfig(activityProfileId)
                 val challengeProgress = challengeSetStore.progress(activityProfileId, activitySessionId)
+                // Expansion is presentation state, separate from the previously chosen set.
+                var expandedChallengeSetId by remember(activityProfileId, activitySessionId) {
+                    mutableStateOf<String?>(null)
+                }
                 val persistentActivitySelection = remember(activityProfileId, activitySessionId, selectedActivityId) {
                     activityUnlockStore.selection(activityProfileId, activitySessionId)
                 }
@@ -715,28 +719,32 @@ class BlockOverlayActivity : ComponentActivity() {
                                                 color = MaterialTheme.colorScheme.primary,
                                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                                             )
-                                            if (challengeProgress?.setId != group.id) {
+                                            val onlyId = group.conditionIds.singleOrNull()
+                                            val onlyMove = onlyId?.let { id ->
+                                                activityConditions.firstOrNull { it.id == id }
+                                            }
+                                            if (onlyId != null) {
+                                                Button(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    enabled = onlyMove != null && onlyId !in completed,
+                                                    onClick = {
+                                                        if (!challengeSetStore.chooseSet(
+                                                                activityProfileId, activitySessionId, group.id)) {
+                                                            nfcScanMessage = "セットを開始できなかったよ"
+                                                        } else if (onlyMove != null) {
+                                                            selectedActivityId = group.id
+                                                            openActivityChallenge(onlyMove)
+                                                        }
+                                                    },
+                                                ) {
+                                                    Text("${onlyMove?.description ?: "未登録の動作"} ${group.targets[onlyId]?.description().orEmpty()}")
+                                                }
+                                            } else if (expandedChallengeSetId != group.id) {
                                                 OutlinedButton(
                                                     modifier = Modifier.fillMaxWidth(),
                                                     onClick = {
-                                                        val chosen = challengeSetStore.chooseSet(
-                                                            activityProfileId, activitySessionId, group.id)
-                                                        if (!chosen) {
-                                                            nfcScanMessage = "セットを開始できなかったよ"
-                                                            return@OutlinedButton
-                                                        }
-                                                        selectedActivityId = group.id
-                                                        val onlyId = group.conditionIds.singleOrNull()
-                                                        val onlyMove = onlyId?.let { id ->
-                                                            activityConditions.firstOrNull { it.id == id }
-                                                        }
-                                                        if (onlyMove != null) {
-                                                            openActivityChallenge(onlyMove)
-                                                        } else {
-                                                            // A multi-movement set expands to its remaining moves.
-                                                            showActivityChoices = false
-                                                            showActivityChoices = true
-                                                        }
+                                                        // Expanding alone must not change the active challenge.
+                                                        expandedChallengeSetId = group.id
                                                     },
                                                 ) {
                                                     Text(group.conditionIds.joinToString(" ＋ ") { id ->
@@ -745,10 +753,26 @@ class BlockOverlayActivity : ComponentActivity() {
                                                     })
                                                 }
                                             } else {
-                                                group.conditionIds.filterNot { it in completed }.forEach { id ->
+                                                OutlinedButton(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    onClick = { expandedChallengeSetId = null },
+                                                ) {
+                                                    Text("閉じる")
+                                                }
+                                                group.conditionIds.filterNot { id ->
+                                                    challengeProgress?.setId == group.id && id in completed
+                                                }.forEach { id ->
                                                     activityConditions.firstOrNull { it.id == id }?.let { move ->
                                                         Button(
-                                                            onClick = { openActivityChallenge(move) },
+                                                            onClick = {
+                                                                if (!challengeSetStore.chooseSet(
+                                                                        activityProfileId, activitySessionId, group.id)) {
+                                                                    nfcScanMessage = "セットを開始できなかったよ"
+                                                                } else {
+                                                                    selectedActivityId = group.id
+                                                                    openActivityChallenge(move)
+                                                                }
+                                                            },
                                                             modifier = Modifier.fillMaxWidth(),
                                                         ) {
                                                             Text("${move.description} ${group.targets[id]?.description().orEmpty()}")

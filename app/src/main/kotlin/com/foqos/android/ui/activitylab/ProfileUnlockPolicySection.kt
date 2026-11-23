@@ -338,26 +338,6 @@ fun PauseRetryCooldownSection(profileId: String, editingLocked: Boolean, editor:
     val policy = editor.policy.copy(retryCooldownMinutes = editor.cooldownMinutes)
     fun save(value: Int) { editor.cooldownMinutes = value.coerceIn(0, 24 * 60 + 59) }
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("一時休止予約：予約後、指定した待機時間が経過するまで休止を開始できない。ここで最短待機時間を設定するよ。",
-            style = MaterialTheme.typography.bodySmall)
-        val minimum = editor.policy.reservationMinimumDelayMinutes
-        Text("予約から休止開始まで最低 ${minimum / 60}時間 ${minimum % 60}分",
-            style = MaterialTheme.typography.titleMedium)
-        DurationSliderField(
-            label = "予約の最低待機時間（時間）",
-            value = minimum / 60,
-            onValueChange = { editor.policy = editor.policy.copy(
-                reservationMinimumDelayMinutes = (it * 60 + minimum % 60).coerceIn(0, 10080)) },
-            range = 0..168, unit = "時間", enabled = !editingLocked,
-        )
-        DurationSliderField(
-            label = "予約の最低待機時間（分）",
-            value = minimum % 60,
-            onValueChange = { editor.policy = editor.policy.copy(
-                reservationMinimumDelayMinutes = ((minimum / 60) * 60 + it).coerceIn(0, 10080)) },
-            range = 0..59, enabled = !editingLocked,
-        )
-        HorizontalDivider()
         Text("一時休止が終了して再ブロックされた時刻から計測。待機中は再挑戦できない。0時間0分なら制限なし。",
             style = MaterialTheme.typography.bodySmall)
         Text("${policy.retryCooldownMinutes / 60}時間 ${policy.retryCooldownMinutes % 60}分",

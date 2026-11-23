@@ -611,7 +611,7 @@ class BlockOverlayActivity : ComponentActivity() {
                         (reservationDelayMinutes.toIntOrNull() ?: -1)
                     val pauseDuration = reservationDurationMinutes.toIntOrNull()
                     val validDelay = reservationDelayHours.toIntOrNull() != null &&
-                        reservationDelayMinutes.toIntOrNull() in 0..59 &&
+                        (reservationDelayMinutes.toIntOrNull() ?: -1) in 0..59 &&
                         delayTotal in minimumDelay..10080
                     val validDuration = pauseDuration != null && pauseDuration in 1..1440
                     val existing = sessionManager.pauseReservation(activityProfileId)

@@ -99,6 +99,8 @@ fun BlockScreenContent(
     periodicPauseAvailable: Boolean = false,
     periodicPauseRemainingSeconds: Long = 0L,
     onActivatePeriodicPause: () -> Unit = {},
+    onReservePause: (() -> Unit)? = null,
+    reservationLabel: String? = null,
     fullScreenMode: Boolean = false,
     fullScreenShortcuts: (@Composable () -> Unit)? = null,
     blockedIcon: (@Composable () -> Unit)? = null,
@@ -207,6 +209,16 @@ fun BlockScreenContent(
                     val minutes = periodicPauseRemainingSeconds / 60
                     val seconds = periodicPauseRemainingSeconds % 60
                     Text("周期休憩を開始（残り %d:%02d）".format(minutes, seconds))
+                }
+            }
+
+            if (onReservePause != null) {
+                OutlinedButton(
+                    onClick = onReservePause,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                ) {
+                    Text(reservationLabel ?: "一時休止を予約")
                 }
             }
 

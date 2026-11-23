@@ -72,6 +72,19 @@ fun ActivityChallengeSetEditor(
                             Text("セット削除")
                         }
                     }
+                    var detailsExpanded by remember(group.id) { mutableStateOf(false) }
+                    val summary = group.conditionIds.joinToString(" ＋ ") { conditionId ->
+                        val move = catalog.firstOrNull { it.id == conditionId }
+                        val target = group.targets[conditionId] ?: ActivityTarget.inferred(move)
+                        "${move?.description ?: "未登録"} ${target.description()}"
+                    }
+                    TextButton(
+                        onClick = { detailsExpanded = !detailsExpanded },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("${if (detailsExpanded) "▼" else "▶"} $summary / ${group.pauseMinutes}分休止")
+                    }
+                    if (detailsExpanded) {
                     group.conditionIds.forEachIndexed { motionIndex, conditionId ->
                         if (motionIndex > 0) Text("＋ かつ（AND）",
                             style = MaterialTheme.typography.labelMedium)
@@ -188,6 +201,7 @@ fun ActivityChallengeSetEditor(
                         },
                         range = 1..180, enabled = !editingLocked,
                     )
+                    }
                 }
             }
         }

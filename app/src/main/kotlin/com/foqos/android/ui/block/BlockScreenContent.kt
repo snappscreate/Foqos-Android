@@ -183,7 +183,7 @@ fun BlockScreenContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 24.dp, end = 24.dp, top = 64.dp, bottom = 24.dp)
+                .padding(start = 24.dp, end = 24.dp, top = 64.dp, bottom = if (onReservePause != null) 104.dp else 24.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -303,7 +303,15 @@ fun BlockScreenContent(
                     Text(text = "Open for ${softUnblockInfo.accessMinutes} min (${softUnblockInfo.remainingOpens} left)")
                 }
             }
-            if (onReservePause != null) {
+
+        }
+        if (onReservePause != null) {
+            Box(
+                modifier = Modifier.fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .background(background.copy(alpha = 0.97f))
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
+            ) {
                 OutlinedButton(
                     onClick = onReservePause,
                     modifier = Modifier.fillMaxWidth(),

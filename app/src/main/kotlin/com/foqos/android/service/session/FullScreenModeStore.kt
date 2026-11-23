@@ -129,7 +129,7 @@ class FullScreenModeStore(context: Context) {
                 else "https://$it"
             }
             val uri = URI(candidate)
-            val host = uri.host?.lowercase()?.removePrefix("www.") ?: return@runCatching null
+            val host = uri.host?.lowercase() ?: return@runCatching null
             if (uri.scheme?.lowercase() != "https" || !host.contains('.') ||
                 uri.userInfo != null || uri.port != -1) return@runCatching null
             "https://$host" + (uri.rawPath ?: "") +

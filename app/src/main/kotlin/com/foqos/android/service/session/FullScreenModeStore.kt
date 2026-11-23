@@ -56,6 +56,29 @@ class FullScreenModeStore(context: Context) {
             (0 until json.length()).map { json.getString(it) }.toSet()
         }.getOrDefault(emptySet())
 
+    /** Shared bookmark library managed from the Foqos home screen. */
+    fun globalBookmarks(): Map<String, String> = runCatching {
+        val json = org.json.JSONObject(prefs.getString("global_bookmarks", "{}") ?: "{}")
+        json.keys().asSequence().associateWith { key -> json.getString(key) }
+    }.getOrDefault(emptyMap())
+
+    fun saveGlobalBookmark(title: String, address: String): Boolean {
+        val url = BookmarkNormalizer.normalizeBookmarkUrl(address) ?: return false
+        val label = title.trim().take(80)
+        if (label.isBlank()) return false
+        val updated = globalBookmarks().toMutableMap()
+        updated[url] = label
+        return prefs.edit().putString("global_bookmarks",
+            org.json.JSONObject(updated).toString()).commit()
+    }
+
+    fun removeGlobalBookmark(address: String) {
+        val updated = globalBookmarks().toMutableMap()
+        updated.remove(address)
+        prefs.edit().putString("global_bookmarks",
+            org.json.JSONObject(updated).toString()).commit()
+    }
+
     /** Named destinations. A bookmark is not an independent permission grant. */
     fun bookmarks(profileId: String): Map<String, String> = runCatching {
         val json = org.json.JSONObject(prefs.getString("${profileId}_bookmarks", "{}") ?: "{}")
@@ -81,7 +104,7 @@ class FullScreenModeStore(context: Context) {
     }
 
     fun approvedBookmarkUrls(profileId: String): Map<String, String> =
-        bookmarks(profileId).filterKeys { address ->
+        (bookmarks(profileId) + globalBookmarks()).filterKeys { address ->
             normalizeUrl(address) in allowedUrls(profileId)
         }
 
